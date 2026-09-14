@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: yukira-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yukira
+      POSTGRES_USER: yukira
+      POSTGRES_PASSWORD: yukira_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - yukira-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  yukira-postgres-data:
