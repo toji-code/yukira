@@ -89,7 +89,25 @@ export function getTemporalStatusStyle(status: TemporalStatus): QualityBadgeStyl
       return {
         label: String(status),
         className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
-        tooltip: 'Unknown temporal status.',
+        tooltip: 'Unknown temporal freshness status.',
+      };
+  }
+}
+
+export function getSourceAvailabilitySemanticStyle(semantic: string): QualityBadgeStyle {
+  switch (semantic) {
+    case 'HISTORICAL_BACKFILL':
+    case 'CONVENTION_EOD_HISTORICAL_CUTOFF':
+      return {
+        label: 'Historical Backfill (EOD Cutoff)',
+        className: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800',
+        tooltip: 'Analytical EOD cutoff convention applied for historical batch ingestion. Factual source availability timestamp is unrecorded upstream.',
+      };
+    default:
+      return {
+        label: String(semantic),
+        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        tooltip: 'Source availability semantic.',
       };
   }
 }

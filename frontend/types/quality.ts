@@ -1,7 +1,8 @@
 export type QualityAssessment = 'VALID' | 'SUSPICIOUS' | 'INVALID';
 export type VerificationStatus = 'VERIFIED' | 'UNVERIFIED';
 export type RevisionStatus = 'ORIGINAL' | 'REVISED' | 'SUPERSEDED';
-export type TemporalStatus = 'CURRENT' | 'STALE';
+export type FreshnessStatus = 'CURRENT' | 'STALE';
+export type TemporalStatus = FreshnessStatus; // Dimension 4: Freshness
 export type PresenceStatus = 'AVAILABLE' | 'MISSING' | 'NOT_APPLICABLE';
 export type IntegrityCondition = 'NONE' | 'DUPLICATE' | 'CONFLICTING';
 

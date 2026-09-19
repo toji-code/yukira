@@ -4,18 +4,22 @@ import {
   RevisionStatus,
   TemporalStatus,
   PresenceStatus,
+  VerificationStatus,
+  IntegrityCondition,
 } from '@/types/quality';
 import {
   getQualityAssessmentStyle,
   getRevisionStatusStyle,
   getTemporalStatusStyle,
   getPresenceStatusStyle,
+  getVerificationStatusStyle,
+  getIntegrityConditionStyle,
   QualityBadgeStyle,
 } from '@/lib/utils/quality';
 
 interface DataQualityBadgeProps {
-  type: 'assessment' | 'revision' | 'temporal' | 'presence';
-  status: QualityAssessment | RevisionStatus | TemporalStatus | PresenceStatus | string;
+  type: 'assessment' | 'revision' | 'temporal' | 'presence' | 'verification' | 'integrity';
+  status: QualityAssessment | RevisionStatus | TemporalStatus | PresenceStatus | VerificationStatus | IntegrityCondition | string;
   size?: 'sm' | 'md';
 }
 
@@ -34,6 +38,12 @@ export function DataQualityBadge({ type, status, size = 'sm' }: DataQualityBadge
       break;
     case 'presence':
       style = getPresenceStatusStyle(status as PresenceStatus);
+      break;
+    case 'verification':
+      style = getVerificationStatusStyle(status as VerificationStatus);
+      break;
+    case 'integrity':
+      style = getIntegrityConditionStyle(status as IntegrityCondition);
       break;
     default:
       style = {

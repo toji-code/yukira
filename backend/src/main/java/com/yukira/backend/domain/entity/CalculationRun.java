@@ -18,7 +18,7 @@ public class CalculationRun implements Serializable {
     private SchemeOption schemeOption;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "benchmark_id", nullable = false)
+    @JoinColumn(name = "benchmark_id")
     private Benchmark benchmark;
 
     @Column(name = "as_of_date", nullable = false)
@@ -56,6 +56,18 @@ public class CalculationRun implements Serializable {
                           String engineSoftwareVersion) {
         this.schemeOption = schemeOption;
         this.benchmark = benchmark;
+        this.asOfDate = asOfDate;
+        this.knowledgeCutoffTime = knowledgeCutoffTime;
+        this.methodologyVersion = methodologyVersion;
+        this.engineSoftwareVersion = engineSoftwareVersion;
+        this.executionStartedAt = OffsetDateTime.now();
+    }
+
+    public CalculationRun(SchemeOption schemeOption, LocalDate asOfDate,
+                          OffsetDateTime knowledgeCutoffTime, MethodologyVersion methodologyVersion,
+                          String engineSoftwareVersion) {
+        this.schemeOption = schemeOption;
+        this.benchmark = null;
         this.asOfDate = asOfDate;
         this.knowledgeCutoffTime = knowledgeCutoffTime;
         this.methodologyVersion = methodologyVersion;

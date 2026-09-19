@@ -6,6 +6,7 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "scheme")
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Scheme implements Serializable {
 
     @Id
@@ -14,6 +15,7 @@ public class Scheme implements Serializable {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "amc_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Amc amc;
 
     @Column(name = "name", nullable = false)

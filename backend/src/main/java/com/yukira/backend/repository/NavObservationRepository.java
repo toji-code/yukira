@@ -14,26 +14,39 @@ import java.util.List;
 public interface NavObservationRepository extends JpaRepository<NavObservation, Long> {
 
     /**
-     * Point-in-Time (PIT) Authoritative Revision Resolution Query.
+     * Point-in-Time (PIT) Eligible Candidates at Latest Availability Query.
      *
-     * For each distinct effective date, selects the authoritative revision
-     * known as of knowledgeCutoffTime.
+     * For each distinct effective date, identifies the maximum eligible availability_time
+     * known as of knowledgeCutoffTime, and returns ALL candidate observations at that instant.
      *
-     * Primary selection criterion: revision_seq DESC (authoritative version sequence).
-     * Tie-breaker: availability_time DESC.
-     * Eligibility condition: availability_time <= knowledgeCutoffTime.
+     * Epistemic Invariant:
+     * Does NOT use DISTINCT ON, ensuring competing observations at the latest availability instant
+     * are never discarded prior to downstream ambiguity detection and conflict verification.
      */
     @Query(value = """
-        SELECT DISTINCT ON (n.effective_date) n.*
+        WITH latest_eligible AS (
+            SELECT n.scheme_option_id,
+                   n.effective_date,
+                   MAX(n.availability_time) AS max_availability_time
+            FROM nav_observation n
+            WHERE n.scheme_option_id = :schemeOptionId
+              AND n.effective_date <= :asOfDate
+              AND n.availability_time <= :knowledgeCutoffTime
+            GROUP BY n.scheme_option_id, n.effective_date
+        )
+        SELECT n.*
         FROM nav_observation n
-        WHERE n.scheme_option_id = :schemeOptionId
-          AND n.effective_date <= :asOfDate
-          AND n.availability_time <= :knowledgeCutoffTime
-        ORDER BY n.effective_date ASC, n.revision_seq DESC, n.availability_time DESC
+        JOIN latest_eligible le
+          ON n.scheme_option_id = le.scheme_option_id
+         AND n.effective_date = le.effective_date
+         AND n.availability_time = le.max_availability_time
+        ORDER BY n.effective_date ASC, n.availability_time DESC, n.revision_seq DESC, n.source_artifact_id DESC
         """, nativeQuery = true)
     List<NavObservation> findAuthoritativeObservationsAsOfCutoff(
         @Param("schemeOptionId") Long schemeOptionId,
         @Param("asOfDate") LocalDate asOfDate,
         @Param("knowledgeCutoffTime") OffsetDateTime knowledgeCutoffTime
     );
+
+    List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
 }

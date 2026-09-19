@@ -5,6 +5,7 @@ import java.io.Serializable;
 
 @Entity
 @Table(name = "scheme_option")
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class SchemeOption implements Serializable {
 
     @Id

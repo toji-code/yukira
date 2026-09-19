@@ -14,12 +14,23 @@ import java.util.List;
 public interface BenchmarkObservationRepository extends JpaRepository<BenchmarkObservation, Long> {
 
     @Query(value = """
-        SELECT DISTINCT ON (b.effective_date) b.*
+        WITH latest_eligible AS (
+            SELECT b.benchmark_id,
+                   b.effective_date,
+                   MAX(b.availability_time) AS max_availability_time
+            FROM benchmark_observation b
+            WHERE b.benchmark_id = :benchmarkId
+              AND b.effective_date <= :asOfDate
+              AND b.availability_time <= :knowledgeCutoffTime
+            GROUP BY b.benchmark_id, b.effective_date
+        )
+        SELECT b.*
         FROM benchmark_observation b
-        WHERE b.benchmark_id = :benchmarkId
-          AND b.effective_date <= :asOfDate
-          AND b.availability_time <= :knowledgeCutoffTime
-        ORDER BY b.effective_date ASC, b.revision_seq DESC, b.availability_time DESC
+        JOIN latest_eligible le
+          ON b.benchmark_id = le.benchmark_id
+         AND b.effective_date = le.effective_date
+         AND b.availability_time = le.max_availability_time
+        ORDER BY b.effective_date ASC, b.availability_time DESC, b.revision_seq DESC, b.source_artifact_id DESC
         """, nativeQuery = true)
     List<BenchmarkObservation> findAuthoritativeObservationsAsOfCutoff(
         @Param("benchmarkId") Long benchmarkId,
