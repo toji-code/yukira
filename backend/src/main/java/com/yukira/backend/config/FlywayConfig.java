@@ -16,6 +16,7 @@ public class FlywayConfig {
             .locations("classpath:db/migration")
             .baselineOnMigrate(false)
             .load();
+        flyway.repair();
         flyway.migrate();
         return flyway;
     }

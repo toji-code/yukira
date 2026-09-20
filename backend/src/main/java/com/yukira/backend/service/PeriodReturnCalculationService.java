@@ -27,6 +27,7 @@ public class PeriodReturnCalculationService {
     private final MetricResultRepository metricResultRepository;
     private final CalculationRunInputObservationRepository calculationRunInputObservationRepository;
     private final com.yukira.backend.client.QuantEngineClient quantEngineClient;
+    private final MethodologyGovernanceService methodologyGovernanceService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     public PeriodReturnCalculationService(
@@ -36,7 +37,8 @@ public class PeriodReturnCalculationService {
         CalculationRunRepository calculationRunRepository,
         MetricResultRepository metricResultRepository,
         CalculationRunInputObservationRepository calculationRunInputObservationRepository,
-        com.yukira.backend.client.QuantEngineClient quantEngineClient
+        com.yukira.backend.client.QuantEngineClient quantEngineClient,
+        MethodologyGovernanceService methodologyGovernanceService
     ) {
         this.pitResolutionService = pitResolutionService;
         this.schemeOptionRepository = schemeOptionRepository;
@@ -45,6 +47,7 @@ public class PeriodReturnCalculationService {
         this.metricResultRepository = metricResultRepository;
         this.calculationRunInputObservationRepository = calculationRunInputObservationRepository;
         this.quantEngineClient = quantEngineClient;
+        this.methodologyGovernanceService = methodologyGovernanceService;
     }
 
     public record PeriodSelectionResult(
@@ -121,9 +124,15 @@ public class PeriodReturnCalculationService {
 
         MethodologyVersion methodologyVersion = methodologyVersionRepository
             .findByMethodologyCodeAndVersionTag("RET_02_SIMPLE_RETURN", methodologyTag)
-            .orElseGet(() -> methodologyVersionRepository.save(new MethodologyVersion(
+            .orElseGet(() -> methodologyGovernanceService.registerMethodologyVersion(new MethodologyVersion(
                 "RET_02_SIMPLE_RETURN", methodologyTag, "CANDIDATE", "92c5f257fa55cfdbce724d2712d7f87a8b66da91"
-            )));
+            ), "CALCULATION_SERVICE"));
+
+        if (!methodologyVersion.isLocked()) {
+            methodologyVersion = methodologyGovernanceService.lockVersion(
+                methodologyVersion.getId(), "PERIOD_RETURN_CALCULATION_SERVICE"
+            );
+        }
 
         // 1. Boundary observation resolution using candidate 4-calendar-day window
         PeriodSelectionResult startSel = selectBoundaryObservation(schemeOptionId, requestedStartDate, knowledgeCutoffTime, 4);

@@ -49,4 +49,5 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
     );
 
     List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
+    List<NavObservation> findBySchemeOptionId(Long schemeOptionId);
 }

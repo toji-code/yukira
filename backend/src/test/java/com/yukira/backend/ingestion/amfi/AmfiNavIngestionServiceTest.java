@@ -207,4 +207,51 @@ class AmfiNavIngestionServiceTest {
 
         assertEquals(a1.getId(), a2.getId(), "Must deduplicate and return identical SourceArtifact entity");
     }
+
+    @Test
+    @DisplayName("Test 8: ISIN match takes precedence over scheme code; conflicting ISIN prevents blind scheme code match")
+    void testIsinMatchingPrecedenceAndConflictingIsinProtection() {
+        SchemePlan plan = schemePlanRepository.findByCode("HDFC_FLEXI_DIR").orElseThrow();
+        // Register an IDCW option with distinct ISIN "INF999001XZ1"
+        SchemeOption idcwOption = schemeOptionRepository.findByIsin("INF999001XZ1")
+            .orElseGet(() -> schemeOptionRepository.save(new SchemeOption(plan, "IDCW_PAYOUT", "999003", "INF999001XZ1")));
+
+        // Register a scheme option with scheme code "999002" and no ISIN
+        SchemeOption noIsinOption = schemeOptionRepository.findByAmfiCode("999002")
+            .orElseGet(() -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", "999002", null)));
+
+        String payload = """
+            Scheme Code;Scheme Name;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Repurchase Price;Sale Price;Date
+            999001;HDFC Flexi Cap - IDCW;INF999001XZ1;;15.5000;;;10-Jan-2024
+            999001;HDFC Flexi Cap - Conflicting;INF_UNKNOWN_CONFLICT;;25.0000;;;10-Jan-2024
+            999002;HDFC Flexi Cap - No ISIN Option;;;50.0000;;;10-Jan-2024
+            """;
+
+        SourceArtifact artifact = amfiSourceClient.persistRawPayload(
+            payload.getBytes(WINDOWS_1252), "mock://amfi/isin-precedence", OffsetDateTime.now()
+        );
+
+        IngestionSummary summary = ingestionService.ingestArtifact(artifact);
+
+        // Row 1 (exact ISIN) and Row 3 (no conflicting ISIN match by scheme code) must ingest
+        assertEquals(2, summary.observationsIngested());
+        // Row 2 (conflicting ISIN) must NOT ingest and must log UNMAPPED_SOURCE_SCHEME
+        assertEquals(1, summary.validationIssuesCreated());
+
+        // Verify Row 1 mapped to idcwOption, NOT schemeOption
+        List<NavObservation> idcwObs = navObservationRepository
+            .findBySchemeOptionIdAndEffectiveDate(idcwOption.getId(), LocalDate.of(2024, 1, 10));
+        assertEquals(1, idcwObs.size(), "Row 1 must resolve to IDCW option via exact ISIN");
+        assertEquals(0, new BigDecimal("15.5000").compareTo(idcwObs.get(0).getNavValue()));
+
+        List<NavObservation> growthObs = navObservationRepository
+            .findBySchemeOptionIdAndEffectiveDate(schemeOption.getId(), LocalDate.of(2024, 1, 10));
+        assertTrue(growthObs.isEmpty(), "Growth option must NOT receive observation from conflicting or IDCW row");
+
+        // Verify Row 3 mapped to noIsinOption
+        List<NavObservation> noIsinObs = navObservationRepository
+            .findBySchemeOptionIdAndEffectiveDate(noIsinOption.getId(), LocalDate.of(2024, 1, 10));
+        assertEquals(1, noIsinObs.size(), "Row 3 must resolve to no-ISIN option via safe scheme code fallback");
+        assertEquals(0, new BigDecimal("50.0000").compareTo(noIsinObs.get(0).getNavValue()));
+    }
 }

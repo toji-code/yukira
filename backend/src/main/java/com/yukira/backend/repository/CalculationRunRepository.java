@@ -10,4 +10,6 @@ import java.util.List;
 @Repository
 public interface CalculationRunRepository extends JpaRepository<CalculationRun, Long> {
     List<CalculationRun> findBySchemeOptionIdAndAsOfDateOrderByExecutionStartedAtDesc(Long schemeOptionId, LocalDate asOfDate);
+    List<CalculationRun> findBySchemeOptionId(Long schemeOptionId);
+    boolean existsByMethodologyVersionId(Long methodologyVersionId);
 }

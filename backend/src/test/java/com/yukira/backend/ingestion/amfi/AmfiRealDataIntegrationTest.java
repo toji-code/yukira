@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -47,6 +48,18 @@ public class AmfiRealDataIntegrationTest {
 
     @Autowired
     private SchemeOptionRepository schemeOptionRepository;
+
+    @Autowired
+    private NavObservationRepository navObservationRepository;
+
+    @Autowired
+    private CalculationRunRepository calculationRunRepository;
+
+    @Autowired
+    private CalculationRunInputObservationRepository calculationRunInputObservationRepository;
+
+    @Autowired
+    private MetricResultRepository metricResultRepository;
 
     @Test
     @DisplayName("Phase 2F Section 8: Controlled Real AMFI End-to-End Slice")
@@ -90,7 +103,23 @@ public class AmfiRealDataIntegrationTest {
         System.out.println("Source Artifact SHA-256:   " + artifact.getSha256Hash());
         System.out.println("Source Artifact Size:      " + artifact.getByteSize() + " bytes");
 
-        // 3. Deterministic Ingestion & Normalization
+        // 3. Clean previous runs and observations for pilot scheme option to guarantee isolation
+        List<CalculationRun> priorRuns = calculationRunRepository.findBySchemeOptionId(option.getId());
+        for (CalculationRun pr : priorRuns) {
+            calculationRunInputObservationRepository.deleteAll(
+                calculationRunInputObservationRepository.findByCalculationRunId(pr.getId())
+            );
+            metricResultRepository.deleteAll(
+                metricResultRepository.findByCalculationRunId(pr.getId())
+            );
+        }
+        calculationRunRepository.deleteAll(priorRuns);
+        navObservationRepository.deleteAll(
+            navObservationRepository.findBySchemeOptionId(option.getId())
+        );
+        navObservationRepository.flush();
+
+        // 4. Deterministic Ingestion & Normalization
         IngestionSummary report = ingestionService.ingestArtifact(artifact);
         System.out.println("Ingestion Ingested Rows:   " + report.observationsIngested());
         System.out.println("Ingestion Issues Logged:   " + report.validationIssuesCreated());
@@ -101,8 +130,11 @@ public class AmfiRealDataIntegrationTest {
             option.getId(), startDate, endDate, knowledgeCutoff, "CANDIDATE_V1"
         );
 
+        System.out.println("Calculation Run Status:    " + run.getRunStatus());
+        System.out.println("Calculation Error Message: " + run.getErrorMessage());
+
         assertNotNull(run.getId());
-        assertEquals("COMPLETED", run.getRunStatus());
+        assertEquals("COMPLETED", run.getRunStatus(), "Calculation failed: " + run.getErrorMessage());
         assertNull(run.getBenchmark(), "benchmark must be null for standalone RET-02");
 
         // 5. Build and Verify Authoritative Audit Response

@@ -93,10 +93,22 @@ public class AmfiNavIngestionService {
             validRows++;
 
             // Resolve SchemeOption identity via in-memory lookup
+            // Prioritize ISIN exact match first, since AMFI can reuse scheme codes across Growth and IDCW options
             String schemeCode = rec.schemeCode() != null ? rec.schemeCode().trim() : "";
-            SchemeOption schemeOption = amfiCodeMap.get(schemeCode);
-            if (schemeOption == null && rec.isinGrowth() != null && !rec.isinGrowth().isBlank()) {
+            SchemeOption schemeOption = null;
+            if (rec.isinGrowth() != null && !rec.isinGrowth().isBlank()) {
                 schemeOption = isinMap.get(rec.isinGrowth().trim());
+            }
+            if (schemeOption == null && !schemeCode.isEmpty()) {
+                SchemeOption candidate = amfiCodeMap.get(schemeCode);
+                if (candidate != null) {
+                    // Only match by AMFI code if record does not have a conflicting non-empty ISIN
+                    if (candidate.getIsin() == null || candidate.getIsin().isBlank()
+                        || rec.isinGrowth() == null || rec.isinGrowth().isBlank()
+                        || candidate.getIsin().equalsIgnoreCase(rec.isinGrowth().trim())) {
+                        schemeOption = candidate;
+                    }
+                }
             }
 
             if (schemeOption == null) {
