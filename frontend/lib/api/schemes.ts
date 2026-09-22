@@ -12,3 +12,13 @@ export async function fetchSchemeById(id: number): Promise<Scheme> {
 export async function fetchAllSchemeOptions(): Promise<SchemeOption[]> {
   return apiFetch<SchemeOption[]>('/api/v1/schemes/options');
 }
+
+export async function fetchSchemeOptionsBySchemeId(schemeId: number): Promise<SchemeOption[]> {
+  try {
+    return await apiFetch<SchemeOption[]>(`/api/v1/schemes/${schemeId}/options`);
+  } catch {
+    // Fallback to filtering all options if specific endpoint is unreachable
+    const allOptions = await fetchAllSchemeOptions();
+    return allOptions.filter((opt) => opt.plan?.scheme?.id === schemeId);
+  }
+}

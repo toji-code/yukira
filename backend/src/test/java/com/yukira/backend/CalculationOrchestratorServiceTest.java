@@ -166,7 +166,7 @@ class CalculationOrchestratorServiceTest {
     @DisplayName("Test database-enforced referential integrity on calculation_run_input_observation (CHECK constraint)")
     void testCalculationInputReferentialIntegrityCheckConstraint() {
         MethodologyVersion mv = methodologyVersionRepository.save(new MethodologyVersion(
-            "METH-INTEGRITY-TEST", "v1.0-test", "mock-commit-integrity", "{}"
+            "METH-INTEGRITY-TEST", "v1.0-test", "CANDIDATE", "mock-commit-integrity"
         ));
         CalculationRun run = calculationRunRepository.save(new CalculationRun(
             schemeOption, benchmark, LocalDate.of(2026, 1, 15), OffsetDateTime.now(), mv, "TEST-ENGINE"

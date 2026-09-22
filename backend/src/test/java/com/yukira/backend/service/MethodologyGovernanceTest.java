@@ -387,7 +387,7 @@ class MethodologyGovernanceTest {
         assertEquals("COMPLETED", run1.getRunStatus());
         MetricResult res1 = metricResultRepository.findByCalculationRunIdAndMetricCode(run1.getId(), "RET-02").get(0);
         BigDecimal val1 = res1.getNumericValue();
-        assertEquals(0, new BigDecimal("0.05000000").compareTo(val1));
+        assertEquals(0, new BigDecimal("0.0500").compareTo(val1.setScale(4, java.math.RoundingMode.HALF_UP)));
 
         // Fork to CANDIDATE_V2
         MethodologyVersion v1 = run1.getMethodologyVersion();

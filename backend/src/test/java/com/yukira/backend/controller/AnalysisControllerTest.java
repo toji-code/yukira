@@ -67,8 +67,8 @@ class AnalysisControllerTest {
 
         Amc amc = amcRepository.findByCode("HDFC_MF")
             .orElseGet(() -> amcRepository.save(new Amc("HDFC Mutual Fund", "HDFC_MF")));
-        Scheme scheme = schemeRepository.findByCode("119062")
-            .orElseGet(() -> schemeRepository.save(new Scheme(amc, "HDFC Flexi Cap Fund", "119062", LocalDate.of(1995, 1, 1))));
+        Scheme scheme = schemeRepository.findByCode("HDFC_FLEXI")
+            .orElseGet(() -> schemeRepository.save(new Scheme(amc, "HDFC Flexi Cap Fund", "HDFC_FLEXI", LocalDate.of(1995, 1, 1))));
         SchemePlan plan = schemePlanRepository.findByCode("HDFC_FLEXI_DIR")
             .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", "HDFC_FLEXI_DIR")));
         schemeOption = schemeOptionRepository.findByAmfiCode("TEST_CTRL_01")
@@ -117,7 +117,7 @@ class AnalysisControllerTest {
             // 2. Result
             .andExpect(jsonPath("$.result.metricCode", is("RET-02")))
             .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
-            .andExpect(jsonPath("$.result.numericValue", closeTo(0.10, 0.0001)))
+            .andExpect(jsonPath("$.result.numericValue", closeTo(new BigDecimal("0.10"), new BigDecimal("0.0001"))))
             .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
             // 3. Period
             .andExpect(jsonPath("$.period.requestedStartDate", is("2024-01-01")))

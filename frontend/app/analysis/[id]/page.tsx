@@ -153,15 +153,13 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
     >
       {/* Top Banner: Epistemic Invariants & Governance */}
       <div className="mb-6 space-y-3">
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-          <div className="flex items-center gap-2 font-semibold">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-            EPISTEMIC GOVERNANCE MANDATE
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3.5 text-xs text-amber-200">
+          <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-[11px] text-amber-400 font-mono">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            CANDIDATE METHODOLOGY — NOT VALIDATED FOR PRODUCTION
           </div>
-          <p className="mt-1 text-zinc-300">
-            Project YUKIRA maintains exactly zero empirical findings and an empty approved production methodology.
-            All quantitative returns below are strictly unapproved candidate indicators calculated deterministically by the Quant Engine.
-            Zero investment recommendations, zero star ratings, zero scores, and zero predictive forecasts.
+          <p className="mt-1 text-zinc-300 font-sans leading-relaxed text-xs">
+            <strong className="text-white">Implemented ≠ Validated ≠ Approved:</strong> This calculation ({data.methodology.methodologyCode}) was computed deterministically by the Python quantitative engine using candidate methodology specifications. YUKIRA currently has <strong className="text-white">strictly zero validated production methodologies</strong> and <strong className="text-white">exactly zero empirical findings</strong>. This metric does not constitute an investment recommendation, rating, or commercial advice.
           </p>
         </div>
 

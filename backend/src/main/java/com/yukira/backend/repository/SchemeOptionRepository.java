@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface SchemeOptionRepository extends JpaRepository<SchemeOption, Long> {
     Optional<SchemeOption> findByAmfiCode(String amfiCode);
     Optional<SchemeOption> findByIsin(String isin);
+    java.util.List<SchemeOption> findByPlanSchemeId(Long schemeId);
 }

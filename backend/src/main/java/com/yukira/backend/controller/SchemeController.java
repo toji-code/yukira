@@ -37,4 +37,9 @@ public class SchemeController {
     public ResponseEntity<List<SchemeOption>> getAllOptions() {
         return ResponseEntity.ok(schemeOptionRepository.findAll());
     }
+
+    @GetMapping("/{id}/options")
+    public ResponseEntity<List<SchemeOption>> getOptionsBySchemeId(@PathVariable Long id) {
+        return ResponseEntity.ok(schemeOptionRepository.findByPlanSchemeId(id));
+    }
 }

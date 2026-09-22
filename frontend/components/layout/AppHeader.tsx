@@ -32,7 +32,10 @@ export function AppHeader() {
 
   const navLinks = [
     { href: '/', label: 'Overview' },
-    { href: '/funds', label: 'Fund Discovery' },
+    { href: '/funds', label: 'Explore Funds' },
+    { href: '/#how-it-works', label: 'How YUKIRA Works' },
+    { href: '/methodology', label: 'Methodology' },
+    { href: '/#project-status', label: 'Project Status' },
   ];
 
   return (

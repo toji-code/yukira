@@ -23,10 +23,10 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
     identity: {
       schemeId: 1,
       schemeName: "HDFC Flexi Cap Fund",
-      amfiCode: "119062",
+      amfiCode: "118955",
       schemeOptionId: 101,
       optionType: "GROWTH",
-      isin: "INF179K01BE2",
+      isin: "INF179K01UT0",
     },
     result: {
       metricCode: "RET-02",

@@ -22,8 +22,8 @@ class AmfiNavParserTest {
             Open Ended Schemes ( Equity Scheme - Large Cap Fund )
 
             Scheme Code;Scheme Name;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Repurchase Price;Sale Price;Date
-            119062;HDFC Flexi Cap Fund - Direct Plan - Growth Option;INF179K01BE2;;1560.1234;;;01-Jan-2024
-            119062;HDFC Flexi Cap Fund - Direct Plan - Growth Option;INF179K01BE2;;1565.5678;;;02-Jan-2024
+            118955;HDFC Flexi Cap Fund - Growth Option - Direct Plan;INF179K01UT0;;1630.7330;;;01-Jan-2024
+            118955;HDFC Flexi Cap Fund - Growth Option - Direct Plan;INF179K01UT0;;1625.1540;;;02-Jan-2024
             """;
 
         List<AmfiNavRecord> records = parser.parse(content.getBytes(WINDOWS_1252));
@@ -31,14 +31,14 @@ class AmfiNavParserTest {
         assertEquals(2, records.size());
         AmfiNavRecord r1 = records.get(0);
         assertTrue(r1.isValid());
-        assertEquals("119062", r1.schemeCode());
-        assertEquals("INF179K01BE2", r1.isinGrowth());
-        assertEquals(new BigDecimal("1560.1234"), r1.navValue());
+        assertEquals("118955", r1.schemeCode());
+        assertEquals("INF179K01UT0", r1.isinGrowth());
+        assertEquals(new BigDecimal("1630.7330"), r1.navValue());
         assertEquals(LocalDate.of(2024, 1, 1), r1.navDate());
 
         AmfiNavRecord r2 = records.get(1);
         assertTrue(r2.isValid());
-        assertEquals(new BigDecimal("1565.5678"), r2.navValue());
+        assertEquals(new BigDecimal("1625.1540"), r2.navValue());
         assertEquals(LocalDate.of(2024, 1, 2), r2.navDate());
     }
 
@@ -47,9 +47,9 @@ class AmfiNavParserTest {
     void testMalformedRowsPreservedWithErrors() {
         String content = """
             Scheme Code;Scheme Name;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Repurchase Price;Sale Price;Date
-            119062;ShortRow;INF123
-            119062;BadNav;INF123;;N.A.;;;01-Jan-2024
-            119062;BadDate;INF123;;100.50;;;32-InvalidMonth-2024
+            999999;ShortRow;INF123
+            999999;BadNav;INF123;;N.A.;;;01-Jan-2024
+            999999;BadDate;INF123;;100.50;;;32-InvalidMonth-2024
             ABCDEF;NotNumericCode;INF123;;100.50;;;01-Jan-2024
             """;
 
@@ -70,7 +70,7 @@ class AmfiNavParserTest {
     @Test
     @DisplayName("Determinism: Identical bytes produce identical parse output without side-effects")
     void testParseDeterminism() {
-        String content = "119062;Fund;ISIN;;100.00;;;15-Jan-2024\n";
+        String content = "999999;Fund;ISIN;;100.00;;;15-Jan-2024\n";
         byte[] bytes = content.getBytes(WINDOWS_1252);
 
         List<AmfiNavRecord> run1 = parser.parse(bytes);
