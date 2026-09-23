@@ -34,10 +34,11 @@ public class AmfiSourceClient {
     }
 
     /**
-     * Constructs deterministic query URL for scheme and date range.
-     * No hardcoded schemes: amfiSchemeCode is parameterized.
+     * Constructs deterministic query URL for scheme and date range with optional AMC mutual fund code.
+     * When amcMfCode is provided (e.g. "9" for HDFC Mutual Fund), AMFI scopes the response to that AMC,
+     * preventing excessive payload sizes and HTTP timeouts on large multi-year date ranges.
      */
-    public String buildUrl(String amfiSchemeCode, LocalDate startDate, LocalDate endDate) {
+    public String buildUrl(String amfiSchemeCode, String amcMfCode, LocalDate startDate, LocalDate endDate) {
         if (amfiSchemeCode == null || amfiSchemeCode.trim().isEmpty()) {
             throw new IllegalArgumentException("amfiSchemeCode must not be null or empty");
         }
@@ -49,15 +50,24 @@ public class AmfiSourceClient {
         }
         String fromStr = startDate.format(AMFI_URL_DATE);
         String toStr = endDate.format(AMFI_URL_DATE);
-        return String.format("%s?mf=&scheme=%s&frmdt=%s&todt=%s", BASE_URL, amfiSchemeCode.trim(), fromStr, toStr);
+        String mfParam = (amcMfCode != null && !amcMfCode.isBlank()) ? amcMfCode.trim() : "";
+        return String.format("%s?mf=%s&scheme=%s&frmdt=%s&todt=%s", BASE_URL, mfParam, amfiSchemeCode.trim(), fromStr, toStr);
     }
 
     /**
-     * Executes HTTP GET with 15000ms timeout and captures exact raw bytes BEFORE parsing.
+     * Constructs deterministic query URL for scheme and date range without AMC filtering.
+     * Backwards-compatible overload.
+     */
+    public String buildUrl(String amfiSchemeCode, LocalDate startDate, LocalDate endDate) {
+        return buildUrl(amfiSchemeCode, null, startDate, endDate);
+    }
+
+    /**
+     * Executes HTTP GET and captures exact raw bytes BEFORE parsing with optional AMC filtering.
      * Computes SHA-256 hash across full payload and performs deterministic deduplication.
      */
-    public SourceArtifact fetchAndPersistArtifact(String amfiSchemeCode, LocalDate startDate, LocalDate endDate) {
-        String targetUrl = buildUrl(amfiSchemeCode, startDate, endDate);
+    public SourceArtifact fetchAndPersistArtifact(String amfiSchemeCode, String amcMfCode, LocalDate startDate, LocalDate endDate) {
+        String targetUrl = buildUrl(amfiSchemeCode, amcMfCode, startDate, endDate);
         OffsetDateTime retrievalTimestamp = OffsetDateTime.now();
 
         byte[] rawBytes = executeHttpGet(targetUrl);
@@ -83,6 +93,14 @@ public class AmfiSourceClient {
         artifact.setPayloadBlob(rawBytes);
 
         return sourceArtifactRepository.save(artifact);
+    }
+
+    /**
+     * Executes HTTP GET and captures exact raw bytes BEFORE parsing without AMC filtering.
+     * Backwards-compatible overload.
+     */
+    public SourceArtifact fetchAndPersistArtifact(String amfiSchemeCode, LocalDate startDate, LocalDate endDate) {
+        return fetchAndPersistArtifact(amfiSchemeCode, null, startDate, endDate);
     }
 
     /**
@@ -121,24 +139,32 @@ public class AmfiSourceClient {
             URL url = new URL(urlString);
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
-            conn.setConnectTimeout(15000);
-            conn.setReadTimeout(15000);
-            conn.setRequestProperty("User-Agent", "Yukira-Quant-Engine/0.1.0 (+https://yukira.io)");
-            conn.setRequestProperty("Accept", "text/plain, */*");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(60000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
 
             int responseCode = conn.getResponseCode();
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw new IllegalStateException("AMFI portal returned HTTP status: " + responseCode + " for " + urlString);
             }
 
+            byte[] payload;
             try (InputStream in = conn.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[8192];
                 int bytesRead;
                 while ((bytesRead = in.read(buffer)) != -1) {
                     out.write(buffer, 0, bytesRead);
                 }
-                return out.toByteArray();
+                payload = out.toByteArray();
             }
+
+            String prefix = new String(payload, 0, Math.min(payload.length, 120), java.nio.charset.StandardCharsets.ISO_8859_1).trim();
+            if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!DOCTYPE")) {
+                throw new IllegalStateException("AMFI portal returned HTML page instead of NAV text stream for " + urlString);
+            }
+
+            return payload;
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch raw artifact from AMFI portal: " + e.getMessage(), e);
         } finally {

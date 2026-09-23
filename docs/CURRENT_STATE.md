@@ -13,8 +13,8 @@
 - **Commit Message:** `feat: establish phase 2i working investor website and real-data pilot`
 - **Remote Synchronization:** Local `main` is synchronized with `origin/main` (`ahead 0, behind 0`).
 - **Working Tree State:** Clean (excluding newly created agent context documentation).
-- **Latest Completed Phase:** **Phase 2I** (Working Investor Website & Real-Data Pilot).
-- **Active Current Phase:** **Phase 2J** (Historical Analytical Data Foundation + Provenance Reconciliation) — In Progress.
+- **Latest Completed Phase:** **Phase 2J** (Historical Analytical Data Foundation + Provenance Reconciliation).
+- **Active Current Phase:** Audit & Verification checkpoint prior to Phase 2K.
 
 ---
 
@@ -24,13 +24,13 @@ All three architectural tiers maintain independent, passing automated test suite
 
 | Subsystem / Tier | Test Framework | Passing Tests | Execution Command | Status |
 | :--- | :--- | :---: | :--- | :---: |
-| **Quantitative Engine** | Pytest 8.x (Python 3.12) | **301** | `cd quant-engine && pytest tests/` | Verified Pass |
-| **Backend Service** | JUnit 5 / Spring Boot Test | **54** | `cd backend && ./mvnw test` | Verified Pass |
+| **Quantitative Engine** | Pytest 8.x / 9.x (Python 3.12+) | **301** | `cd quant-engine && pytest tests/` | Verified Pass |
+| **Backend Service** | JUnit 5 / Spring Boot Test | **69** | `cd backend && ./mvnw test` | Verified Pass |
 | **Frontend Application** | Vitest / Testing Library | **46** | `cd frontend && npm test` | Verified Pass |
 | **Frontend Code Quality** | ESLint | — | `cd frontend && npm run lint` | Clean (0 errors) |
 | **Frontend Production Build** | Next.js Compiler (`next build`) | — | `cd frontend && npm run build` | Successful |
 
-*Note: Baselines reflect actual executed counts verified in repository audit history.*
+*Note: Baselines reflect actual executed counts verified in repository audit history (416 total passing tests).*
 
 ---
 
@@ -104,6 +104,21 @@ All end-to-end integration and verification in Phase 2I/2J use exclusively the c
 - **Retrieved:** `2026-09-21 17:46:57.678304+00`
 - **Source URL:** `https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?mf=&scheme=118955&frmdt=01-Jan-2024&todt=15-Jan-2024`
 
+### Phase 2J 5-Year Historical Observation Horizon:
+- **Canonical Observation Ledger:** **1,243** authentic daily market trading dates spanning `2019-01-01` through `2024-01-15` (1,247 total rows in PostgreSQL `nav_observation`, including 4 development test-fixture revisions on 2021-01-04/05 and 2022-01-03/04).
+- **Captured Annual Source Artifacts (Independently Verified):**
+  - 2019: Artifact ID #149 (17,808,312 bytes, SHA-256: `d80ed193cba5a6686a26133f97bc2533a9885b660c900a002e2febf6e0e0903d`, 244 dates)
+  - 2020: Artifact ID #155 (14,591,393 bytes, SHA-256: `10fe1a4b727777ecf3ba4b3bc0cce3442fb9b6f2375b4eb43f1168da5529875e`, 250 dates)
+  - 2021: Artifact ID #150 (11,877,865 bytes, SHA-256: `19c9c5e5c934056782984f301a5567751ae78e150b9ac88d755479db8f24dcb3`, 247 dates)
+  - 2022: Artifact ID #151 (8,405,491 bytes, SHA-256: `d84e86eb56f1245899d7fd6b715c8a115fc011d087ea2707b68bc13dd0db5d86`, 247 dates)
+  - 2023: Artifact ID #152 (9,183,825 bytes, SHA-256: `30688ec699066df499212a2d30501a92c30312a857ad76187003b8b9386fa9cc`, 244 dates)
+  - Jan 2024: Artifact ID #1 (11,185,549 bytes, SHA-256: `900508f8bf137cb8ba02adae70a0eb6a0be7318389e9b3943f0bee738f3be259`, 11 dates)
+- **Data Quality & Verification Semantics:**
+  - Observations are marked `VERIFIED` according to YUKIRA's current source-authority verification convention (i.e. successfully ingested from an authentic, structurally valid AMFI source artifact without validation boundary errors). This does **NOT** imply independent corroboration by a secondary external source (e.g. custodian trade ledgers or exchange reports).
+  - Continuity diagnostics identify 1,841 calendar days = 526 weekends + 1,243 authentic trading days + 72 unresolved non-trading weekday gaps (coverage ratio: 1,243 / 1,315 weekdays = 94.5247%; potential exchange holidays vs missing observations, awaiting an authoritative market calendar). Raw physical rows in `nav_observation` count 1,247 due to 4 test-fixture revision rows on 2021-01-04/05 and 2022-01-03/04 which do not inflate calendar trading dates.
+- **Query Endpoint:** `GET /api/v1/schemes/options/{id}/historical-series?startDate=...&analysisCutoff=...&knowledgeCutoff=...`
+- **Epistemic Invariant:** Queries strictly require `knowledgeCutoff`; omission or `analysisCutoff > knowledgeCutoff` is rejected with HTTP 400.
+
 ### Baseline RET-02 Calculation Result:
 - **Start Observation:** `2024-01-01` = `1630.7330`
 - **End Observation:** `2024-01-15` = `1670.6720`
@@ -114,18 +129,18 @@ All end-to-end integration and verification in Phase 2I/2J use exclusively the c
 
 ---
 
-## 5. Critical Provenance Status: The January 2024 NAV Discrepancy
+## 5. Provenance Reconciliation: The January 2024 NAV Discrepancy
 
-- **Status:** **INVESTIGATED & IDENTIFIED**
+- **Status:** **RECONCILED, FORMALIZED & SEALED BY AUTOMATED REGRESSION SUITE**
 - **The Issue:** During prior audit reporting, two different intermediate observation series were cited for dates `2024-01-02` through `2024-01-12`:
   - **Series A (Direct AMFI Raw Payload):** `1625.1540`, `1626.4560`, `1639.8560`, `1645.4000`, `1633.2610`, `1639.4210`, `1645.8200`, `1645.6560`, `1656.4160`.
   - **Series B (Unverified Synthetic Series):** `1629.742`, `1622.753`, `1638.169`, `1650.640`, `1638.291`, `1636.311`, `1642.348`, `1656.963`, `1667.135`.
-- **Findings:**
+- **Findings & Reconciliation:**
   1. Authoritative Source Artifact #1 (`900508f8...`) cryptographically proves that **Series A** is the exact byte stream published by the AMFI portal for scheme `118955`.
-  2. The PostgreSQL database currently stores **Series A**.
-  3. Series B has no raw source artifact, does not exist in any database table, and was an unverified synthetic series cited in conversational audit text.
-  4. Both series share the exact same start (`1630.7330`) and end (`1670.6720`) NAVs, which yielded an identical RET-02 (+2.449144%) and masked intermediate drift.
-- **Current Action in Phase 2J:** Formalize Series A as authoritative; establish regression tests preventing synthetic Series B reintroduction.
+  2. The PostgreSQL database stores exclusively **Series A**.
+  3. Series B has zero raw source artifacts in the repository and existed solely in prior conversational audit text.
+  4. Regression test `January2024ProvenanceDiscrepancyTest.java` programmatically asserts that Series A matches the authoritative raw payload and explicitly asserts that synthetic Series B is rejected.
+  5. Both series shared start (`1630.7330`) and end (`1670.6720`) values, yielding an identical RET-02 (+2.449144%) that previously masked intermediate drift.
 
 ---
 

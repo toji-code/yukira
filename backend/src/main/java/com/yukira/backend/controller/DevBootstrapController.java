@@ -27,4 +27,10 @@ public class DevBootstrapController {
         PilotBootstrapService.BootstrapReport report = pilotBootstrapService.bootstrapPilot();
         return ResponseEntity.ok(report);
     }
+
+    @PostMapping("/bootstrap-historical")
+    public ResponseEntity<PilotBootstrapService.HistoricalBootstrapReport> bootstrapHistorical() {
+        PilotBootstrapService.HistoricalBootstrapReport report = pilotBootstrapService.bootstrapHistoricalHorizon(5);
+        return ResponseEntity.ok(report);
+    }
 }

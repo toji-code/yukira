@@ -14,14 +14,14 @@
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
  Concept Audit        Multi-Tier Core      Real AMFI Slice      Governance Freeze    Investor Website
  & 30-Metric Freeze   DB + Backend + UI    Vertical Ret-02      Methodology Spec     Real Pilot (e6880ef)
-                                                                                           │
-                                                                                           ▼
-                                                                                    ┌──────────────┐
-                                                                                    │   Phase 2J   │
-                                                                                    │ (IN PROGRESS)│
-                                                                                    └──────────────┘
-                                                                                     Historical 5Y NAV
-                                                                                     Provenance Reconciliation
+                                                                                       │
+                                                                                       ▼
+                                                                                ┌──────────────┐
+                                                                                │   Phase 2J   │
+                                                                                │  COMPLETED   │
+                                                                                └──────────────┘
+                                                                                 Historical 5Y NAV
+                                                                                 Provenance Reconciliation
 ```
 
 ---
@@ -102,20 +102,35 @@
   - Verified baseline RET-02 return: `+2.4491440352%` between `2024-01-01` (`1630.7330`) and `2024-01-15` (`1670.6720`).
   - Synchronized `main` branch with GitHub `origin/main`.
 
+### Phase 2J — Historical Analytical Data Foundation + Provenance Reconciliation
+- **Focus:** 5-year point-in-time historical data substrate, cryptographic provenance verification, and trading date continuity diagnostics.
+- **Key Deliverables:**
+  1. **Provenance Reconciliation Verified:**
+     - Cryptographically audited raw AMFI source artifact ID 1 (`900508f8...`, 11,185,549 bytes) and confirmed **Series A** is the authentic byte stream.
+     - Series B proved to have zero matches in the raw artifact and does not exist in any database table; identified as an unverified artifact from earlier text audits.
+     - Implemented `January2024ProvenanceDiscrepancyTest.java` (3 unit tests) enforcing Series A authenticity and rejecting synthetic Series B.
+  2. **5-Year Historical Horizon Ingestion:**
+     - Extended observation ledger for canonical pilot (`118955` / `INF179K01UT0`) across `2019-01-01` through `2024-01-15` (1,243 authentic trading dates across 6 annual AMFI source artifacts; 1,247 total rows in PostgreSQL `nav_observation` including 4 development test-fixture revisions).
+     - Independently verified raw payload hashes: 2019 (`d80ed193...`), 2020 (`10fe1a4b...`), 2021 (`19c9c5e5...`), 2022 (`d84e86eb...`), 2023 (`30688ec6...`), and Jan 2024 (`900508f8...`).
+     - Hardened `AmfiSourceClient` with browser headers and error payload rejection.
+  3. **Trading-Date Continuity Diagnostics:**
+     - Created `TradingDateContinuityService.java` analyzing weekends (526 days), unique authentic trading dates (1,243 days), and unresolved non-trading weekday gaps (72 days across 1,315 weekdays; coverage ratio: 94.5247%). Invariant enforced: multiple revision rows for the same effective date (4 test revision rows = 1,247 physical rows) do not inflate trading date presence or coverage.
+  4. **Strict Point-in-Time Analytical Contract:**
+     - Created `HistoricalAnalyticalDataService.java` enforcing bitemporal lookback with mandatory `knowledgeCutoff` and rejection of queries where `analysisCutoff > knowledgeCutoff`.
+     - Exposed `GET /api/v1/schemes/options/{id}/historical-series` with immutable DTO `AnalyticalObservationSeriesDto`.
+  5. **Verification & Quality:**
+     - 416 total passing automated tests across ordinary deterministic suites (Quant: 301, Backend: 69 deterministic unit/service tests, Frontend: 46).
+     - Live-network integration tests (`PilotHistoricalBootstrapIntegrationTest`, `AmfiRealDataIntegrationTest`) isolated under `@Tag("external-integration")`.
+     - Clean frontend build (`next build`), zero linter errors (`next lint`).
+
 ---
 
-## 3. Active Current Phase: Phase 2J
+## 4. Next Phase: Phase 2K (Planned)
 
-### Objective: Historical Analytical Data Foundation + Provenance Reconciliation
-- **Status:** **IN PROGRESS (NOT YET COMMITTED)**
-- **Scope & Targets:**
-  1. **Provenance Reconciliation:** Rigorously investigate and resolve the January 2024 intermediate NAV discrepancy between raw AMFI data (Series A) and unverified audit citations (Series B).
-  2. **Historical Data Ingestion:** Extend AMFI ingestion to cover at least 5 years of historical NAV data for the canonical pilot using real source artifacts with SHA-256 tracking.
-  3. **Revision & Point-in-Time Handling:** Enforce that retroactive revisions increment sequence numbers without overwriting historical records, respecting `knowledge_cutoff` queries.
-  4. **Trading-Date Continuity Diagnostics:** Implement diagnostics distinguishing expected non-trading days (weekends, market holidays), missing observations, duplicates, conflicts, and revisions without relying on unapproved hardcoded holiday calendars.
-  5. **Data Quality Propagation:** Propagate the 6-dimensional taxonomy (`VALID`/`SUSPICIOUS`/`INVALID`, `CURRENT`/`STALE`, etc.) without converting quality flags into investment scores.
-  6. **Analytical Data Contract:** Define strict Java/Python contracts ensuring subsequent quantitative metric calculations cannot query data without explicit knowledge cutoffs.
-  7. **Comprehensive Testing:** Add deterministic tests covering the 15 required verification areas while preserving the 301/54/46 baseline.
+### Objective: Multi-Year Quantitative Calculation Engine & Metric Expansion
+- Integration of 5-year historical observation series into multi-period return algorithms (RET-01, RET-03 to RET-07).
+- Validation of risk and volatility kernels (VOL-01 to VOL-08) against real 5-year data.
+- Preservation of Phase 2H freeze and candidate status until explicit governance review.
 
 > [!NOTE]
-> Phase 2J does not implement all 30 metrics or introduce scoring. Its exclusive purpose is to establish a trustworthy, point-in-time historical data substrate for future multi-year quantitative calculations.
+> Phase 2J established a trustworthy, point-in-time historical data substrate for future multi-year quantitative calculations. Quantitative methodology freeze remains intact.

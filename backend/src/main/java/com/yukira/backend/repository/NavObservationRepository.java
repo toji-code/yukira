@@ -50,4 +50,11 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
 
     List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
     List<NavObservation> findBySchemeOptionId(Long schemeOptionId);
+
+    @Query("SELECT COUNT(n) FROM NavObservation n WHERE n.schemeOption.id = :schemeOptionId AND n.effectiveDate >= :startDate AND n.effectiveDate <= :endDate")
+    long countBySchemeOptionIdAndDateRange(
+        @Param("schemeOptionId") Long schemeOptionId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }

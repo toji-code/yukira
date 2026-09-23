@@ -42,6 +42,12 @@ class PitObservationResolutionServiceTest {
     @Autowired
     private ValidationIssueRepository validationIssueRepository;
 
+    @Autowired
+    private SourceArtifactRepository sourceArtifactRepository;
+
+    @Autowired
+    private DataSourceRepository dataSourceRepository;
+
     private SchemeOption schemeOption;
 
     @BeforeEach
@@ -237,5 +243,87 @@ class PitObservationResolutionServiceTest {
         assertEquals(2, res.authoritativeObservation().get().getRevisionSeq(),
             "When values are identical, revision_seq=2 acts as deterministic tie-breaker");
         assertEquals(0, new BigDecimal("100.00000000").compareTo(res.authoritativeObservation().get().getNavValue()));
+    }
+
+    @Test
+    @DisplayName("PIT Test 8 (Regression): Same effective_date, same availability_time, different revision_seq -> highest revision_seq selected deterministically")
+    void testSameEffectiveDateSameAvailabilityDifferentRevisionSeq_DeterministicSelection() {
+        LocalDate date = LocalDate.of(2024, 2, 10);
+        OffsetDateTime availabilityTime = OffsetDateTime.of(2024, 2, 10, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        // Ingest revision 1
+        NavObservation rev1 = new NavObservation(schemeOption, date, new BigDecimal("150.00000000"), 1, availabilityTime);
+        navObservationRepository.save(rev1);
+
+        // Ingest revision 2 with identical availability time and identical NAV
+        NavObservation rev2 = new NavObservation(schemeOption, date, new BigDecimal("150.00000000"), 2, availabilityTime);
+        rev2.setRevisionStatus("REVISED");
+        navObservationRepository.save(rev2);
+
+        // Ingest revision 3 with identical availability time and identical NAV
+        NavObservation rev3 = new NavObservation(schemeOption, date, new BigDecimal("150.00000000"), 3, availabilityTime);
+        rev3.setRevisionStatus("REVISED");
+        navObservationRepository.save(rev3);
+
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 2, 11, 12, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        PitObservationResolutionService.PitResolutionResult res = pitService
+            .resolveAuthoritativeObservation(schemeOption.getId(), date, cutoff);
+
+        assertTrue(res.authoritativeObservation().isPresent());
+        assertFalse(res.isAmbiguous());
+        assertEquals(3, res.authoritativeObservation().get().getRevisionSeq(),
+            "Deterministic selection must select highest revision_seq (3) among identical-instant candidate revisions");
+        assertEquals(3, res.eligibleRevisions().size());
+    }
+
+    @Test
+    @DisplayName("PIT Test 9 (Regression): Same effective_date, same availability_time, conflicting source artifacts -> ambiguity detected and logged")
+    void testSameEffectiveDateSameAvailabilityConflictingSourceArtifacts_AmbiguityDetected() {
+        LocalDate date = LocalDate.of(2024, 2, 15);
+        OffsetDateTime availabilityTime = OffsetDateTime.of(2024, 2, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        DataSource ds = dataSourceRepository.findByCode("TEST_DS")
+            .orElseGet(() -> dataSourceRepository.save(new DataSource("TEST_DS", "Test Source", "TEST")));
+
+        // Source Artifact A
+        SourceArtifact artifactA = new SourceArtifact(ds, availabilityTime, "NAV_FEED_A", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 100L);
+        artifactA.setStorageUri("http://source-a.test/nav");
+        sourceArtifactRepository.save(artifactA);
+
+        // Source Artifact B
+        SourceArtifact artifactB = new SourceArtifact(ds, availabilityTime, "NAV_FEED_B", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 100L);
+        artifactB.setStorageUri("http://source-b.test/nav");
+        sourceArtifactRepository.save(artifactB);
+
+        // Observation from Artifact A: NAV = 200.00
+        NavObservation obsA = new NavObservation(schemeOption, date, new BigDecimal("200.00000000"), 1, availabilityTime);
+        obsA.setSourceArtifact(artifactA);
+        navObservationRepository.save(obsA);
+
+        // Observation from Artifact B: NAV = 205.50 (conflicting value at the exact same instant)
+        NavObservation obsB = new NavObservation(schemeOption, date, new BigDecimal("205.50000000"), 2, availabilityTime);
+        obsB.setSourceArtifact(artifactB);
+        obsB.setRevisionStatus("REVISED");
+        navObservationRepository.save(obsB);
+
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 2, 16, 12, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        PitObservationResolutionService.PitResolutionResult res = pitService
+            .resolveAuthoritativeObservation(schemeOption.getId(), date, cutoff);
+
+        // Must reject authority and flag ambiguity
+        assertTrue(res.authoritativeObservation().isEmpty(),
+            "Cannot pick an authoritative winner when two conflicting source artifacts publish divergent NAVs at identical timestamp");
+        assertTrue(res.isAmbiguous(), "Must be explicitly marked ambiguous");
+        assertTrue(res.diagnosticReason().contains("Conflicting eligible revisions"));
+
+        // Verify ValidationIssue logged with CONFLICTING
+        List<ValidationIssue> issues = validationIssueRepository
+            .findByTargetEntityTypeAndTargetEntityId("SCHEME_OPTION", schemeOption.getId());
+        ValidationIssue issue = issues.get(issues.size() - 1);
+        assertEquals("PIT_AUTHORITY_AMBIGUITY", issue.getCheckCode());
+        assertEquals("CONFLICTING", issue.getIntegrityCondition());
+        assertEquals("SUSPICIOUS", issue.getQualityAssessment());
     }
 }

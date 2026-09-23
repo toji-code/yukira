@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -39,6 +41,7 @@ public class PilotBootstrapService {
     public static final String PILOT_PLAN_CODE = "HDFC_FLEXI_DIR";
     public static final String PILOT_AMFI_CODE = "118955";
     public static final String PILOT_ISIN = "INF179K01UT0";
+    public static final String PILOT_AMC_MF_CODE = "9";
 
     public static final LocalDate PILOT_START_DATE = LocalDate.of(2024, 1, 1);
     public static final LocalDate PILOT_END_DATE = LocalDate.of(2024, 1, 15);
@@ -159,6 +162,72 @@ public class PilotBootstrapService {
         );
     }
 
+    /**
+     * Idempotently ingests up to 5 full years (e.g. 2019-2023) of real historical AMFI NAV observations
+     * for the canonical pilot instrument using chunked annual requests scoped by PILOT_AMC_MF_CODE ("9").
+     *
+     * Captures cryptographic SHA-256 digests and raw byte blobs for every annual artifact.
+     */
+    public HistoricalBootstrapReport bootstrapHistoricalHorizon(int yearsBack) {
+        SchemeOption option = ensureCanonicalPilotMaster();
+        int safeYears = Math.max(1, Math.min(yearsBack, 5));
+        int targetStartYear = 2024 - safeYears;
+
+        int totalIngested = 0;
+        int totalRevisions = 0;
+        int totalArtifactsIngested = 0;
+        List<Long> artifactIds = new ArrayList<>();
+
+        for (int year = targetStartYear; year <= 2023; year++) {
+            LocalDate yearStart = LocalDate.of(year, 1, 1);
+            LocalDate yearEnd = LocalDate.of(year, 12, 31);
+
+            long existingCount = navObservationRepository
+                .countBySchemeOptionIdAndDateRange(option.getId(), yearStart, yearEnd);
+
+            if (existingCount < 200) {
+                try {
+                    log.info("Fetching real AMFI historical NAV artifact for year {} ({} to {})", year, yearStart, yearEnd);
+                    SourceArtifact artifact = amfiSourceClient.fetchAndPersistArtifact(
+                        PILOT_AMFI_CODE, PILOT_AMC_MF_CODE, yearStart, yearEnd
+                    );
+                    artifactIds.add(artifact.getId());
+                    IngestionSummary summary = ingestionService.ingestArtifact(artifact);
+                    totalIngested += summary.observationsIngested();
+                    totalRevisions += summary.revisionsCreated();
+                    totalArtifactsIngested++;
+                    log.info("Year {} ingestion complete: {} ingested, {} revisions", year, summary.observationsIngested(), summary.revisionsCreated());
+                } catch (Exception e) {
+                    log.error("Failed to ingest historical year {}: {}", year, e.getMessage());
+                }
+            } else {
+                log.info("Year {} observations already present in ledger; skipping redundant fetch.", year);
+            }
+        }
+
+        // Also ensure Jan 2024 pilot baseline slice is present
+        bootstrapPilot();
+
+        // Calculate min/max dates and total observations
+        List<NavObservation> allObs = navObservationRepository.findBySchemeOptionId(option.getId());
+        LocalDate minDate = allObs.stream().map(NavObservation::getEffectiveDate).min(Comparator.naturalOrder()).orElse(null);
+        LocalDate maxDate = allObs.stream().map(NavObservation::getEffectiveDate).max(Comparator.naturalOrder()).orElse(null);
+
+        return new HistoricalBootstrapReport(
+            option.getId(),
+            option.getAmfiCode(),
+            option.getIsin(),
+            PILOT_SCHEME_NAME,
+            allObs.size(),
+            totalIngested,
+            totalRevisions,
+            totalArtifactsIngested,
+            minDate,
+            maxDate,
+            artifactIds
+        );
+    }
+
     private SourceArtifact resolveOrFetchSourceArtifact() {
         try {
             return amfiSourceClient.fetchAndPersistArtifact(PILOT_AMFI_CODE, PILOT_START_DATE, PILOT_END_DATE);
@@ -179,5 +248,19 @@ public class PilotBootstrapService {
         int newObservationsIngested,
         Long calculationRunId,
         Double ret02Value
+    ) {}
+
+    public record HistoricalBootstrapReport(
+        Long schemeOptionId,
+        String amfiCode,
+        String isin,
+        String schemeName,
+        int totalObservationsInLedger,
+        int newObservationsIngested,
+        int revisionsCreated,
+        int artifactsIngested,
+        LocalDate earliestObservationDate,
+        LocalDate latestObservationDate,
+        List<Long> sourceArtifactIds
     ) {}
 }

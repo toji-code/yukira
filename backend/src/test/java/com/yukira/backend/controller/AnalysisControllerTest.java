@@ -117,7 +117,7 @@ class AnalysisControllerTest {
             // 2. Result
             .andExpect(jsonPath("$.result.metricCode", is("RET-02")))
             .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
-            .andExpect(jsonPath("$.result.numericValue", closeTo(new BigDecimal("0.10"), new BigDecimal("0.0001"))))
+            .andExpect(jsonPath("$.result.numericValue", closeTo(0.10, 0.0001)))
             .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
             // 3. Period
             .andExpect(jsonPath("$.period.requestedStartDate", is("2024-01-01")))
