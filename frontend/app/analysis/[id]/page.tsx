@@ -8,8 +8,8 @@ import { MethodologyBadge } from "@/components/epistemic/MethodologyBadge";
 import { DataQualityBadge } from "@/components/epistemic/DataQualityBadge";
 import { ProgressiveDisclosure } from "@/components/disclosure/ProgressiveDisclosure";
 import { MetricValueDisplay } from "@/components/primitives/MetricValueDisplay";
-import { fetchRet02Analysis, executeRet02Analysis } from "@/lib/api/analysis";
-import { Ret02AnalysisResponse } from "@/types/analysis";
+import { fetchAnalysis, executeAnalysis } from "@/lib/api/analysis";
+import { AnalysisResponse } from "@/types/analysis";
 import { formatDateTime } from "@/lib/utils/formatters";
 
 interface PageProps {
@@ -21,7 +21,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
   const runId = parseInt(resolvedParams.id, 10);
   const router = useRouter();
 
-  const [data, setData] = useState<Ret02AnalysisResponse | null>(null);
+  const [data, setData] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +41,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
     }
     setLoading(true);
     setError(null);
-    fetchRet02Analysis(runId)
+    fetchAnalysis(runId)
       .then((res) => {
         setData(res);
         if (res.period.requestedStartDate) setCustomStartDate(res.period.requestedStartDate);
@@ -61,7 +61,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       return;
     }
     let active = true;
-    fetchRet02Analysis(runId)
+    fetchAnalysis(runId)
       .then((res) => {
         if (active) {
           setData(res);
@@ -91,7 +91,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
     setCustomError(null);
 
     try {
-      const response = await executeRet02Analysis({
+      const response = await executeAnalysis(data.result.metricCode, {
         schemeOptionId: data.identity.schemeOptionId,
         startDate: customStartDate,
         endDate: customEndDate,
@@ -113,7 +113,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         <StateView
           kind="loading"
           title="Retrieving Authoritative Quantitative Audit"
-          message={`Fetching calculation run #${runId} and authoritative RET-02 audit manifest from backend...`}
+          message={`Fetching calculation run #${runId} and authoritative audit manifest from backend...`}
         />
       </PageContainer>
     );
@@ -205,7 +205,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
           onClick={() => setShowParamPanel(!showParamPanel)}
           className="rounded border border-zinc-700 bg-zinc-800/80 px-3 py-1 text-xs font-mono text-zinc-200 hover:bg-zinc-700"
         >
-          {showParamPanel ? "Close Parameter Panel" : "Run Parameterized RET-02"}
+          {showParamPanel ? "Close Parameter Panel" : `Run Parameterized ${data.result.metricCode}`}
         </button>
       </div>
 
@@ -213,7 +213,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       {showParamPanel && (
         <form onSubmit={handleExecuteParameterizedRun} className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/90 p-5 font-mono text-xs">
           <h4 className="font-semibold text-zinc-200 uppercase tracking-wider mb-4">
-            Trigger Parameterized RET-02 Calculation
+            Trigger Parameterized {data.result.metricCode} Calculation
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>

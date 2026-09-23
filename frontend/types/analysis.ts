@@ -111,7 +111,7 @@ export interface Ret02Benchmark {
   benchmarkNotice: string;
 }
 
-export interface Ret02AnalysisResponse {
+export interface AnalysisResponse {
   identity: Ret02Identity;
   result: Ret02Result;
   period: Ret02Period;
@@ -123,9 +123,9 @@ export interface Ret02AnalysisResponse {
   benchmark: Ret02Benchmark;
 }
 
-export interface Ret02CalculationRequest {
+export interface CalculationRequest {
   schemeOptionId: number;
-  startDate: string;
+  startDate?: string;
   endDate: string;
   knowledgeCutoffTime: string;
   methodologyTag?: string;

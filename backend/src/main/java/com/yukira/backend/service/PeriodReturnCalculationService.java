@@ -332,6 +332,212 @@ public class PeriodReturnCalculationService {
         return calculationRunRepository.save(run);
     }
 
+    /**
+     * Executes deterministic RET-03 (3Y CAGR) calculation run.
+     */
+    @Transactional
+    public CalculationRun executeRet03Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag // e.g. "CANDIDATE_V1"
+    ) {
+        Objects.requireNonNull(schemeOptionId, "schemeOptionId must not be null");
+        Objects.requireNonNull(requestedEndDate, "requestedEndDate must not be null");
+        Objects.requireNonNull(knowledgeCutoffTime, "knowledgeCutoffTime must not be null for PIT compliance");
+
+        LocalDate requestedStartDate = requestedEndDate.minusYears(3);
+
+        SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
+            .orElseThrow(() -> new IllegalArgumentException("SchemeOption not found: " + schemeOptionId));
+
+        MethodologyVersion methodologyVersion = methodologyVersionRepository
+            .findByMethodologyCodeAndVersionTag("RET_03_3Y_CAGR", methodologyTag)
+            .orElseGet(() -> methodologyGovernanceService.registerMethodologyVersion(new MethodologyVersion(
+                "RET_03_3Y_CAGR", methodologyTag, "CANDIDATE", "pending_commit"
+            ), "CALCULATION_SERVICE"));
+
+        if (!methodologyVersion.isLocked()) {
+            methodologyVersion = methodologyGovernanceService.lockVersion(
+                methodologyVersion.getId(), "PERIOD_RETURN_CALCULATION_SERVICE"
+            );
+        }
+
+        // 1. Boundary observation resolution using candidate 4-calendar-day window
+        PeriodSelectionResult startSel = selectBoundaryObservation(schemeOptionId, requestedStartDate, knowledgeCutoffTime, 4);
+        PeriodSelectionResult endSel = selectBoundaryObservation(schemeOptionId, requestedEndDate, knowledgeCutoffTime, 4);
+
+        CalculationRun run = new CalculationRun(
+            option, requestedEndDate, knowledgeCutoffTime, methodologyVersion, "FASTAPI-QUANT-0.1.0"
+        );
+        run.setRunStatus("RUNNING");
+        run = calculationRunRepository.save(run);
+
+        // Check if either boundary failed
+        if (startSel.selectedObservation().isEmpty() || endSel.selectedObservation().isEmpty()) {
+            String errorMsg = String.format("Insufficient evidence for RET-03: start=[%s], end=[%s]",
+                startSel.failureReason() != null ? startSel.failureReason() : "OK",
+                endSel.failureReason() != null ? endSel.failureReason() : "OK"
+            );
+            run.setRunStatus("FAILED");
+            run.setExecutionCompletedAt(OffsetDateTime.now());
+            run.setErrorMessage(errorMsg);
+
+            MetricResult metricResult = new MetricResult(
+                run, "RET-03", "3Y", null, "PERCENTAGE", "INSUFFICIENT_DATA"
+            );
+            metricResult.setErrorMessage(errorMsg);
+
+            Map<String, Object> failureDiag = new HashMap<>();
+            failureDiag.put("methodology_status", "CANDIDATE");
+            failureDiag.put("methodology_tag", methodologyTag);
+            failureDiag.put("benchmark_required", false);
+            failureDiag.put("requested_start_date", requestedStartDate.toString());
+            failureDiag.put("requested_end_date", requestedEndDate.toString());
+            failureDiag.put("knowledge_cutoff_time", knowledgeCutoffTime.toString());
+            failureDiag.put("failure_reason", errorMsg);
+            failureDiag.put("insufficient_evidence", true);
+            try {
+                metricResult.setDiagnostics(objectMapper.writeValueAsString(failureDiag));
+            } catch (Exception ignored) {}
+
+            metricResultRepository.save(metricResult);
+            return calculationRunRepository.save(run);
+        }
+
+        NavObservation startObs = startSel.selectedObservation().get();
+        NavObservation endObs = endSel.selectedObservation().get();
+
+        // Sequence invariant
+        if (!endObs.getEffectiveDate().isAfter(startObs.getEffectiveDate())) {
+            String errorMsg = String.format("Sequence invariant violated: selected end date %s must be strictly after start date %s",
+                endObs.getEffectiveDate(), startObs.getEffectiveDate());
+            run.setRunStatus("FAILED");
+            run.setExecutionCompletedAt(OffsetDateTime.now());
+            run.setErrorMessage(errorMsg);
+
+            MetricResult metricResult = new MetricResult(
+                run, "RET-03", "3Y", null, "PERCENTAGE", "INSUFFICIENT_DATA"
+            );
+            metricResult.setErrorMessage(errorMsg);
+            metricResultRepository.save(metricResult);
+            return calculationRunRepository.save(run);
+        }
+
+        // 2. Persist immutable input observation linkages
+        calculationRunInputObservationRepository.save(new CalculationRunInputObservation(
+            run, startObs, startObs.getEffectiveDate(), startObs.getRevisionSeq()
+        ));
+        calculationRunInputObservationRepository.save(new CalculationRunInputObservation(
+            run, endObs, endObs.getEffectiveDate(), endObs.getRevisionSeq()
+        ));
+
+        // 3. Build DTO input series and snapshot hash
+        List<ObservationItemDto> navSeries = List.of(
+            new ObservationItemDto(startObs.getEffectiveDate().toString(), startObs.getNavValue().doubleValue(),
+                startObs.getAvailabilityTime().toString(), startObs.getRevisionSeq()),
+            new ObservationItemDto(endObs.getEffectiveDate().toString(), endObs.getNavValue().doubleValue(),
+                endObs.getAvailabilityTime().toString(), endObs.getRevisionSeq())
+        );
+        String inputSnapshotHash = computeSnapshotHash(navSeries);
+        run.setInputSnapshotSha256(inputSnapshotHash);
+
+        // 4. Dispatch deterministic calculation to Quant Engine
+        try {
+            CalculationRequestDto requestDto = new CalculationRequestDto(
+                "RET03-" + UUID.randomUUID().toString().substring(0, 8),
+                String.valueOf(schemeOptionId),
+                null, // benchmark not required for RET-03
+                requestedEndDate.toString(),
+                knowledgeCutoffTime.toString(),
+                methodologyTag,
+                List.of("RET-03"),
+                navSeries,
+                Collections.emptyList(),
+                Map.of("methodology_status", "CANDIDATE")
+            );
+
+            CalculationResponseDto response = quantEngineClient.executeCalculation(requestDto);
+
+            if (response.results() != null && !response.results().isEmpty()) {
+                MetricOutputItemDto item = response.results().get(0);
+                MetricResult metricResult = new MetricResult(
+                    run,
+                    "RET-03",
+                    "3Y",
+                    item.numericValue(),
+                    "PERCENTAGE",
+                    item.status() != null ? item.status() : "CALCULATED"
+                );
+
+                Map<String, Object> diagnostics = new HashMap<>();
+                diagnostics.put("methodology_status", "CANDIDATE");
+                diagnostics.put("methodology_tag", methodologyTag);
+                diagnostics.put("benchmark_required", false);
+                diagnostics.put("requested_start_date", requestedStartDate.toString());
+                diagnostics.put("requested_end_date", requestedEndDate.toString());
+                diagnostics.put("selected_start_date", startObs.getEffectiveDate().toString());
+                diagnostics.put("selected_end_date", endObs.getEffectiveDate().toString());
+                diagnostics.put("start_nav", startObs.getNavValue());
+                diagnostics.put("end_nav", endObs.getNavValue());
+                diagnostics.put("start_lookback_days_used", startSel.lookbackDaysUsed());
+                diagnostics.put("end_lookback_days_used", endSel.lookbackDaysUsed());
+                diagnostics.put("knowledge_cutoff_time", knowledgeCutoffTime.toString());
+
+                if (item.diagnostics() != null) {
+                    diagnostics.putAll(item.diagnostics());
+                }
+
+                metricResult.setDiagnostics(objectMapper.writeValueAsString(diagnostics));
+                metricResultRepository.save(metricResult);
+                if ("CALCULATED".equals(item.status()) && item.numericValue() != null) {
+                    run.setRunStatus("COMPLETED");
+                } else {
+                    run.setRunStatus("FAILED");
+                    run.setErrorMessage(item.errorMessage() != null ? item.errorMessage() : "Quant Engine returned non-calculated status");
+                }
+            } else {
+                run.setRunStatus("FAILED");
+                run.setErrorMessage("Quant Engine returned empty results");
+            }
+            run.setExecutionCompletedAt(OffsetDateTime.now());
+
+        } catch (Exception e) {
+            String errorMsg = "Quant Engine calculation failure: " + e.getMessage();
+            run.setRunStatus("FAILED");
+            run.setExecutionCompletedAt(OffsetDateTime.now());
+            run.setErrorMessage(errorMsg);
+
+            MetricResult metricResult = new MetricResult(
+                run, "RET-03", "3Y", null, "PERCENTAGE", "FAILED"
+            );
+            metricResult.setErrorMessage(errorMsg);
+
+            Map<String, Object> failureDiag = new HashMap<>();
+            failureDiag.put("methodology_status", "CANDIDATE");
+            failureDiag.put("methodology_tag", methodologyTag);
+            failureDiag.put("benchmark_required", false);
+            failureDiag.put("requested_start_date", requestedStartDate.toString());
+            failureDiag.put("requested_end_date", requestedEndDate.toString());
+            failureDiag.put("selected_start_date", startObs.getEffectiveDate().toString());
+            failureDiag.put("selected_end_date", endObs.getEffectiveDate().toString());
+            failureDiag.put("start_nav", startObs.getNavValue());
+            failureDiag.put("end_nav", endObs.getNavValue());
+            failureDiag.put("start_lookback_days_used", startSel.lookbackDaysUsed());
+            failureDiag.put("end_lookback_days_used", endSel.lookbackDaysUsed());
+            failureDiag.put("knowledge_cutoff_time", knowledgeCutoffTime.toString());
+            failureDiag.put("failure_reason", errorMsg);
+
+            try {
+                metricResult.setDiagnostics(objectMapper.writeValueAsString(failureDiag));
+            } catch (Exception ignored) {}
+
+            metricResultRepository.save(metricResult);
+        }
+
+        return calculationRunRepository.save(run);
+    }
+
     private String computeSnapshotHash(List<ObservationItemDto> navSeries) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

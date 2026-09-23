@@ -117,7 +117,7 @@ class AnalysisControllerTest {
             // 2. Result
             .andExpect(jsonPath("$.result.metricCode", is("RET-02")))
             .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
-            .andExpect(jsonPath("$.result.numericValue", closeTo(0.10, 0.0001)))
+            .andExpect(jsonPath("$.result.numericValue", closeTo(new BigDecimal("0.10"), new BigDecimal("0.0001"))))
             .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
             // 3. Period
             .andExpect(jsonPath("$.period.requestedStartDate", is("2024-01-01")))
@@ -290,5 +290,193 @@ class AnalysisControllerTest {
             .andExpect(status().isUnprocessableEntity())
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.pit.pitFilteringApplied", is(true)));
+    }
+
+    @Test
+    @DisplayName("RET-03 API: Successful 3Y CAGR execution dispatches to quant-engine and returns complete audit response")
+    void testSuccessfulRet03Execution() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        LocalDate start = LocalDate.of(2021, 1, 15);
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        NavObservation startObs = new NavObservation(schemeOption, start, new BigDecimal("811.21700000"), 1, cutoff);
+        startObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(startObs);
+
+        NavObservation endObs = new NavObservation(schemeOption, end, new BigDecimal("1670.67200000"), 1, cutoff);
+        endObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(endObs);
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), cutoff.toString());
+
+        var result = mockMvc.perform(post("/api/v1/analysis/ret03")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.identity.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.result.metricCode", is("RET-03")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.formattedValue", is("+27.2496%")))
+            .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
+            .andExpect(jsonPath("$.period.requestedStartDate", is("2021-01-15")))
+            .andExpect(jsonPath("$.period.requestedEndDate", is("2024-01-15")))
+            .andExpect(jsonPath("$.methodology.methodologyCode", is("RET_03_3Y_CAGR")))
+            .andExpect(jsonPath("$.methodology.approvalStatus", is("CANDIDATE")))
+            .andExpect(jsonPath("$.methodology.isCandidate", is(true)))
+            .andExpect(jsonPath("$.benchmark.benchmarkRequired", is(false)))
+            .andExpect(jsonPath("$.provenance.runStatus", is("COMPLETED")))
+            .andExpect(jsonPath("$.provenance.inputObservations", hasSize(2)))
+            .andReturn();
+
+        // Extract runId and verify generic GET /api/v1/analysis/{runId} router
+        String content = result.getResponse().getContentAsString();
+        com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(content);
+        double numVal = root.path("result").path("numericValue").asDouble();
+        org.junit.jupiter.api.Assertions.assertEquals(0.272495778659, numVal, 0.0001);
+        long runId = root.path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/" + runId)
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RET-03")))
+            .andExpect(jsonPath("$.provenance.calculationRunId", is((int) runId)));
+
+        mockMvc.perform(get("/api/v1/analysis/ret03/" + runId)
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RET-03")))
+            .andExpect(jsonPath("$.provenance.calculationRunId", is((int) runId)));
+    }
+
+    @Test
+    @DisplayName("RET-03 API: Insufficient history (< 36 months) returns 422 with INSUFFICIENT_DATA")
+    void testRet03InsufficientHistory() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        // Only end date observation exists; no start observation within lookback window
+        NavObservation endObs = new NavObservation(schemeOption, end, new BigDecimal("1670.67200000"), 1, cutoff);
+        endObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(endObs);
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), cutoff.toString());
+
+        mockMvc.perform(post("/api/v1/analysis/ret03")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
+            .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
+    }
+
+    @Test
+    @DisplayName("RET-03 API: Missing knowledgeCutoffTime is rejected with 400 BAD REQUEST")
+    void testRet03MissingKnowledgeCutoffIsRejected() throws Exception {
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15"
+            }
+            """, schemeOption.getId());
+
+        mockMvc.perform(post("/api/v1/analysis/ret03")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("MISSING_PIT_CUTOFF")))
+            .andExpect(jsonPath("$.message", containsString("knowledgeCutoffTime is required")));
+    }
+
+    @Test
+    @DisplayName("RET-03 API: Supplied knowledgeCutoffTime is persisted exactly")
+    void testRet03SuppliedKnowledgeCutoffPersistedExactly() throws Exception {
+        OffsetDateTime exactCutoff = OffsetDateTime.of(2024, 1, 31, 20, 15, 30, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        LocalDate start = LocalDate.of(2021, 1, 15);
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        NavObservation startObs = new NavObservation(schemeOption, start, new BigDecimal("811.21700000"), 1, exactCutoff);
+        startObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(startObs);
+
+        NavObservation endObs = new NavObservation(schemeOption, end, new BigDecimal("1670.67200000"), 1, exactCutoff);
+        endObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(endObs);
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), exactCutoff.toString());
+
+        var result = mockMvc.perform(post("/api/v1/analysis/ret03")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pit.knowledgeCutoffTime", is(exactCutoff.toInstant().toString())))
+            .andReturn();
+
+        String content = result.getResponse().getContentAsString();
+        com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(content);
+        long runId = root.path("provenance").path("calculationRunId").asLong();
+
+        CalculationRun persistedRun = calculationRunRepository.findById(runId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(
+            exactCutoff.toInstant(),
+            persistedRun.getKnowledgeCutoffTime().toInstant(),
+            "Persisted calculation_run must match supplied knowledge cutoff exactly"
+        );
+    }
+
+    @Test
+    @DisplayName("RET-03 API: Observations unavailable at knowledge cutoff cannot enter calculation")
+    void testRet03KnowledgeCutoffExcludesUnavailableObservations() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        // Observation published after cutoff time
+        OffsetDateTime latePublication = OffsetDateTime.of(2024, 1, 16, 10, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        LocalDate start = LocalDate.of(2021, 1, 15);
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        NavObservation startObs = new NavObservation(schemeOption, start, new BigDecimal("811.21700000"), 1, cutoff);
+        startObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(startObs);
+
+        // End observation was only published/available at latePublication (after knowledge cutoff)
+        NavObservation endObs = new NavObservation(schemeOption, end, new BigDecimal("1670.67200000"), 1, latePublication);
+        endObs.setSourceArtifact(sourceArtifact);
+        navObservationRepository.save(endObs);
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), cutoff.toString());
+
+        mockMvc.perform(post("/api/v1/analysis/ret03")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
+            .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
     }
 }

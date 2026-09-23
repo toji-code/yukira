@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.dto.analysis.Ret02AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret02CalculationRequest;
+import com.yukira.backend.dto.analysis.Ret03AnalysisResponse;
+import com.yukira.backend.dto.analysis.Ret03CalculationRequest;
 import com.yukira.backend.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +62,17 @@ public class AnalysisService {
         );
 
         return buildRet02Response(run);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Object> getAnalysisByRunId(Long runId) {
+        return calculationRunRepository.findById(runId).map(run -> {
+            String mCode = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getMethodologyCode() : "";
+            if (mCode.contains("RET_03") || !metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-03").isEmpty()) {
+                return buildRet03Response(run);
+            }
+            return buildRet02Response(run);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -317,6 +330,284 @@ public class AnalysisService {
         );
 
         return new Ret02AnalysisResponse(
+            identity,
+            result,
+            period,
+            pit,
+            methodology,
+            quality,
+            provenance,
+            limitations,
+            benchmark
+        );
+    }
+
+    @Transactional
+    public Ret03AnalysisResponse executeRet03Analysis(Ret03CalculationRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+        Objects.requireNonNull(request.schemeOptionId(), "schemeOptionId must not be null");
+        Objects.requireNonNull(request.endDate(), "endDate must not be null");
+        Objects.requireNonNull(request.knowledgeCutoffTime(), "knowledgeCutoffTime must not be null for PIT compliance");
+
+        String tag = request.methodologyTag() != null && !request.methodologyTag().isBlank()
+            ? request.methodologyTag() : "CANDIDATE_V1";
+
+        CalculationRun run = periodReturnCalculationService.executeRet03Calculation(
+            request.schemeOptionId(),
+            request.endDate(),
+            request.knowledgeCutoffTime(),
+            tag
+        );
+
+        return buildRet03Response(run);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Ret03AnalysisResponse> getRet03AnalysisByRunId(Long runId) {
+        return calculationRunRepository.findById(runId).map(this::buildRet03Response);
+    }
+
+    @Transactional(readOnly = true)
+    public Ret03AnalysisResponse buildRet03Response(CalculationRun run) {
+        SchemeOption option = run.getSchemeOption();
+        if (option != null && option.getId() != null) {
+            option = schemeOptionRepository.findById(option.getId()).orElse(option);
+        }
+        SchemePlan plan = null;
+        if (option != null) {
+            try {
+                plan = option.getPlan();
+                if (plan != null && plan.getId() != null) {
+                    plan = schemePlanRepository.findById(plan.getId()).orElse(plan);
+                }
+            } catch (Exception ignored) {
+                plan = null;
+            }
+        }
+        Scheme scheme = null;
+        if (plan != null) {
+            try {
+                scheme = plan.getScheme();
+                if (scheme != null && scheme.getId() != null) {
+                    scheme = schemeRepository.findById(scheme.getId()).orElse(scheme);
+                }
+            } catch (Exception ignored) {
+                scheme = null;
+            }
+        }
+
+        Ret03AnalysisResponse.IdentityInfo identity = new Ret03AnalysisResponse.IdentityInfo(
+            scheme != null ? scheme.getId() : null,
+            scheme != null ? scheme.getName() : "Unknown Scheme",
+            option != null ? option.getAmfiCode() : (scheme != null ? scheme.getCode() : null),
+            option != null ? option.getId() : null,
+            option != null ? option.getOptionType() : "Unknown Option",
+            option != null ? option.getIsin() : null
+        );
+
+        List<MetricResult> results = metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-03");
+        MetricResult metricResult = results.isEmpty() ? null : results.get(0);
+
+        Map<String, Object> diagnostics = Collections.emptyMap();
+        if (metricResult != null && metricResult.getDiagnostics() != null) {
+            try {
+                diagnostics = objectMapper.readValue(metricResult.getDiagnostics(), new TypeReference<>() {});
+            } catch (Exception ignored) {}
+        }
+
+        BigDecimal numericValue = metricResult != null ? metricResult.getNumericValue() : null;
+        String calculationStatus = metricResult != null ? metricResult.getCalculationStatus()
+            : ("FAILED".equals(run.getRunStatus()) ? "INSUFFICIENT_DATA" : run.getRunStatus());
+        String formattedValue = numericValue != null
+            ? String.format("%+.4f%%", numericValue.multiply(new BigDecimal("100")))
+            : null;
+        String errorMessage = metricResult != null && metricResult.getErrorMessage() != null
+            ? metricResult.getErrorMessage() : run.getErrorMessage();
+
+        Ret03AnalysisResponse.ResultInfo result = new Ret03AnalysisResponse.ResultInfo(
+            "RET-03",
+            "3-Year Compound Annual Growth Rate",
+            numericValue,
+            formattedValue,
+            "PERCENTAGE",
+            calculationStatus,
+            errorMessage
+        );
+
+        LocalDate reqStart = diagnostics.containsKey("requested_start_date")
+            ? LocalDate.parse((String) diagnostics.get("requested_start_date"))
+            : null;
+        LocalDate reqEnd = diagnostics.containsKey("requested_end_date")
+            ? LocalDate.parse((String) diagnostics.get("requested_end_date"))
+            : run.getAsOfDate();
+
+        LocalDate selStart = diagnostics.containsKey("selected_start_date")
+            ? LocalDate.parse((String) diagnostics.get("selected_start_date"))
+            : null;
+        LocalDate selEnd = diagnostics.containsKey("selected_end_date")
+            ? LocalDate.parse((String) diagnostics.get("selected_end_date"))
+            : null;
+
+        Integer startLookback = diagnostics.containsKey("start_lookback_days_used")
+            ? ((Number) diagnostics.get("start_lookback_days_used")).intValue()
+            : 0;
+        Integer endLookback = diagnostics.containsKey("end_lookback_days_used")
+            ? ((Number) diagnostics.get("end_lookback_days_used")).intValue()
+            : 0;
+
+        Ret03AnalysisResponse.PeriodInfo period = new Ret03AnalysisResponse.PeriodInfo(
+            reqStart,
+            reqEnd,
+            selStart,
+            selEnd,
+            startLookback,
+            endLookback,
+            startLookback != null && startLookback > 0,
+            endLookback != null && endLookback > 0
+        );
+
+        Ret03AnalysisResponse.PitInfo pit = new Ret03AnalysisResponse.PitInfo(
+            run.getKnowledgeCutoffTime(),
+            true,
+            "Factual AMFI source availability timestamp is unrecorded upstream. Analytical EOD cutoff convention applied.",
+            "CONVENTION_EOD_HISTORICAL_CUTOFF",
+            "HISTORICAL_BACKFILL"
+        );
+
+        String mCode = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getMethodologyCode() : "RET_03_3Y_CAGR";
+        String mVer = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getVersionTag() : "CANDIDATE_V1";
+        String mStatus = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getApprovalStatus() : "CANDIDATE";
+
+        Ret03AnalysisResponse.MethodologyInfo methodology = new Ret03AnalysisResponse.MethodologyInfo(
+            mCode,
+            mVer,
+            mStatus,
+            true,
+            "36 calendar months candidate analytical window with 4-day boundary lookback",
+            "Standard CAGR with fractional year compounding: (NAV_end / NAV_start)^(365.25 / elapsed_calendar_days) - 1"
+        );
+
+        List<CalculationRunInputObservation> inputObsLinks = calculationRunInputObservationRepository.findByCalculationRunId(run.getId());
+        inputObsLinks.sort(Comparator.comparing(CalculationRunInputObservation::getEffectiveDate));
+
+        List<Ret03AnalysisResponse.InputObservationRef> inputObservationRefs = new ArrayList<>();
+        Map<Long, Ret03AnalysisResponse.SourceArtifactSummary> artifactMap = new HashMap<>();
+
+        String primaryQuality = "VALID";
+        String primaryVerification = "VERIFIED";
+        String primaryRevision = "ORIGINAL";
+        String primaryFreshness = "CURRENT";
+        String primaryPresence = "AVAILABLE";
+        String primaryIntegrity = "NONE";
+
+        for (int i = 0; i < inputObsLinks.size(); i++) {
+            CalculationRunInputObservation link = inputObsLinks.get(i);
+            NavObservation obs = link.getNavObservation();
+            if (obs == null) continue;
+
+            String role = (i == 0 && inputObsLinks.size() > 1) ? "START" : (i == inputObsLinks.size() - 1 ? "END" : "INTERMEDIATE");
+            SourceArtifact artifact = obs.getSourceArtifact();
+
+            if ("SUSPICIOUS".equals(obs.getQualityAssessment())) primaryQuality = "SUSPICIOUS";
+            if ("INVALID".equals(obs.getQualityAssessment())) primaryQuality = "INVALID";
+            if ("UNVERIFIED".equals(obs.getVerificationStatus())) primaryVerification = "UNVERIFIED";
+            if ("REVISED".equals(obs.getRevisionStatus())) primaryRevision = "REVISED";
+            if ("STALE".equals(obs.getTemporalStatus())) primaryFreshness = "STALE";
+
+            inputObservationRefs.add(new Ret03AnalysisResponse.InputObservationRef(
+                obs.getId(),
+                role,
+                obs.getEffectiveDate(),
+                obs.getRevisionSeq(),
+                obs.getNavValue(),
+                obs.getAvailabilityTime(),
+                obs.getQualityAssessment(),
+                obs.getVerificationStatus(),
+                obs.getRevisionStatus(),
+                obs.getTemporalStatus() != null ? obs.getTemporalStatus() : "CURRENT",
+                obs.getPresenceStatus(),
+                "NONE",
+                "HISTORICAL_BACKFILL",
+                artifact != null ? artifact.getId() : null,
+                artifact != null ? artifact.getSha256Hash() : null
+            ));
+
+            if (artifact != null && !artifactMap.containsKey(artifact.getId())) {
+                String sourceUrl = artifact.getStorageUri() != null ? artifact.getStorageUri() : "https://www.amfiindia.com/net-asset-value/nav-history";
+                artifactMap.put(artifact.getId(), new Ret03AnalysisResponse.SourceArtifactSummary(
+                    artifact.getId(),
+                    sourceUrl,
+                    artifact.getSha256Hash(),
+                    artifact.getRetrievalTimestamp(),
+                    artifact.getByteSize()
+                ));
+            }
+        }
+
+        if (inputObsLinks.isEmpty()) {
+            primaryPresence = "MISSING";
+            primaryQuality = "INVALID";
+        }
+
+        List<String> validationFlags = new ArrayList<>();
+        if (option != null) {
+            List<ValidationIssue> issues = validationIssueRepository.findByTargetEntityTypeAndTargetEntityId("SCHEME_OPTION", option.getId());
+            for (ValidationIssue issue : issues) {
+                validationFlags.add(issue.getCheckCode() + ": " + issue.getMessage());
+                if ("CONFLICTING".equalsIgnoreCase(issue.getIntegrityCondition())) {
+                    primaryIntegrity = "CONFLICTING";
+                } else if ("DUPLICATE".equalsIgnoreCase(issue.getIntegrityCondition()) && !"CONFLICTING".equals(primaryIntegrity)) {
+                    primaryIntegrity = "DUPLICATE";
+                }
+            }
+        }
+
+        List<Ret03AnalysisResponse.QualityDimension> dimensions = List.of(
+            new Ret03AnalysisResponse.QualityDimension("Quality", primaryQuality, "Conforms to schema and historical sanity thresholds."),
+            new Ret03AnalysisResponse.QualityDimension("Verification", primaryVerification, "Observation reconciled against source artifact."),
+            new Ret03AnalysisResponse.QualityDimension("Revision", primaryRevision, "Authoritative revision status within bitemporal ledger."),
+            new Ret03AnalysisResponse.QualityDimension("Freshness", primaryFreshness, "Observation delivery timeliness against reporting schedule."),
+            new Ret03AnalysisResponse.QualityDimension("Presence", primaryPresence, "Observation presence evaluated at PIT cutoff."),
+            new Ret03AnalysisResponse.QualityDimension("Integrity", primaryIntegrity, "Bitemporal relationship condition (duplicate or conflicting detection).")
+        );
+
+        Ret03AnalysisResponse.QualityInfo quality = new Ret03AnalysisResponse.QualityInfo(
+            primaryQuality,
+            dimensions,
+            validationFlags
+        );
+
+        String commitHash = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getGitCommitHash() : null;
+        Ret03AnalysisResponse.ProvenanceInfo provenance = new Ret03AnalysisResponse.ProvenanceInfo(
+            run.getId(),
+            run.getRunStatus(),
+            run.getExecutionStartedAt(),
+            run.getExecutionCompletedAt(),
+            run.getEngineSoftwareVersion(),
+            commitHash,
+            run.getInputSnapshotSha256(),
+            inputObservationRefs,
+            new ArrayList<>(artifactMap.values())
+        );
+
+        boolean insufficient = "INSUFFICIENT_DATA".equals(calculationStatus) || "FAILED".equals(run.getRunStatus());
+        Ret03AnalysisResponse.LimitationsInfo limitations = new Ret03AnalysisResponse.LimitationsInfo(
+            true,
+            "CONVENTION_EOD_HISTORICAL_CUTOFF",
+            "HISTORICAL_BACKFILL",
+            period.startSubstituted() || period.endSubstituted(),
+            4,
+            insufficient,
+            "Factual AMFI availability timestamp is unavailable upstream. Analytical EOD cutoff convention applied. Candidate 4-calendar-day lookback window active. Zero investment recommendation."
+        );
+
+        Ret03AnalysisResponse.BenchmarkInfo benchmark = new Ret03AnalysisResponse.BenchmarkInfo(
+            false,
+            null,
+            "RET-03 is a standalone single-asset return metric. Benchmark is explicitly not required and no synthetic benchmark was used."
+        );
+
+        return new Ret03AnalysisResponse(
             identity,
             result,
             period,

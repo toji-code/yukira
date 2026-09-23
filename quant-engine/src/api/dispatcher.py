@@ -103,7 +103,7 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
 
     for code in request.metric_codes:
         try:
-            if code == "RET-01":  # CAGR
+            if code in ("RET-01", "RET-03", "RET-04"):  # CAGR metrics
                 val = ret_mod.cagr(nav_values[0], nav_values[-1], elapsed_years)
                 results.append(
                     MetricOutputItem(

@@ -1,7 +1,7 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { fetchRet02Analysis, executeRet02Analysis } from "../../lib/api/analysis";
-import { Ret02AnalysisResponse } from "../../types/analysis";
+import { fetchAnalysis, executeAnalysis } from "../../lib/api/analysis";
+import { AnalysisResponse } from "../../types/analysis";
 import {
   getQualityAssessmentStyle,
   getRevisionStatusStyle,
@@ -19,7 +19,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
     globalThis.fetch = originalFetch;
   });
 
-  const mockSuccessfulResponse: Ret02AnalysisResponse = {
+  const mockSuccessfulResponse: AnalysisResponse = {
     identity: {
       schemeId: 1,
       schemeName: "HDFC Flexi Cap Fund",
@@ -145,14 +145,14 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
     },
   };
 
-  it("fetchRet02Analysis successfully parses complete auditable contract", async () => {
+  it("fetchAnalysis successfully parses complete auditable contract", async () => {
     globalThis.fetch = async () =>
       new Response(JSON.stringify(mockSuccessfulResponse), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
 
-    const res = await fetchRet02Analysis(42);
+    const res = await fetchAnalysis(42);
 
     assert.equal(res.result.metricCode, "RET-02");
     assert.equal(res.result.calculationStatus, "CALCULATED");
@@ -219,7 +219,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
   });
 
   it("handles insufficient evidence response without zero substitution", async () => {
-    const insufficientResponse: Ret02AnalysisResponse = {
+    const insufficientResponse: AnalysisResponse = {
       ...mockSuccessfulResponse,
       result: {
         metricCode: "RET-02",
@@ -242,7 +242,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
         headers: { "Content-Type": "application/json" },
       });
 
-    const res = await fetchRet02Analysis(99);
+    const res = await fetchAnalysis(99);
     assert.equal(res.result.calculationStatus, "INSUFFICIENT_DATA");
     assert.equal(res.result.numericValue, null);
     assert.notEqual(res.result.numericValue, 0); // Must NOT substitute 0.0
@@ -258,7 +258,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
 
     await assert.rejects(
       async () => {
-        await fetchRet02Analysis(42);
+        await fetchAnalysis(42);
       },
       (err: ApiError) => {
         assert.equal(err.code, "HTTP_504");
@@ -268,7 +268,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
     );
   });
 
-  it("executeRet02Analysis sends parameterized payload and receives authoritative response", async () => {
+  it("executeAnalysis sends parameterized payload and receives authoritative response", async () => {
     globalThis.fetch = async (_url, options) => {
       assert.equal(options?.method, "POST");
       const body = JSON.parse(options?.body as string);
@@ -281,7 +281,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
       });
     };
 
-    const res = await executeRet02Analysis({
+    const res = await executeAnalysis("ret02", {
       schemeOptionId: 101,
       startDate: "2024-01-01",
       endDate: "2024-01-15",
@@ -297,5 +297,222 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
     // Frontend only receives and displays data.result.numericValue
     const authoritativeValue = mockSuccessfulResponse.result.numericValue;
     assert.equal(authoritativeValue, 0.104523);
+  });
+});
+
+describe("Phase 2K: RET-03 (3Y CAGR) Frontend & Analysis API Tests", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const mockRet03Response: AnalysisResponse = {
+    identity: {
+      schemeId: 1,
+      schemeName: "HDFC Flexi Cap Fund",
+      amfiCode: "118955",
+      schemeOptionId: 1,
+      optionType: "GROWTH",
+      isin: "INF179K01UT0",
+    },
+    result: {
+      metricCode: "RET-03",
+      metricName: "3-Year Compound Annual Growth Rate",
+      numericValue: 0.272495778659288,
+      formattedValue: "+27.25%",
+      units: "PERCENTAGE",
+      calculationStatus: "CALCULATED",
+      errorMessage: null,
+    },
+    period: {
+      requestedStartDate: "2021-01-15",
+      requestedEndDate: "2024-01-15",
+      selectedStartDate: "2021-01-15",
+      selectedEndDate: "2024-01-15",
+      startLookbackDaysUsed: 0,
+      endLookbackDaysUsed: 0,
+      startSubstituted: false,
+      endSubstituted: false,
+    },
+    pit: {
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+      pitFilteringApplied: true,
+      temporalLimitationDisclosure:
+        "Factual AMFI source availability timestamp is unrecorded upstream. Analytical EOD cutoff convention applied.",
+      cutoffConventionApplied: "CONVENTION_EOD_HISTORICAL_CUTOFF",
+      sourceAvailabilitySemantic: "HISTORICAL_BACKFILL",
+    },
+    methodology: {
+      methodologyCode: "RET_03_3Y_CAGR",
+      methodologyVersion: "CANDIDATE_V1",
+      approvalStatus: "CANDIDATE",
+      isCandidate: true,
+      lookbackSpecification: "36 calendar months candidate analytical window with 4-day boundary lookback",
+      formulaDisclosure: "(NAV_end / NAV_start)^(365.25 / elapsed_calendar_days) - 1",
+    },
+    quality: {
+      overallAssessment: "VALID",
+      dimensions: [
+        { dimension: "Quality", state: "VALID", description: "Conforms to schema" },
+        { dimension: "Verification", state: "VERIFIED", description: "Reconciled with source" },
+        { dimension: "Revision", state: "ORIGINAL", description: "Original observation" },
+        { dimension: "Freshness", state: "CURRENT", description: "Observation delivery timeliness against reporting schedule" },
+        { dimension: "Presence", state: "AVAILABLE", description: "Present at cutoff" },
+        { dimension: "Integrity", state: "NONE", description: "Bitemporal relationship condition" },
+      ],
+      validationFlags: [],
+    },
+    provenance: {
+      calculationRunId: 101,
+      runStatus: "COMPLETED",
+      executionStartedAt: "2024-02-01T10:00:00Z",
+      executionCompletedAt: "2024-02-01T10:00:01Z",
+      quantEngineVersion: "FASTAPI-QUANT-0.1.0",
+      methodologyGitCommit: "4bdd60c2ed5986a07ec44d613d3a91ff7189f2c7",
+      inputSnapshotSha256: "c".repeat(64),
+      inputObservations: [
+        {
+          observationId: 871,
+          role: "START",
+          effectiveDate: "2021-01-15",
+          revisionSeq: 1,
+          navValue: 811.217,
+          availabilityTime: "2021-01-15T18:29:59.999Z",
+          qualityAssessment: "VALID",
+          verificationStatus: "VERIFIED",
+          revisionStatus: "ORIGINAL",
+          temporalStatus: "CURRENT",
+          presenceStatus: "AVAILABLE",
+          integrityCondition: "NONE",
+          sourceAvailabilitySemantic: "HISTORICAL_BACKFILL",
+          sourceArtifactId: 1,
+          sourceArtifactSha256: "900508f8".padEnd(64, "0"),
+        },
+        {
+          observationId: 11,
+          role: "END",
+          effectiveDate: "2024-01-15",
+          revisionSeq: 1,
+          navValue: 1670.672,
+          availabilityTime: "2024-01-15T18:29:59.999Z",
+          qualityAssessment: "VALID",
+          verificationStatus: "VERIFIED",
+          revisionStatus: "ORIGINAL",
+          temporalStatus: "CURRENT",
+          presenceStatus: "AVAILABLE",
+          integrityCondition: "NONE",
+          sourceAvailabilitySemantic: "HISTORICAL_BACKFILL",
+          sourceArtifactId: 1,
+          sourceArtifactSha256: "900508f8".padEnd(64, "0"),
+        },
+      ],
+      sourceArtifacts: [
+        {
+          sourceArtifactId: 1,
+          sourceUrl: "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?mf=&scheme=118955",
+          sha256Hash: "900508f8".padEnd(64, "0"),
+          retrievalTimestamp: "2024-01-31T23:59:59Z",
+          byteSize: 11185549,
+        },
+      ],
+    },
+    limitations: {
+      factualAvailabilityTimestampUnavailable: true,
+      analyticalCutoffConvention: "CONVENTION_EOD_HISTORICAL_CUTOFF",
+      sourceAvailabilitySemantic: "HISTORICAL_BACKFILL",
+      candidateLookbackApplied: false,
+      lookbackWindowDays: 4,
+      insufficientEvidence: false,
+      disclosureSummary:
+        "Factual AMFI availability timestamp is unavailable upstream. Analytical EOD cutoff convention applied. Candidate 4-calendar-day lookback window active. 365.25-day annualization is a candidate convention requiring validation; no annualization convention is approved for production. Zero investment recommendation.",
+    },
+    benchmark: {
+      benchmarkRequired: false,
+      benchmarkId: null,
+      benchmarkNotice: "RET-03 is a standalone single-asset return metric. Benchmark is explicitly not required and no synthetic benchmark was used.",
+    },
+  };
+
+  it("RET-03: successful execution dispatches to backend and receives verified CAGR", async () => {
+    globalThis.fetch = async (url, options) => {
+      assert.ok(String(url).includes("/api/v1/analysis/ret03"));
+      assert.equal(options?.method, "POST");
+      const body = JSON.parse(options?.body as string);
+      assert.equal(body.schemeOptionId, 1);
+      assert.equal(body.endDate, "2024-01-15");
+      assert.equal(body.knowledgeCutoffTime, "2024-01-31T23:59:59+05:30");
+      return new Response(JSON.stringify(mockRet03Response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const res = await executeAnalysis("ret03", {
+      schemeOptionId: 1,
+      endDate: "2024-01-15",
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+    });
+
+    assert.equal(res.result.metricCode, "RET-03");
+    assert.equal(res.result.calculationStatus, "CALCULATED");
+    assert.equal(res.result.formattedValue, "+27.25%");
+    assert.ok(Math.abs((res.result.numericValue ?? 0) - 0.272495778659) < 0.0001);
+  });
+
+  it("RET-03: result rendering displays correct 3Y period boundary dates", async () => {
+    assert.equal(mockRet03Response.period.requestedStartDate, "2021-01-15");
+    assert.equal(mockRet03Response.period.requestedEndDate, "2024-01-15");
+    assert.equal(mockRet03Response.period.selectedStartDate, "2021-01-15");
+    assert.equal(mockRet03Response.period.selectedEndDate, "2024-01-15");
+    assert.equal(mockRet03Response.period.startSubstituted, false);
+    assert.equal(mockRet03Response.period.endSubstituted, false);
+  });
+
+  it("RET-03: methodology display reflects CANDIDATE status and UNVALIDATED state", () => {
+    assert.equal(mockRet03Response.methodology.methodologyCode, "RET_03_3Y_CAGR");
+    assert.equal(mockRet03Response.methodology.methodologyVersion, "CANDIDATE_V1");
+    assert.equal(mockRet03Response.methodology.approvalStatus, "CANDIDATE");
+    assert.equal(mockRet03Response.methodology.isCandidate, true);
+    assert.ok(mockRet03Response.methodology.formulaDisclosure.includes("365.25"));
+  });
+
+  it("RET-03: candidate annualization disclosure is prominently present in epistemic caveats", () => {
+    const summary = mockRet03Response.limitations.disclosureSummary;
+    assert.ok(summary.includes("365.25-day annualization is a candidate convention"));
+    assert.ok(summary.includes("no annualization convention is approved for production"));
+    assert.equal(mockRet03Response.benchmark.benchmarkRequired, false);
+  });
+
+  it("RET-03: handles unavailable / insufficient-history cleanly without zero substitution", async () => {
+    const insufficientRet03: AnalysisResponse = {
+      ...mockRet03Response,
+      result: {
+        metricCode: "RET-03",
+        metricName: "3-Year Compound Annual Growth Rate",
+        numericValue: null,
+        formattedValue: null,
+        units: "PERCENTAGE",
+        calculationStatus: "INSUFFICIENT_DATA",
+        errorMessage: "Scheme history is less than 36 calendar months; required 3Y CAGR window cannot be formed.",
+      },
+      limitations: {
+        ...mockRet03Response.limitations,
+        insufficientEvidence: true,
+      },
+    };
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(insufficientRet03), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const res = await fetchAnalysis(102);
+    assert.equal(res.result.metricCode, "RET-03");
+    assert.equal(res.result.calculationStatus, "INSUFFICIENT_DATA");
+    assert.equal(res.result.numericValue, null);
+    assert.notEqual(res.result.numericValue, 0); // Strictly forbidden to substitute 0
+    assert.equal(res.limitations.insufficientEvidence, true);
   });
 });

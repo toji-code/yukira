@@ -2,6 +2,8 @@ package com.yukira.backend.controller;
 
 import com.yukira.backend.dto.analysis.Ret02AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret02CalculationRequest;
+import com.yukira.backend.dto.analysis.Ret03AnalysisResponse;
+import com.yukira.backend.dto.analysis.Ret03CalculationRequest;
 import com.yukira.backend.repository.SchemeOptionRepository;
 import com.yukira.backend.service.AnalysisService;
 import org.springframework.http.HttpStatus;
@@ -89,7 +91,60 @@ public class AnalysisController {
      * Alias route for frontend /analysis/[id] direct retrieval.
      */
     @GetMapping("/{runId}")
-    public ResponseEntity<Ret02AnalysisResponse> getAnalysisByRunId(@PathVariable Long runId) {
-        return getRet02Analysis(runId);
+    public ResponseEntity<?> getAnalysisByRunId(@PathVariable Long runId) {
+        return analysisService.getAnalysisByRunId(runId)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Executes real RET-03 (3Y CAGR) vertical slice.
+     */
+    @PostMapping("/ret03")
+    public ResponseEntity<?> executeRet03(@RequestBody Ret03CalculationRequest request) {
+        if (request.schemeOptionId() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PARAMETER",
+                "message", "Canonical schemeOptionId is required."
+            ));
+        }
+        if (request.endDate() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_DATES",
+                "message", "endDate is required for RET-03 3Y CAGR calculation."
+            ));
+        }
+        if (request.knowledgeCutoffTime() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_CUTOFF",
+                "message", "knowledgeCutoffTime is required to enforce point-in-time constraints."
+            ));
+        }
+
+        if (!schemeOptionRepository.existsById(request.schemeOptionId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", request.schemeOptionId())
+            ));
+        }
+
+        Ret03AnalysisResponse response = analysisService.executeRet03Analysis(request);
+
+        if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) ||
+            "FAILED".equals(response.provenance().runStatus())) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves full auditable RET-03 analysis for an existing calculation run.
+     */
+    @GetMapping("/ret03/{runId}")
+    public ResponseEntity<Ret03AnalysisResponse> getRet03Analysis(@PathVariable Long runId) {
+        return analysisService.getRet03AnalysisByRunId(runId)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

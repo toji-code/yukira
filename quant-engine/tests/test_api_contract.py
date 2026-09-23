@@ -24,7 +24,7 @@ def test_calculate_deterministic_returns():
         "request_id": "REQ-TEST-001",
         "as_of_date": "2026-01-05",
         "knowledge_cutoff_time": "2026-01-05T23:59:59+05:30",
-        "metric_codes": ["RET-01", "RET-02", "RSK-01", "RSK-05"],
+        "metric_codes": ["RET-01", "RET-02", "RET-03", "RSK-01", "RSK-05"],
         "nav_series": [
             {"effective_date": "2025-01-01", "value": 100.0, "availability_time": "2025-01-01T23:00:00+05:30"},
             {"effective_date": "2025-06-01", "value": 110.0, "availability_time": "2025-06-01T23:00:00+05:30"},
@@ -37,7 +37,7 @@ def test_calculate_deterministic_returns():
     data = response.json()
     assert data["request_id"] == "REQ-TEST-001"
     assert data["status"] == "SUCCESS"
-    assert len(data["results"]) == 4
+    assert len(data["results"]) == 5
 
     results_map = {r["metric_code"]: r for r in data["results"]}
     # Total return: (120 - 100) / 100 = 0.20
@@ -47,6 +47,9 @@ def test_calculate_deterministic_returns():
     assert results_map["RSK-05"]["numeric_value"] < 0
     # Volatility should be calculated and positive
     assert results_map["RSK-01"]["numeric_value"] > 0
+    # RET-03 should be calculated and positive
+    assert results_map["RET-03"]["status"] == "CALCULATED"
+    assert results_map["RET-03"]["numeric_value"] > 0
 
 
 def test_calculate_candidate_sortino_conflict_metadata():
