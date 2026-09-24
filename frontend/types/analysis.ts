@@ -111,15 +111,51 @@ export interface Ret02Benchmark {
   benchmarkNotice: string;
 }
 
+export interface Rsk01Window {
+  requestedStartDate: string | null;
+  requestedEndDate: string | null;
+  actualStartDate: string | null;
+  actualEndDate: string | null;
+  observationCount: number;
+  minObservationsRequired: number;
+  windowMonths: number;
+}
+
+export interface Rsk01Methodology {
+  methodologyCode: string;
+  methodologyVersion: string;
+  approvalStatus: 'CANDIDATE' | 'APPROVED' | 'DEPRECATED' | string;
+  isCandidate: boolean;
+  annualizationConvention: string;
+  denominatorConvention: string;
+  formulaDisclosure: string;
+  lookbackSpecification?: string;
+}
+
+export interface Rsk01Limitations {
+  candidateAnnualizationApplied: boolean;
+  candidateDenominatorApplied: boolean;
+  insufficientEvidence: boolean;
+  observationCount: number;
+  minObservationsRequired: number;
+  disclosureSummary: string;
+  factualAvailabilityTimestampUnavailable?: boolean;
+  analyticalCutoffConvention?: string;
+  sourceAvailabilitySemantic?: string;
+  candidateLookbackApplied?: boolean;
+  lookbackWindowDays?: number;
+}
+
 export interface AnalysisResponse {
   identity: Ret02Identity;
   result: Ret02Result;
-  period: Ret02Period;
+  period?: Ret02Period;
+  window?: Rsk01Window;
   pit: Ret02Pit;
-  methodology: Ret02Methodology;
+  methodology: Ret02Methodology | Rsk01Methodology;
   quality: Ret02Quality;
   provenance: Ret02Provenance;
-  limitations: Ret02Limitations;
+  limitations: Ret02Limitations | Rsk01Limitations;
   benchmark: Ret02Benchmark;
 }
 

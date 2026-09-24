@@ -4,6 +4,8 @@ import com.yukira.backend.dto.analysis.Ret02AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret02CalculationRequest;
 import com.yukira.backend.dto.analysis.Ret03AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret03CalculationRequest;
+import com.yukira.backend.dto.analysis.Rsk01AnalysisResponse;
+import com.yukira.backend.dto.analysis.Rsk01CalculationRequest;
 import com.yukira.backend.repository.SchemeOptionRepository;
 import com.yukira.backend.service.AnalysisService;
 import org.springframework.http.HttpStatus;
@@ -144,6 +146,57 @@ public class AnalysisController {
     @GetMapping("/ret03/{runId}")
     public ResponseEntity<Ret03AnalysisResponse> getRet03Analysis(@PathVariable Long runId) {
         return analysisService.getRet03AnalysisByRunId(runId)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Executes real RSK-01 (3-Year Annualized Volatility) vertical slice.
+     */
+    @PostMapping("/rsk01")
+    public ResponseEntity<?> executeRsk01(@RequestBody Rsk01CalculationRequest request) {
+        if (request.schemeOptionId() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PARAMETER",
+                "message", "Canonical schemeOptionId is required."
+            ));
+        }
+        if (request.endDate() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_DATES",
+                "message", "endDate is required for RSK-01 3Y Volatility calculation."
+            ));
+        }
+        if (request.knowledgeCutoffTime() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_CUTOFF",
+                "message", "knowledgeCutoffTime is required to enforce point-in-time constraints."
+            ));
+        }
+
+        if (!schemeOptionRepository.existsById(request.schemeOptionId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", request.schemeOptionId())
+            ));
+        }
+
+        Rsk01AnalysisResponse response = analysisService.executeRsk01Analysis(request);
+
+        if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) ||
+            "FAILED".equals(response.provenance().runStatus())) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves full auditable RSK-01 analysis for an existing calculation run.
+     */
+    @GetMapping("/rsk01/{runId}")
+    public ResponseEntity<Rsk01AnalysisResponse> getRsk01Analysis(@PathVariable Long runId) {
+        return analysisService.getRsk01AnalysisByRunId(runId)
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());
     }

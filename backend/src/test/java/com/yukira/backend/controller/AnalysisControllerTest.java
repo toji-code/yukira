@@ -117,7 +117,7 @@ class AnalysisControllerTest {
             // 2. Result
             .andExpect(jsonPath("$.result.metricCode", is("RET-02")))
             .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
-            .andExpect(jsonPath("$.result.numericValue", closeTo(new BigDecimal("0.10"), new BigDecimal("0.0001"))))
+            .andExpect(jsonPath("$.result.formattedValue", is("+10.0000%")))
             .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
             // 3. Period
             .andExpect(jsonPath("$.period.requestedStartDate", is("2024-01-01")))
@@ -478,5 +478,119 @@ class AnalysisControllerTest {
             .andExpect(status().isUnprocessableEntity())
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
+    }
+
+    @Test
+    @DisplayName("RSK-01 API: Successful execution exposes complete auditable risk vertical slice")
+    void testSuccessfulRsk01Execution() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        LocalDate start = LocalDate.of(2021, 1, 15);
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        // Seed 720 daily observations so minObservations >= 700 is satisfied
+        LocalDate current = start;
+        BigDecimal nav = new BigDecimal("100.00000000");
+        int count = 0;
+        while (!current.isAfter(end)) {
+            NavObservation obs = new NavObservation(schemeOption, current, nav, 1, cutoff);
+            obs.setSourceArtifact(sourceArtifact);
+            navObservationRepository.save(obs);
+            nav = nav.add(new BigDecimal("0.10000000"));
+            current = current.plusDays(1);
+            count++;
+        }
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), cutoff.toString());
+
+        mockMvc.perform(post("/api/v1/analysis/rsk01")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-01")))
+            .andExpect(jsonPath("$.result.metricName", is("3-Year Annualized Volatility")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
+            .andExpect(jsonPath("$.window.observationCount", greaterThanOrEqualTo(700)))
+            .andExpect(jsonPath("$.window.minObservationsRequired", is(700)))
+            .andExpect(jsonPath("$.methodology.methodologyCode", is("RSK_01_3Y_VOLATILITY")))
+            .andExpect(jsonPath("$.methodology.annualizationConvention", is("SQRT_252_CANDIDATE")))
+            .andExpect(jsonPath("$.methodology.denominatorConvention", is("N_MINUS_ONE_CANDIDATE")))
+            .andExpect(jsonPath("$.benchmark.benchmarkRequired", is(false)))
+            .andExpect(jsonPath("$.limitations.candidateAnnualizationApplied", is(true)))
+            .andExpect(jsonPath("$.provenance.runStatus", is("COMPLETED")));
+    }
+
+    @Test
+    @DisplayName("RSK-01 API: Insufficient observations (< 700) returns HTTP 422 with INSUFFICIENT_DATA status")
+    void testRsk01InsufficientObservationsReturns422() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        // Only 5 observations seeded
+        for (int i = 0; i < 5; i++) {
+            NavObservation obs = new NavObservation(schemeOption, LocalDate.of(2024, 1, 10 + i), new BigDecimal("100.00"), 1, cutoff);
+            obs.setSourceArtifact(sourceArtifact);
+            navObservationRepository.save(obs);
+        }
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), cutoff.toString());
+
+        mockMvc.perform(post("/api/v1/analysis/rsk01")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-01")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
+            .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
+    }
+
+    @Test
+    @DisplayName("RSK-01 API: Missing knowledgeCutoffTime returns HTTP 400 Bad Request")
+    void testRsk01MissingKnowledgeCutoffReturns400() throws Exception {
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15"
+            }
+            """, schemeOption.getId());
+
+        mockMvc.perform(post("/api/v1/analysis/rsk01")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("MISSING_PIT_CUTOFF")));
+    }
+
+    @Test
+    @DisplayName("RSK-01 API: Non-existent scheme option returns HTTP 404")
+    void testRsk01NonExistentSchemeOptionReturns404() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": 999999,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s"
+            }
+            """, cutoff.toString());
+
+        mockMvc.perform(post("/api/v1/analysis/rsk01")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error", is("SCHEME_OPTION_NOT_FOUND")));
     }
 }

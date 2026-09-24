@@ -1,7 +1,7 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { fetchAnalysis, executeAnalysis } from "../../lib/api/analysis";
-import { AnalysisResponse } from "../../types/analysis";
+import { AnalysisResponse, Rsk01Methodology, Rsk01Limitations } from "../../types/analysis";
 import {
   getQualityAssessmentStyle,
   getRevisionStatusStyle,
@@ -461,12 +461,12 @@ describe("Phase 2K: RET-03 (3Y CAGR) Frontend & Analysis API Tests", () => {
   });
 
   it("RET-03: result rendering displays correct 3Y period boundary dates", async () => {
-    assert.equal(mockRet03Response.period.requestedStartDate, "2021-01-15");
-    assert.equal(mockRet03Response.period.requestedEndDate, "2024-01-15");
-    assert.equal(mockRet03Response.period.selectedStartDate, "2021-01-15");
-    assert.equal(mockRet03Response.period.selectedEndDate, "2024-01-15");
-    assert.equal(mockRet03Response.period.startSubstituted, false);
-    assert.equal(mockRet03Response.period.endSubstituted, false);
+    assert.equal(mockRet03Response.period?.requestedStartDate, "2021-01-15");
+    assert.equal(mockRet03Response.period?.requestedEndDate, "2024-01-15");
+    assert.equal(mockRet03Response.period?.selectedStartDate, "2021-01-15");
+    assert.equal(mockRet03Response.period?.selectedEndDate, "2024-01-15");
+    assert.equal(mockRet03Response.period?.startSubstituted, false);
+    assert.equal(mockRet03Response.period?.endSubstituted, false);
   });
 
   it("RET-03: methodology display reflects CANDIDATE status and UNVALIDATED state", () => {
@@ -513,6 +513,190 @@ describe("Phase 2K: RET-03 (3Y CAGR) Frontend & Analysis API Tests", () => {
     assert.equal(res.result.calculationStatus, "INSUFFICIENT_DATA");
     assert.equal(res.result.numericValue, null);
     assert.notEqual(res.result.numericValue, 0); // Strictly forbidden to substitute 0
+    assert.equal(res.limitations.insufficientEvidence, true);
+  });
+
+  const mockRsk01Response: AnalysisResponse = {
+    identity: {
+      schemeId: 1,
+      schemeName: "HDFC Flexi Cap Fund",
+      amfiCode: "118955",
+      schemeOptionId: 1,
+      optionType: "GROWTH",
+      isin: "INF179K01UT0",
+    },
+    result: {
+      metricCode: "RSK-01",
+      metricName: "3-Year Annualized Volatility",
+      numericValue: 0.146912937102,
+      formattedValue: "14.6913%",
+      units: "PERCENTAGE",
+      calculationStatus: "CALCULATED",
+      errorMessage: null,
+    },
+    window: {
+      requestedStartDate: "2021-01-15",
+      requestedEndDate: "2024-01-15",
+      actualStartDate: "2021-01-15",
+      actualEndDate: "2024-01-15",
+      observationCount: 737,
+      minObservationsRequired: 700,
+      windowMonths: 36,
+    },
+    pit: {
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+      pitFilteringApplied: true,
+      temporalLimitationDisclosure:
+        "Factual AMFI source availability timestamp is unrecorded upstream. Analytical EOD cutoff convention applied.",
+      cutoffConventionApplied: "CONVENTION_EOD_HISTORICAL_CUTOFF",
+      sourceAvailabilitySemantic: "HISTORICAL_BACKFILL",
+    },
+    methodology: {
+      methodologyCode: "RSK_01_3Y_VOLATILITY",
+      methodologyVersion: "CANDIDATE_V1",
+      approvalStatus: "CANDIDATE",
+      isCandidate: true,
+      annualizationConvention: "SQRT_252_CANDIDATE",
+      denominatorConvention: "N_MINUS_ONE_CANDIDATE",
+      formulaDisclosure: "sigma_ann = sqrt(252) * sqrt( sum((r_t - r_bar)^2) / (N - 1) )",
+    },
+    quality: {
+      overallAssessment: "VALID",
+      dimensions: [
+        { dimension: "Quality", state: "VALID", description: "All observations conform to schema" },
+        { dimension: "Verification", state: "VERIFIED", description: "Corroborated against AMFI feeds" },
+        { dimension: "Revision", state: "ORIGINAL", description: "Official values" },
+        { dimension: "Freshness", state: "CURRENT", description: "Timely delivery" },
+        { dimension: "Presence", state: "AVAILABLE", description: "Sufficient continuous observations" },
+        { dimension: "Integrity", state: "NONE", description: "No unresolved conflicts" },
+      ],
+      validationFlags: [],
+    },
+    provenance: {
+      calculationRunId: 105,
+      runStatus: "COMPLETED",
+      executionStartedAt: "2024-02-01T12:00:00Z",
+      executionCompletedAt: "2024-02-01T12:00:01Z",
+      quantEngineVersion: "FASTAPI-QUANT-0.1.0",
+      methodologyGitCommit: "759a7493791e867e4c53f2882e612532dff856d6",
+      inputSnapshotSha256: "c".repeat(64),
+      inputObservations: [],
+      sourceArtifacts: [
+        {
+          sourceArtifactId: 1,
+          sourceUrl: "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?mf=&scheme=118955",
+          sha256Hash: "900508f8".padEnd(64, "0"),
+          retrievalTimestamp: "2024-01-31T23:59:59Z",
+          byteSize: 11185549,
+        },
+      ],
+    },
+    limitations: {
+      candidateAnnualizationApplied: true,
+      candidateDenominatorApplied: true,
+      insufficientEvidence: false,
+      observationCount: 737,
+      minObservationsRequired: 700,
+      disclosureSummary:
+        "3-Year Annualized Volatility calculated under candidate methodology CANDIDATE_V1. Annualizer sqrt(252) and sample variance denominator N-1 are candidate conventions; neither convention is validated or approved for production. Historical volatility does not forecast future volatility. Zero investment recommendation.",
+    },
+    benchmark: {
+      benchmarkRequired: false,
+      benchmarkId: null,
+      benchmarkNotice: "RSK-01 is a standalone single-asset risk metric. Benchmark is explicitly not required and no synthetic benchmark was used.",
+    },
+  };
+
+  it("RSK-01: successful execution dispatches to backend and receives verified volatility", async () => {
+    globalThis.fetch = async (url, options) => {
+      assert.ok(String(url).includes("/api/v1/analysis/rsk01"));
+      assert.equal(options?.method, "POST");
+      const body = JSON.parse(options?.body as string);
+      assert.equal(body.schemeOptionId, 1);
+      assert.equal(body.endDate, "2024-01-15");
+      assert.equal(body.knowledgeCutoffTime, "2024-01-31T23:59:59+05:30");
+      return new Response(JSON.stringify(mockRsk01Response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const res = await executeAnalysis("rsk01", {
+      schemeOptionId: 1,
+      endDate: "2024-01-15",
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+    });
+
+    assert.equal(res.result.metricCode, "RSK-01");
+    assert.equal(res.result.metricName, "3-Year Annualized Volatility");
+    assert.equal(res.result.calculationStatus, "CALCULATED");
+    assert.equal(res.result.formattedValue, "14.6913%");
+    assert.ok(Math.abs((res.result.numericValue ?? 0) - 0.146912937102) < 0.0001);
+  });
+
+  it("RSK-01: window verification confirms 36M span and >= 700 observation threshold", () => {
+    assert.equal(mockRsk01Response.window?.requestedStartDate, "2021-01-15");
+    assert.equal(mockRsk01Response.window?.requestedEndDate, "2024-01-15");
+    assert.equal(mockRsk01Response.window?.actualStartDate, "2021-01-15");
+    assert.equal(mockRsk01Response.window?.actualEndDate, "2024-01-15");
+    assert.equal(mockRsk01Response.window?.observationCount, 737);
+    assert.equal(mockRsk01Response.window?.minObservationsRequired, 700);
+    assert.equal(mockRsk01Response.window?.windowMonths, 36);
+  });
+
+  it("RSK-01: methodology reflects CANDIDATE status, sqrt(252), and N-1 conventions", () => {
+    assert.equal(mockRsk01Response.methodology.methodologyCode, "RSK_01_3Y_VOLATILITY");
+    assert.equal(mockRsk01Response.methodology.methodologyVersion, "CANDIDATE_V1");
+    assert.equal(mockRsk01Response.methodology.approvalStatus, "CANDIDATE");
+    assert.equal(mockRsk01Response.methodology.isCandidate, true);
+    const rskMethod = mockRsk01Response.methodology as Rsk01Methodology;
+    assert.equal(rskMethod.annualizationConvention, "SQRT_252_CANDIDATE");
+    assert.equal(rskMethod.denominatorConvention, "N_MINUS_ONE_CANDIDATE");
+  });
+
+  it("RSK-01: limitations state candidate annualization and denominator applied with zero synthetic data", () => {
+    const lim = mockRsk01Response.limitations as Rsk01Limitations;
+    assert.equal(lim.candidateAnnualizationApplied, true);
+    assert.equal(lim.candidateDenominatorApplied, true);
+    assert.equal(lim.insufficientEvidence, false);
+    assert.equal(lim.observationCount, 737);
+    assert.equal(lim.minObservationsRequired, 700);
+    assert.ok(lim.disclosureSummary.includes("sqrt(252)"));
+    assert.ok(lim.disclosureSummary.includes("N-1"));
+    assert.ok(lim.disclosureSummary.includes("Historical volatility does not forecast future volatility"));
+  });
+
+  it("RSK-01: insufficient observations (< 700) returns INSUFFICIENT_DATA and does not fabricate result", async () => {
+    const insufficientRsk01: AnalysisResponse = {
+      ...mockRsk01Response,
+      result: {
+        metricCode: "RSK-01",
+        metricName: "3-Year Annualized Volatility",
+        numericValue: null,
+        formattedValue: null,
+        units: "PERCENTAGE",
+        calculationStatus: "INSUFFICIENT_DATA",
+        errorMessage: "Insufficient observations in 3Y window: found 120, minimum 700 required.",
+      },
+      limitations: {
+        ...mockRsk01Response.limitations,
+        insufficientEvidence: true,
+        observationCount: 120,
+        minObservationsRequired: 700,
+      } as Rsk01Limitations,
+    };
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(insufficientRsk01), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const res = await fetchAnalysis(106);
+    assert.equal(res.result.metricCode, "RSK-01");
+    assert.equal(res.result.calculationStatus, "INSUFFICIENT_DATA");
+    assert.equal(res.result.numericValue, null);
+    assert.notEqual(res.result.numericValue, 0); // Strictly forbidden to fabricate 0
     assert.equal(res.limitations.insufficientEvidence, true);
   });
 });

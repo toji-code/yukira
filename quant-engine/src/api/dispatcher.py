@@ -128,16 +128,44 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                 )
 
             elif code == "RSK-01":  # Annualized Volatility
-                val = statistics.volatility(fund_returns, periods_per_year)
-                results.append(
-                    MetricOutputItem(
-                        metric_code=code,
-                        numeric_value=val,
-                        units="PERCENTAGE",
-                        status=CalculationStatus.CALCULATED,
-                        diagnostics={"methodology_status": "CANDIDATE", "periods_per_year": periods_per_year},
+                min_obs = int(params.get("min_observations", 2))
+                if len(nav_values) < min_obs or len(fund_returns) < 1:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-01: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "periods_per_year": periods_per_year,
+                            },
+                        )
                     )
-                )
+                else:
+                    val = statistics.volatility(fund_returns, periods_per_year)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=val,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "periods_per_year": periods_per_year,
+                                "annualization_convention": "SQRT_252_CANDIDATE",
+                                "denominator_convention": "N_MINUS_ONE_CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "return_count": len(fund_returns),
+                                "sample_std_daily": statistics.stdev(fund_returns) if len(fund_returns) >= 2 else 0.0,
+                            },
+                        )
+                    )
 
             elif code == "RSK-02":  # Historical VaR 95%
                 val = var.historical_var(fund_returns, 0.95)

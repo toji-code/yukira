@@ -7,6 +7,8 @@ import com.yukira.backend.dto.analysis.Ret02AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret02CalculationRequest;
 import com.yukira.backend.dto.analysis.Ret03AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret03CalculationRequest;
+import com.yukira.backend.dto.analysis.Rsk01AnalysisResponse;
+import com.yukira.backend.dto.analysis.Rsk01CalculationRequest;
 import com.yukira.backend.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import java.util.*;
 public class AnalysisService {
 
     private final PeriodReturnCalculationService periodReturnCalculationService;
+    private final RiskCalculationService riskCalculationService;
     private final CalculationRunRepository calculationRunRepository;
     private final MetricResultRepository metricResultRepository;
     private final CalculationRunInputObservationRepository calculationRunInputObservationRepository;
@@ -30,6 +33,7 @@ public class AnalysisService {
 
     public AnalysisService(
         PeriodReturnCalculationService periodReturnCalculationService,
+        RiskCalculationService riskCalculationService,
         CalculationRunRepository calculationRunRepository,
         MetricResultRepository metricResultRepository,
         CalculationRunInputObservationRepository calculationRunInputObservationRepository,
@@ -39,6 +43,7 @@ public class AnalysisService {
         ValidationIssueRepository validationIssueRepository
     ) {
         this.periodReturnCalculationService = periodReturnCalculationService;
+        this.riskCalculationService = riskCalculationService;
         this.calculationRunRepository = calculationRunRepository;
         this.metricResultRepository = metricResultRepository;
         this.calculationRunInputObservationRepository = calculationRunInputObservationRepository;
@@ -64,10 +69,32 @@ public class AnalysisService {
         return buildRet02Response(run);
     }
 
+    @Transactional
+    public Rsk01AnalysisResponse executeRsk01Analysis(Rsk01CalculationRequest request) {
+        Objects.requireNonNull(request.schemeOptionId(), "schemeOptionId must not be null");
+        Objects.requireNonNull(request.endDate(), "endDate must not be null");
+        Objects.requireNonNull(request.knowledgeCutoffTime(), "knowledgeCutoffTime must not be null for PIT compliance");
+
+        String tag = request.methodologyTag() != null && !request.methodologyTag().isBlank()
+            ? request.methodologyTag() : "CANDIDATE_V1";
+
+        CalculationRun run = riskCalculationService.executeRsk01Calculation(
+            request.schemeOptionId(),
+            request.endDate(),
+            request.knowledgeCutoffTime(),
+            tag
+        );
+
+        return buildRsk01Response(run);
+    }
+
     @Transactional(readOnly = true)
     public Optional<Object> getAnalysisByRunId(Long runId) {
         return calculationRunRepository.findById(runId).map(run -> {
             String mCode = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getMethodologyCode() : "";
+            if (mCode.contains("RSK_01") || !metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RSK-01").isEmpty()) {
+                return buildRsk01Response(run);
+            }
             if (mCode.contains("RET_03") || !metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-03").isEmpty()) {
                 return buildRet03Response(run);
             }
@@ -78,6 +105,11 @@ public class AnalysisService {
     @Transactional(readOnly = true)
     public Optional<Ret02AnalysisResponse> getRet02AnalysisByRunId(Long runId) {
         return calculationRunRepository.findById(runId).map(this::buildRet02Response);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Rsk01AnalysisResponse> getRsk01AnalysisByRunId(Long runId) {
+        return calculationRunRepository.findById(runId).map(this::buildRsk01Response);
     }
 
     @Transactional(readOnly = true)
@@ -611,6 +643,258 @@ public class AnalysisService {
             identity,
             result,
             period,
+            pit,
+            methodology,
+            quality,
+            provenance,
+            limitations,
+            benchmark
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Rsk01AnalysisResponse buildRsk01Response(CalculationRun run) {
+        SchemeOption option = run.getSchemeOption();
+        if (option != null && option.getId() != null) {
+            option = schemeOptionRepository.findById(option.getId()).orElse(option);
+        }
+        SchemePlan plan = null;
+        if (option != null) {
+            try {
+                plan = option.getPlan();
+                if (plan != null && plan.getId() != null) {
+                    plan = schemePlanRepository.findById(plan.getId()).orElse(plan);
+                }
+            } catch (Exception ignored) {
+                plan = null;
+            }
+        }
+        Scheme scheme = null;
+        if (plan != null) {
+            try {
+                scheme = plan.getScheme();
+                if (scheme != null && scheme.getId() != null) {
+                    scheme = schemeRepository.findById(scheme.getId()).orElse(scheme);
+                }
+            } catch (Exception ignored) {
+                scheme = null;
+            }
+        }
+
+        Rsk01AnalysisResponse.IdentityInfo identity = new Rsk01AnalysisResponse.IdentityInfo(
+            scheme != null ? scheme.getId() : null,
+            scheme != null ? scheme.getName() : "Unknown Scheme",
+            option != null ? option.getAmfiCode() : (scheme != null ? scheme.getCode() : null),
+            option != null ? option.getId() : null,
+            option != null ? option.getOptionType() : "Unknown Option",
+            option != null ? option.getIsin() : null
+        );
+
+        List<MetricResult> results = metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RSK-01");
+        MetricResult metricResult = results.isEmpty() ? null : results.get(0);
+
+        Map<String, Object> diagnostics = Collections.emptyMap();
+        if (metricResult != null && metricResult.getDiagnostics() != null) {
+            try {
+                diagnostics = objectMapper.readValue(metricResult.getDiagnostics(), new TypeReference<>() {});
+            } catch (Exception ignored) {}
+        }
+
+        BigDecimal numericValue = metricResult != null ? metricResult.getNumericValue() : null;
+        String calculationStatus = metricResult != null ? metricResult.getCalculationStatus()
+            : ("FAILED".equals(run.getRunStatus()) ? "INSUFFICIENT_DATA" : run.getRunStatus());
+        String formattedValue = numericValue != null
+            ? String.format("%.4f%%", numericValue.multiply(new BigDecimal("100")))
+            : null;
+        String errorMessage = metricResult != null && metricResult.getErrorMessage() != null
+            ? metricResult.getErrorMessage() : run.getErrorMessage();
+
+        Rsk01AnalysisResponse.ResultInfo result = new Rsk01AnalysisResponse.ResultInfo(
+            "RSK-01",
+            "3-Year Annualized Volatility",
+            numericValue,
+            formattedValue,
+            "PERCENTAGE",
+            calculationStatus,
+            errorMessage
+        );
+
+        LocalDate reqStart = diagnostics.containsKey("requested_start_date")
+            ? LocalDate.parse((String) diagnostics.get("requested_start_date"))
+            : run.getAsOfDate().minusYears(3);
+        LocalDate reqEnd = diagnostics.containsKey("requested_end_date")
+            ? LocalDate.parse((String) diagnostics.get("requested_end_date"))
+            : run.getAsOfDate();
+
+        LocalDate actualStart = diagnostics.containsKey("actual_start_date")
+            ? LocalDate.parse((String) diagnostics.get("actual_start_date"))
+            : null;
+        LocalDate actualEnd = diagnostics.containsKey("actual_end_date")
+            ? LocalDate.parse((String) diagnostics.get("actual_end_date"))
+            : null;
+
+        Integer obsCount = diagnostics.containsKey("observation_count")
+            ? ((Number) diagnostics.get("observation_count")).intValue()
+            : 0;
+        Integer minObsReq = diagnostics.containsKey("min_observations_required")
+            ? ((Number) diagnostics.get("min_observations_required")).intValue()
+            : 700;
+
+        Rsk01AnalysisResponse.WindowInfo window = new Rsk01AnalysisResponse.WindowInfo(
+            reqStart,
+            reqEnd,
+            actualStart,
+            actualEnd,
+            obsCount,
+            minObsReq,
+            36
+        );
+
+        Rsk01AnalysisResponse.PitInfo pit = new Rsk01AnalysisResponse.PitInfo(
+            run.getKnowledgeCutoffTime(),
+            true,
+            "Factual AMFI source availability timestamp is unrecorded upstream. Analytical EOD cutoff convention applied.",
+            "CONVENTION_EOD_HISTORICAL_CUTOFF",
+            "HISTORICAL_BACKFILL"
+        );
+
+        String mCode = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getMethodologyCode() : "RSK_01_3Y_VOLATILITY";
+        String mVer = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getVersionTag() : "CANDIDATE_V1";
+        String mStatus = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getApprovalStatus() : "CANDIDATE";
+
+        Rsk01AnalysisResponse.MethodologyInfo methodology = new Rsk01AnalysisResponse.MethodologyInfo(
+            mCode,
+            mVer,
+            mStatus,
+            true,
+            "SQRT_252_CANDIDATE",
+            "N_MINUS_ONE_CANDIDATE",
+            "s = sqrt( (1 / (N - 1)) * sum((R_t - R_mean)^2) ); sigma_annual = s * sqrt(252)"
+        );
+
+        List<CalculationRunInputObservation> inputObsLinks = calculationRunInputObservationRepository.findByCalculationRunId(run.getId());
+        inputObsLinks.sort(Comparator.comparing(CalculationRunInputObservation::getEffectiveDate));
+
+        List<Rsk01AnalysisResponse.InputObservationRef> inputObservationRefs = new ArrayList<>();
+        Map<Long, Rsk01AnalysisResponse.SourceArtifactSummary> artifactMap = new HashMap<>();
+
+        String primaryQuality = "VALID";
+        String primaryVerification = "VERIFIED";
+        String primaryRevision = "ORIGINAL";
+        String primaryFreshness = "CURRENT";
+        String primaryPresence = "AVAILABLE";
+        String primaryIntegrity = "NONE";
+
+        for (CalculationRunInputObservation link : inputObsLinks) {
+            NavObservation obs = link.getNavObservation();
+            if (obs == null) continue;
+
+            SourceArtifact artifact = obs.getSourceArtifact();
+
+            if ("SUSPICIOUS".equals(obs.getQualityAssessment())) primaryQuality = "SUSPICIOUS";
+            if ("INVALID".equals(obs.getQualityAssessment())) primaryQuality = "INVALID";
+            if ("UNVERIFIED".equals(obs.getVerificationStatus())) primaryVerification = "UNVERIFIED";
+            if ("REVISED".equals(obs.getRevisionStatus())) primaryRevision = "REVISED";
+            if ("STALE".equals(obs.getTemporalStatus())) primaryFreshness = "STALE";
+
+            inputObservationRefs.add(new Rsk01AnalysisResponse.InputObservationRef(
+                obs.getId(),
+                obs.getEffectiveDate(),
+                obs.getRevisionSeq(),
+                obs.getNavValue(),
+                obs.getAvailabilityTime(),
+                obs.getQualityAssessment(),
+                obs.getVerificationStatus(),
+                obs.getRevisionStatus(),
+                obs.getTemporalStatus() != null ? obs.getTemporalStatus() : "CURRENT",
+                obs.getPresenceStatus(),
+                "NONE",
+                "HISTORICAL_BACKFILL",
+                artifact != null ? artifact.getId() : null,
+                artifact != null ? artifact.getSha256Hash() : null
+            ));
+
+            if (artifact != null && !artifactMap.containsKey(artifact.getId())) {
+                String sourceUrl = artifact.getStorageUri() != null ? artifact.getStorageUri() : "https://www.amfiindia.com/net-asset-value/nav-history";
+                artifactMap.put(artifact.getId(), new Rsk01AnalysisResponse.SourceArtifactSummary(
+                    artifact.getId(),
+                    sourceUrl,
+                    artifact.getSha256Hash(),
+                    artifact.getRetrievalTimestamp(),
+                    artifact.getByteSize()
+                ));
+            }
+        }
+
+        if (inputObsLinks.isEmpty()) {
+            primaryPresence = "MISSING";
+            primaryQuality = "INVALID";
+        }
+
+        List<String> validationFlags = new ArrayList<>();
+        if (option != null) {
+            List<ValidationIssue> issues = validationIssueRepository.findByTargetEntityTypeAndTargetEntityId("SCHEME_OPTION", option.getId());
+            for (ValidationIssue issue : issues) {
+                validationFlags.add(issue.getCheckCode() + ": " + issue.getMessage());
+                if ("CONFLICTING".equalsIgnoreCase(issue.getIntegrityCondition())) {
+                    primaryIntegrity = "CONFLICTING";
+                } else if ("DUPLICATE".equalsIgnoreCase(issue.getIntegrityCondition()) && !"CONFLICTING".equals(primaryIntegrity)) {
+                    primaryIntegrity = "DUPLICATE";
+                }
+            }
+        }
+
+        List<Rsk01AnalysisResponse.QualityDimension> dimensions = List.of(
+            new Rsk01AnalysisResponse.QualityDimension("Quality", primaryQuality, "Conforms to schema and historical sanity thresholds."),
+            new Rsk01AnalysisResponse.QualityDimension("Verification", primaryVerification, "Observation reconciled against source artifact."),
+            new Rsk01AnalysisResponse.QualityDimension("Revision", primaryRevision, "Authoritative revision status within bitemporal ledger."),
+            new Rsk01AnalysisResponse.QualityDimension("Freshness", primaryFreshness, "Observation delivery timeliness against reporting schedule."),
+            new Rsk01AnalysisResponse.QualityDimension("Presence", primaryPresence, "Observation presence evaluated at PIT cutoff."),
+            new Rsk01AnalysisResponse.QualityDimension("Integrity", primaryIntegrity, "Bitemporal relationship condition (duplicate or conflicting detection).")
+        );
+
+        Rsk01AnalysisResponse.QualityInfo quality = new Rsk01AnalysisResponse.QualityInfo(
+            primaryQuality,
+            dimensions,
+            validationFlags
+        );
+
+        String commitHash = run.getMethodologyVersion() != null ? run.getMethodologyVersion().getGitCommitHash() : null;
+        Rsk01AnalysisResponse.ProvenanceInfo provenance = new Rsk01AnalysisResponse.ProvenanceInfo(
+            run.getId(),
+            run.getRunStatus(),
+            run.getExecutionStartedAt(),
+            run.getExecutionCompletedAt(),
+            run.getEngineSoftwareVersion(),
+            commitHash,
+            run.getInputSnapshotSha256(),
+            inputObservationRefs,
+            new ArrayList<>(artifactMap.values())
+        );
+
+        boolean insufficient = "INSUFFICIENT_DATA".equals(calculationStatus) || "FAILED".equals(run.getRunStatus());
+        Rsk01AnalysisResponse.LimitationsInfo limitations = new Rsk01AnalysisResponse.LimitationsInfo(
+            true,
+            "CONVENTION_EOD_HISTORICAL_CUTOFF",
+            "HISTORICAL_BACKFILL",
+            true,
+            true,
+            insufficient,
+            obsCount,
+            minObsReq,
+            "Annualized volatility uses candidate sqrt(252) annualizer and N-1 divisor. Historical volatility does not predict future volatility. Zero investment recommendation."
+        );
+
+        Rsk01AnalysisResponse.BenchmarkInfo benchmark = new Rsk01AnalysisResponse.BenchmarkInfo(
+            false,
+            null,
+            "RSK-01 is a standalone single-asset risk metric. Benchmark is explicitly not required and no synthetic benchmark was used."
+        );
+
+        return new Rsk01AnalysisResponse(
+            identity,
+            result,
+            window,
             pit,
             methodology,
             quality,

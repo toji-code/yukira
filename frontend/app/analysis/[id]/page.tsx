@@ -44,9 +44,11 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
     fetchAnalysis(runId)
       .then((res) => {
         setData(res);
-        if (res.period.requestedStartDate) setCustomStartDate(res.period.requestedStartDate);
-        if (res.period.requestedEndDate) setCustomEndDate(res.period.requestedEndDate);
-        if (res.pit.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
+        const start = res.period?.requestedStartDate || res.window?.requestedStartDate;
+        const end = res.period?.requestedEndDate || res.window?.requestedEndDate;
+        if (start) setCustomStartDate(start);
+        if (end) setCustomEndDate(end);
+        if (res.pit?.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Failed to load calculation run analysis");
@@ -65,9 +67,11 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       .then((res) => {
         if (active) {
           setData(res);
-          if (res.period.requestedStartDate) setCustomStartDate(res.period.requestedStartDate);
-          if (res.period.requestedEndDate) setCustomEndDate(res.period.requestedEndDate);
-          if (res.pit.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
+          const start = res.period?.requestedStartDate || res.window?.requestedStartDate;
+          const end = res.period?.requestedEndDate || res.window?.requestedEndDate;
+          if (start) setCustomStartDate(start);
+          if (end) setCustomEndDate(end);
+          if (res.pit?.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
           setLoading(false);
         }
       })
@@ -141,6 +145,8 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
   const isCalculated = data.result.calculationStatus === "CALCULATED";
   const isInsufficient = data.result.calculationStatus === "INSUFFICIENT_DATA" || data.limitations.insufficientEvidence;
+  const isRsk01 = data.result.metricCode === "RSK-01";
+  const rskMethodology = isRsk01 ? (data.methodology as { annualizationConvention?: string; denominatorConvention?: string }) : null;
 
   return (
     <PageContainer
@@ -216,18 +222,20 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             Trigger Parameterized {data.result.metricCode} Calculation
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {!isRsk01 && (
+              <div>
+                <label className="block text-zinc-400 mb-1">Requested Start Date</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  required
+                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-zinc-400 mb-1">Requested Start Date</label>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                required
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200"
-              />
-            </div>
-            <div>
-              <label className="block text-zinc-400 mb-1">Requested End Date</label>
+              <label className="block text-zinc-400 mb-1">{isRsk01 ? "Analysis Cutoff Date (T)" : "Requested End Date"}</label>
               <input
                 type="date"
                 value={customEndDate}
@@ -282,7 +290,11 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                     value={data.result.numericValue}
                     units="PERCENTAGE"
                     isCandidate={true}
-                    description="Authoritative discrete period return from backend quant engine: (NAV_end - NAV_start) / NAV_start. Frontend displays authoritative result without client calculation."
+                    description={
+                      isRsk01
+                        ? "Authoritative 3-year annualized standard deviation of daily logarithmic/simple returns from Python quant engine: sqrt(252) * sqrt(sum((r_t - r_bar)^2)/(N-1)). Realized historical sample dispersion only; zero predictive forecast."
+                        : "Authoritative discrete period return from backend quant engine: (NAV_end - NAV_start) / NAV_start. Frontend displays authoritative result without client calculation."
+                    }
                   />
                   <div className="font-mono text-xs text-zinc-400">
                     Status: <span className="font-semibold text-zinc-200">{data.result.calculationStatus}</span>
@@ -291,20 +303,45 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4 font-mono text-xs space-y-2">
                   <div className="text-zinc-500 uppercase tracking-wider text-[10px]">
-                    Evaluation Window
+                    {isRsk01 ? "36-Month Analytical Window" : "Evaluation Window"}
                   </div>
-                  <div>
-                    <span className="text-zinc-400">Requested: </span>
-                    <span className="text-zinc-200 font-semibold">
-                      {data.period.requestedStartDate || "—"} → {data.period.requestedEndDate || "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400">Selected PIT: </span>
-                    <span className="text-cyan-400 font-semibold">
-                      {data.period.selectedStartDate || "—"} → {data.period.selectedEndDate || "—"}
-                    </span>
-                  </div>
+                  {isRsk01 && data.window ? (
+                    <>
+                      <div>
+                        <span className="text-zinc-400">Target Range: </span>
+                        <span className="text-zinc-200 font-semibold">
+                          {data.window.requestedStartDate || "—"} → {data.window.requestedEndDate || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-400">Resolved Range: </span>
+                        <span className="text-cyan-400 font-semibold">
+                          {data.window.actualStartDate || "—"} → {data.window.actualEndDate || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-400">Daily Observations: </span>
+                        <span className="text-emerald-400 font-semibold">
+                          {data.window.observationCount} / {data.window.minObservationsRequired} min req
+                        </span>
+                      </div>
+                    </>
+                  ) : data.period ? (
+                    <>
+                      <div>
+                        <span className="text-zinc-400">Requested: </span>
+                        <span className="text-zinc-200 font-semibold">
+                          {data.period.requestedStartDate || "—"} → {data.period.requestedEndDate || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-zinc-400">Selected PIT: </span>
+                        <span className="text-cyan-400 font-semibold">
+                          {data.period.selectedStartDate || "—"} → {data.period.selectedEndDate || "—"}
+                        </span>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
@@ -340,65 +377,95 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         level2={
           <div className="space-y-6">
             <h4 className="font-mono text-xs uppercase tracking-wider text-zinc-400">
-              Evidence Base & Lookback Resolution
+              Evidence Base & Methodology Resolution
             </h4>
 
-            {/* Boundary NAV Evidence Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
+            {/* Boundary NAV / Window Evidence Cards */}
+            {isRsk01 && data.window ? (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 font-mono text-xs space-y-3">
                 <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                   <span className="font-semibold text-zinc-300 uppercase tracking-wider">
-                    Start Observation (NAV_start)
+                    36-Month Rolling Window Evidence ({data.window.observationCount} Observations)
                   </span>
-                  <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
-                    {data.period.startSubstituted
-                      ? `${data.period.startLookbackDaysUsed}d lookback substitution`
-                      : "Exact date match"}
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                    Sufficient History ({data.window.observationCount} &ge; {data.window.minObservationsRequired} required)
                   </span>
                 </div>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Requested Target:</span>
-                    <span className="text-zinc-300">{data.period.requestedStartDate || "—"}</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  <div>
+                    <span className="text-zinc-500 text-[10px] uppercase block">Window Start</span>
+                    <span className="text-cyan-400 font-semibold mt-1 block">{data.window.actualStartDate}</span>
+                    <span className="text-zinc-500 text-[10px]">Requested: {data.window.requestedStartDate}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Selected Effective:</span>
-                    <span className="text-cyan-400 font-semibold">{data.period.selectedStartDate || "—"}</span>
+                  <div>
+                    <span className="text-zinc-500 text-[10px] uppercase block">Window End (As-Of Cutoff)</span>
+                    <span className="text-cyan-400 font-semibold mt-1 block">{data.window.actualEndDate}</span>
+                    <span className="text-zinc-500 text-[10px]">Requested: {data.window.requestedEndDate}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Lookback Days Used:</span>
-                    <span className="text-zinc-300">{data.period.startLookbackDaysUsed} / 4 calendar days max</span>
+                  <div>
+                    <span className="text-zinc-500 text-[10px] uppercase block">Continuity & Gaps</span>
+                    <span className="text-zinc-200 font-semibold mt-1 block">{data.window.observationCount} trading days</span>
+                    <span className="text-zinc-500 text-[10px]">Zero synthetic imputation</span>
                   </div>
                 </div>
               </div>
+            ) : data.period ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                    <span className="font-semibold text-zinc-300 uppercase tracking-wider">
+                      Start Observation (NAV_start)
+                    </span>
+                    <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
+                      {data.period.startSubstituted
+                        ? `${data.period.startLookbackDaysUsed}d lookback substitution`
+                        : "Exact date match"}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Requested Target:</span>
+                      <span className="text-zinc-300">{data.period.requestedStartDate || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Selected Effective:</span>
+                      <span className="text-cyan-400 font-semibold">{data.period.selectedStartDate || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Lookback Days Used:</span>
+                      <span className="text-zinc-300">{data.period.startLookbackDaysUsed} / 4 calendar days max</span>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
-                <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-                  <span className="font-semibold text-zinc-300 uppercase tracking-wider">
-                    End Observation (NAV_end)
-                  </span>
-                  <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
-                    {data.period.endSubstituted
-                      ? `${data.period.endLookbackDaysUsed}d lookback substitution`
-                      : "Exact date match"}
-                  </span>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Requested Target:</span>
-                    <span className="text-zinc-300">{data.period.requestedEndDate || "—"}</span>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                    <span className="font-semibold text-zinc-300 uppercase tracking-wider">
+                      End Observation (NAV_end)
+                    </span>
+                    <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
+                      {data.period.endSubstituted
+                        ? `${data.period.endLookbackDaysUsed}d lookback substitution`
+                        : "Exact date match"}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Selected Effective:</span>
-                    <span className="text-cyan-400 font-semibold">{data.period.selectedEndDate || "—"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Lookback Days Used:</span>
-                    <span className="text-zinc-300">{data.period.endLookbackDaysUsed} / 4 calendar days max</span>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Requested Target:</span>
+                      <span className="text-zinc-300">{data.period.requestedEndDate || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Selected Effective:</span>
+                      <span className="text-cyan-400 font-semibold">{data.period.selectedEndDate || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Lookback Days Used:</span>
+                      <span className="text-zinc-300">{data.period.endLookbackDaysUsed} / 4 calendar days max</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : null}
 
             {/* Benchmark Disclosure Card */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 font-mono text-xs">
@@ -425,10 +492,23 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                 <span className="text-zinc-500">Formula: </span>
                 <span className="text-zinc-200">{data.methodology.formulaDisclosure}</span>
               </div>
-              <div className="text-zinc-400">
-                <span className="text-zinc-500">Window Rule: </span>
-                <span className="text-zinc-200">{data.methodology.lookbackSpecification}</span>
-              </div>
+              {isRsk01 && rskMethodology ? (
+                <>
+                  <div className="text-zinc-400">
+                    <span className="text-zinc-500">Annualization: </span>
+                    <span className="text-amber-300 font-semibold">{rskMethodology.annualizationConvention || "SQRT_252_CANDIDATE"} (Candidate — not validated)</span>
+                  </div>
+                  <div className="text-zinc-400">
+                    <span className="text-zinc-500">Denominator: </span>
+                    <span className="text-amber-300 font-semibold">{rskMethodology.denominatorConvention || "N_MINUS_ONE_CANDIDATE"} (Candidate — not validated)</span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-zinc-400">
+                  <span className="text-zinc-500">Window Rule: </span>
+                  <span className="text-zinc-200">{data.methodology.lookbackSpecification}</span>
+                </div>
+              )}
               <div className="text-zinc-400">
                 <span className="text-zinc-500">Knowledge Cutoff: </span>
                 <span className="text-zinc-200">{formatDateTime(data.pit.knowledgeCutoffTime)}</span>
