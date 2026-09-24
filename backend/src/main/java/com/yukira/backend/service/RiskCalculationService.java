@@ -21,7 +21,13 @@ import java.util.*;
 /**
  * Risk Calculation Service:
  *
- * Implements deterministic execution of Risk & Tail metrics (Phase 2L: RSK-01 3-Year Annualized Volatility).
+ * Implements deterministic execution of Risk & Tail metrics:
+ *   - RSK-01: 3-Year Annualized Volatility
+ *   - RSK-02: Downside Semideviation (3Y)
+ *   - RSK-03: 3-Year Maximum Drawdown
+ *   - RSK-04: Maximum Drawdown Duration
+ *   - RSK-05: Ulcer Index (3Y)
+ *
  * Adheres strictly to the YUKIRA governance mandate:
  *   - Pure Python quant-engine is the sole calculation authority
  *   - Zero Java mathematical fallback
@@ -31,6 +37,50 @@ import java.util.*;
  */
 @Service
 public class RiskCalculationService {
+
+    private record RiskMetricMeta(
+        String metricCode,
+        String metricName,
+        String methodologyCode,
+        String units,
+        String annualizationConvention,
+        String denominatorConvention,
+        String formulaDisclosure,
+        int minObservations
+    ) {}
+
+    private static final Map<String, RiskMetricMeta> METRIC_CONFIG = Map.of(
+        "RSK-01", new RiskMetricMeta(
+            "RSK-01", "3-Year Annualized Volatility", "RSK_01_3Y_VOLATILITY",
+            "PERCENTAGE", "SQRT_252_CANDIDATE", "N_MINUS_ONE_CANDIDATE",
+            "s = sqrt( (1 / (N - 1)) * sum((R_t - R_mean)^2) ); sigma_annual = s * sqrt(252)",
+            700
+        ),
+        "RSK-02", new RiskMetricMeta(
+            "RSK-02", "Downside Semideviation (3Y)", "RSK_02_3Y_DOWNSIDE_DEVIATION",
+            "PERCENTAGE", "SQRT_252_CANDIDATE", "N_MINUS_ONE_CANDIDATE",
+            "sigma_down = sqrt( (1 / (N - 1)) * sum(min(R_t - MAR, 0)^2) ) * sqrt(252)",
+            700
+        ),
+        "RSK-03", new RiskMetricMeta(
+            "RSK-03", "3-Year Maximum Drawdown", "RSK_03_3Y_MAX_DRAWDOWN",
+            "PERCENTAGE", "NONE_DISCRETE_PATH", "RUNNING_PEAK_NAV_CANDIDATE",
+            "Running_Peak_t = max(NAV_1 ... NAV_t); Drawdown_t = (NAV_t / Running_Peak_t) - 1; Max_Drawdown = min(Drawdown_t)",
+            700
+        ),
+        "RSK-04", new RiskMetricMeta(
+            "RSK-04", "Maximum Drawdown Duration", "RSK_04_MAX_DRAWDOWN_DURATION",
+            "DAYS", "NONE", "NONE",
+            "Duration = max(ElapsedCalendarDays(Peak -> Recovery)); Ongoing measured to cutoff",
+            700
+        ),
+        "RSK-05", new RiskMetricMeta(
+            "RSK-05", "Ulcer Index (3Y)", "RSK_05_3Y_ULCER_INDEX",
+            "POINTS", "NONE", "N_OBSERVATIONS_CANDIDATE",
+            "Pct_DD_t = 100 * ((NAV_t / Running_Peak_t) - 1); Ulcer_Index = sqrt((1 / N) * sum(Pct_DD_t^2))",
+            700
+        )
+    );
 
     private final PitObservationResolutionService pitResolutionService;
     private final NavObservationRepository navObservationRepository;
@@ -65,15 +115,6 @@ public class RiskCalculationService {
         this.methodologyGovernanceService = methodologyGovernanceService;
     }
 
-    /**
-     * Executes deterministic RSK-01 (3-Year Annualized Volatility) calculation run.
-     *
-     * @param schemeOptionId Database ID of the SchemeOption
-     * @param requestedEndDate Analysis cutoff date
-     * @param knowledgeCutoffTime Strict information availability cutoff timestamp
-     * @param methodologyTag Version tag (e.g. "CANDIDATE_V1")
-     * @return Persisted CalculationRun entity with linked MetricResult and input observations
-     */
     @Transactional
     public CalculationRun executeRsk01Calculation(
         Long schemeOptionId,
@@ -81,9 +122,66 @@ public class RiskCalculationService {
         OffsetDateTime knowledgeCutoffTime,
         String methodologyTag
     ) {
+        return executeRiskMetricCalculation("RSK-01", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk02Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        return executeRiskMetricCalculation("RSK-02", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk03Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        return executeRiskMetricCalculation("RSK-03", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk04Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        return executeRiskMetricCalculation("RSK-04", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk05Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        return executeRiskMetricCalculation("RSK-05", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRiskMetricCalculation(
+        String metricCode,
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        Objects.requireNonNull(metricCode, "metricCode must not be null");
         Objects.requireNonNull(schemeOptionId, "schemeOptionId must not be null");
         Objects.requireNonNull(requestedEndDate, "requestedEndDate must not be null");
         Objects.requireNonNull(knowledgeCutoffTime, "knowledgeCutoffTime must not be null for PIT compliance");
+
+        RiskMetricMeta meta = METRIC_CONFIG.get(metricCode);
+        if (meta == null) {
+            throw new IllegalArgumentException("Unsupported risk metric code: " + metricCode);
+        }
 
         if (requestedEndDate.isAfter(knowledgeCutoffTime.toLocalDate())) {
             throw new IllegalArgumentException(String.format(
@@ -99,9 +197,9 @@ public class RiskCalculationService {
             .orElseThrow(() -> new IllegalArgumentException("SchemeOption not found: " + schemeOptionId));
 
         MethodologyVersion methodologyVersion = methodologyVersionRepository
-            .findByMethodologyCodeAndVersionTag("RSK_01_3Y_VOLATILITY", tag)
+            .findByMethodologyCodeAndVersionTag(meta.methodologyCode(), tag)
             .orElseGet(() -> methodologyGovernanceService.registerMethodologyVersion(new MethodologyVersion(
-                "RSK_01_3Y_VOLATILITY", tag, "CANDIDATE", "pending_commit"
+                meta.methodologyCode(), tag, "CANDIDATE", "pending_commit"
             ), "RISK_CALCULATION_SERVICE"));
 
         if (!methodologyVersion.isLocked()) {
@@ -110,7 +208,7 @@ public class RiskCalculationService {
             );
         }
 
-        // Initialize CalculationRun (RSK-01 is a single-asset metric, benchmark is null)
+        // Initialize CalculationRun (Risk metrics are single-asset metrics, benchmark is null)
         CalculationRun run = new CalculationRun(
             option, requestedEndDate, knowledgeCutoffTime, methodologyVersion, "FASTAPI-QUANT-0.1.0"
         );
@@ -139,20 +237,20 @@ public class RiskCalculationService {
             }
         }
 
-        int minObservationsRequired = 700;
+        int minObservationsRequired = meta.minObservations();
 
-        // 2. Minimum observation history check (Phase 2H rule: < 700 trading days returns insufficient data)
+        // 2. Minimum observation history check
         if (resolvedObservations.size() < minObservationsRequired) {
             String errorMsg = String.format(
-                "Insufficient observation history for RSK-01: %d valid trading days available between %s and %s, minimum %d required.",
-                resolvedObservations.size(), requestedStartDate, requestedEndDate, minObservationsRequired
+                "Insufficient observation history for %s: %d valid trading days available between %s and %s, minimum %d required.",
+                metricCode, resolvedObservations.size(), requestedStartDate, requestedEndDate, minObservationsRequired
             );
             run.setRunStatus("FAILED");
             run.setExecutionCompletedAt(OffsetDateTime.now());
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, "RSK-01", "3Y", null, "PERCENTAGE", "INSUFFICIENT_DATA"
+                run, metricCode, "3Y", null, meta.units(), "INSUFFICIENT_DATA"
             );
             metricResult.setErrorMessage(errorMsg);
 
@@ -160,8 +258,8 @@ public class RiskCalculationService {
             failureDiag.put("methodology_status", "CANDIDATE");
             failureDiag.put("methodology_tag", tag);
             failureDiag.put("benchmark_required", false);
-            failureDiag.put("annualization_convention", "SQRT_252_CANDIDATE");
-            failureDiag.put("denominator_convention", "N_MINUS_ONE_CANDIDATE");
+            failureDiag.put("annualization_convention", meta.annualizationConvention());
+            failureDiag.put("denominator_convention", meta.denominatorConvention());
             failureDiag.put("requested_start_date", requestedStartDate.toString());
             failureDiag.put("requested_end_date", requestedEndDate.toString());
             failureDiag.put("observation_count", resolvedObservations.size());
@@ -201,21 +299,25 @@ public class RiskCalculationService {
 
         // 5. Dispatch deterministic calculation to Quant Engine
         try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("periods_per_year", 252.0);
+            params.put("min_observations", minObservationsRequired);
+            params.put("methodology_status", "CANDIDATE");
+            if ("RSK-02".equals(metricCode)) {
+                params.put("target_return", 0.0);
+            }
+
             CalculationRequestDto requestDto = new CalculationRequestDto(
-                "RSK01-" + UUID.randomUUID().toString().substring(0, 8),
+                metricCode.replace("-", "") + "-" + UUID.randomUUID().toString().substring(0, 8),
                 String.valueOf(schemeOptionId),
-                null, // benchmark not required for RSK-01
+                null,
                 requestedEndDate.toString(),
                 knowledgeCutoffTime.toString(),
                 tag,
-                List.of("RSK-01"),
+                List.of(metricCode),
                 navSeries,
                 Collections.emptyList(),
-                Map.of(
-                    "periods_per_year", 252.0,
-                    "min_observations", minObservationsRequired,
-                    "methodology_status", "CANDIDATE"
-                )
+                params
             );
 
             CalculationResponseDto response = quantEngineClient.executeCalculation(requestDto);
@@ -224,10 +326,10 @@ public class RiskCalculationService {
                 MetricOutputItemDto item = response.results().get(0);
                 MetricResult metricResult = new MetricResult(
                     run,
-                    "RSK-01",
+                    metricCode,
                     "3Y",
                     item.numericValue(),
-                    "PERCENTAGE",
+                    meta.units(),
                     item.status() != null ? item.status() : "CALCULATED"
                 );
 
@@ -235,8 +337,8 @@ public class RiskCalculationService {
                 diagnostics.put("methodology_status", "CANDIDATE");
                 diagnostics.put("methodology_tag", tag);
                 diagnostics.put("benchmark_required", false);
-                diagnostics.put("annualization_convention", "SQRT_252_CANDIDATE");
-                diagnostics.put("denominator_convention", "N_MINUS_ONE_CANDIDATE");
+                diagnostics.put("annualization_convention", meta.annualizationConvention());
+                diagnostics.put("denominator_convention", meta.denominatorConvention());
                 diagnostics.put("requested_start_date", requestedStartDate.toString());
                 diagnostics.put("requested_end_date", requestedEndDate.toString());
                 diagnostics.put("actual_start_date", resolvedObservations.get(0).getEffectiveDate().toString());
@@ -273,7 +375,7 @@ public class RiskCalculationService {
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, "RSK-01", "3Y", null, "PERCENTAGE", "FAILED"
+                run, metricCode, "3Y", null, meta.units(), "FAILED"
             );
             metricResult.setErrorMessage(errorMsg);
 
@@ -281,8 +383,8 @@ public class RiskCalculationService {
             failureDiag.put("methodology_status", "CANDIDATE");
             failureDiag.put("methodology_tag", tag);
             failureDiag.put("benchmark_required", false);
-            failureDiag.put("annualization_convention", "SQRT_252_CANDIDATE");
-            failureDiag.put("denominator_convention", "N_MINUS_ONE_CANDIDATE");
+            failureDiag.put("annualization_convention", meta.annualizationConvention());
+            failureDiag.put("denominator_convention", meta.denominatorConvention());
             failureDiag.put("requested_start_date", requestedStartDate.toString());
             failureDiag.put("requested_end_date", requestedEndDate.toString());
             failureDiag.put("actual_start_date", resolvedObservations.get(0).getEffectiveDate().toString());

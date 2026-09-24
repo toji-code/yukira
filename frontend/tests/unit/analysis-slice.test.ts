@@ -700,3 +700,284 @@ describe("Phase 2K: RET-03 (3Y CAGR) Frontend & Analysis API Tests", () => {
     assert.equal(res.limitations.insufficientEvidence, true);
   });
 });
+
+describe("Phase 2M: RSK-02 through RSK-05 Frontend & Analysis API Tests", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const baseRiskResponse: AnalysisResponse = {
+    identity: {
+      schemeId: 1,
+      schemeName: "HDFC Flexi Cap Fund",
+      amfiCode: "118955",
+      schemeOptionId: 1,
+      optionType: "GROWTH",
+      isin: "INF179K01UT0",
+    },
+    result: {
+      metricCode: "RSK-02",
+      metricName: "Downside Semideviation",
+      numericValue: 0.1012345678,
+      formattedValue: "10.1235%",
+      units: "PERCENTAGE",
+      calculationStatus: "CALCULATED",
+      errorMessage: null,
+    },
+    window: {
+      requestedStartDate: "2021-01-15",
+      requestedEndDate: "2024-01-15",
+      actualStartDate: "2021-01-15",
+      actualEndDate: "2024-01-15",
+      observationCount: 737,
+      minObservationsRequired: 700,
+      windowMonths: 36,
+    },
+    pit: {
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+      pitFilteringApplied: true,
+      temporalLimitationDisclosure:
+        "Factual AMFI source availability timestamp is unrecorded upstream. Analytical EOD cutoff convention applied.",
+      cutoffConventionApplied: "CONVENTION_EOD_HISTORICAL_CUTOFF",
+      sourceAvailabilitySemantic: "HISTORICAL_BACKFILL",
+    },
+    methodology: {
+      methodologyCode: "RSK_02_DOWNSIDE_DEV",
+      methodologyVersion: "CANDIDATE_V1",
+      approvalStatus: "CANDIDATE",
+      isCandidate: true,
+      annualizationConvention: "SQRT_252_CANDIDATE",
+      denominatorConvention: "N_MINUS_ONE_CANDIDATE",
+      formulaDisclosure: "sigma_d = sqrt(252) * sqrt( sum(min(r_t - MAR, 0)^2) / (N - 1) )",
+    },
+    quality: {
+      overallAssessment: "VALID",
+      dimensions: [
+        { dimension: "Quality", state: "VALID", description: "All observations conform to schema" },
+        { dimension: "Verification", state: "VERIFIED", description: "Corroborated against AMFI feeds" },
+        { dimension: "Revision", state: "ORIGINAL", description: "Official values" },
+        { dimension: "Freshness", state: "CURRENT", description: "Timely delivery" },
+        { dimension: "Presence", state: "AVAILABLE", description: "Sufficient continuous observations" },
+        { dimension: "Integrity", state: "NONE", description: "No unresolved conflicts" },
+      ],
+      validationFlags: [],
+    },
+    provenance: {
+      calculationRunId: 201,
+      runStatus: "COMPLETED",
+      executionStartedAt: "2024-02-01T12:00:00Z",
+      executionCompletedAt: "2024-02-01T12:00:01Z",
+      quantEngineVersion: "FASTAPI-QUANT-0.1.0",
+      methodologyGitCommit: "e4a85ecbb2f793fba94fcf60ba0f6c55f837da09",
+      inputSnapshotSha256: "d".repeat(64),
+      inputObservations: [],
+      sourceArtifacts: [
+        {
+          sourceArtifactId: 1,
+          sourceUrl: "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?mf=&scheme=118955",
+          sha256Hash: "900508f8".padEnd(64, "0"),
+          retrievalTimestamp: "2024-01-31T23:59:59Z",
+          byteSize: 11185549,
+        },
+      ],
+    },
+    limitations: {
+      candidateAnnualizationApplied: true,
+      candidateDenominatorApplied: true,
+      insufficientEvidence: false,
+      observationCount: 737,
+      minObservationsRequired: 700,
+      disclosureSummary:
+        "Downside Semideviation calculated under candidate methodology CANDIDATE_V1. MAR = 0.0%, annualizer sqrt(252), denominator N-1. Zero investment recommendation.",
+    },
+    benchmark: {
+      benchmarkRequired: false,
+      benchmarkId: null,
+      benchmarkNotice: "RSK-02 is a standalone single-asset risk metric. Benchmark is explicitly not required.",
+    },
+  };
+
+  it("RSK-02: executes downside semideviation and parses response contract", async () => {
+    globalThis.fetch = async (url, options) => {
+      assert.ok(String(url).includes("/api/v1/analysis/rsk02"));
+      assert.equal(options?.method, "POST");
+      return new Response(JSON.stringify(baseRiskResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const res = await executeAnalysis("RSK-02", {
+      schemeOptionId: 1,
+      endDate: "2024-01-15",
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+    });
+
+    assert.equal(res.result.metricCode, "RSK-02");
+    assert.equal(res.result.metricName, "Downside Semideviation");
+    assert.equal(res.result.units, "PERCENTAGE");
+    assert.equal(res.result.calculationStatus, "CALCULATED");
+    assert.equal(res.window?.observationCount, 737);
+  });
+
+  it("RSK-03: executes 3Y Maximum Drawdown and parses signed negative percentage", async () => {
+    const rsk03Response: AnalysisResponse = {
+      ...baseRiskResponse,
+      result: {
+        metricCode: "RSK-03",
+        metricName: "Maximum Drawdown, 3Y",
+        numericValue: -0.153412,
+        formattedValue: "-15.3412%",
+        units: "PERCENTAGE",
+        calculationStatus: "CALCULATED",
+        errorMessage: null,
+      },
+      methodology: {
+        methodologyCode: "RSK_03_MAX_DRAWDOWN",
+        methodologyVersion: "CANDIDATE_V1",
+        approvalStatus: "CANDIDATE",
+        isCandidate: true,
+        annualizationConvention: "NOT_APPLICABLE",
+        denominatorConvention: "NOT_APPLICABLE",
+        formulaDisclosure: "MDD = min_t (NAV_t / max_{s <= t} NAV_s - 1)",
+      },
+    };
+
+    globalThis.fetch = async (url) => {
+      assert.ok(String(url).includes("/api/v1/analysis/rsk03"));
+      return new Response(JSON.stringify(rsk03Response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const res = await executeAnalysis("rsk-03", {
+      schemeOptionId: 1,
+      endDate: "2024-01-15",
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+    });
+
+    assert.equal(res.result.metricCode, "RSK-03");
+    assert.equal(res.result.units, "PERCENTAGE");
+    assert.ok((res.result.numericValue ?? 0) <= 0.0, "Drawdown must be non-positive");
+  });
+
+  it("RSK-04: executes Maximum Drawdown Duration with units DAYS", async () => {
+    const rsk04Response: AnalysisResponse = {
+      ...baseRiskResponse,
+      result: {
+        metricCode: "RSK-04",
+        metricName: "Maximum Drawdown Duration",
+        numericValue: 184,
+        formattedValue: "184",
+        units: "DAYS",
+        calculationStatus: "CALCULATED",
+        errorMessage: null,
+      },
+      methodology: {
+        methodologyCode: "RSK_04_MAX_DRAWDOWN_DURATION",
+        methodologyVersion: "CANDIDATE_V1",
+        approvalStatus: "CANDIDATE",
+        isCandidate: true,
+        annualizationConvention: "NOT_APPLICABLE",
+        denominatorConvention: "NOT_APPLICABLE",
+        formulaDisclosure: "MDD_Duration = max(recovery_date - peak_date)",
+      },
+    };
+
+    globalThis.fetch = async (url) => {
+      assert.ok(String(url).includes("/api/v1/analysis/rsk04"));
+      return new Response(JSON.stringify(rsk04Response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const res = await executeAnalysis("RSK04", {
+      schemeOptionId: 1,
+      endDate: "2024-01-15",
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+    });
+
+    assert.equal(res.result.metricCode, "RSK-04");
+    assert.equal(res.result.units, "DAYS");
+    assert.equal(res.result.numericValue, 184);
+  });
+
+  it("RSK-05: executes Ulcer Index with units POINTS", async () => {
+    const rsk05Response: AnalysisResponse = {
+      ...baseRiskResponse,
+      result: {
+        metricCode: "RSK-05",
+        metricName: "Ulcer Index",
+        numericValue: 4.8723,
+        formattedValue: "4.8723",
+        units: "POINTS",
+        calculationStatus: "CALCULATED",
+        errorMessage: null,
+      },
+      methodology: {
+        methodologyCode: "RSK_05_ULCER_INDEX",
+        methodologyVersion: "CANDIDATE_V1",
+        approvalStatus: "CANDIDATE",
+        isCandidate: true,
+        annualizationConvention: "NOT_APPLICABLE",
+        denominatorConvention: "NOT_APPLICABLE",
+        formulaDisclosure: "UI = sqrt( (1/N) * sum( ( (NAV_t - max NAV) / max NAV * 100 )^2 ) )",
+      },
+    };
+
+    globalThis.fetch = async (url) => {
+      assert.ok(String(url).includes("/api/v1/analysis/rsk05"));
+      return new Response(JSON.stringify(rsk05Response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const res = await executeAnalysis("rsk05", {
+      schemeOptionId: 1,
+      endDate: "2024-01-15",
+      knowledgeCutoffTime: "2024-01-31T23:59:59+05:30",
+    });
+
+    assert.equal(res.result.metricCode, "RSK-05");
+    assert.equal(res.result.units, "POINTS");
+    assert.equal(res.result.numericValue, 4.8723);
+  });
+
+  it("RSK-02 to 05: handles insufficient observations (< 700) without zero fabrication", async () => {
+    const insufficientRiskResponse: AnalysisResponse = {
+      ...baseRiskResponse,
+      result: {
+        metricCode: "RSK-02",
+        metricName: "Downside Semideviation",
+        numericValue: null,
+        formattedValue: null,
+        units: "PERCENTAGE",
+        calculationStatus: "INSUFFICIENT_DATA",
+        errorMessage: "Insufficient observations in 3Y window: found 100, minimum 700 required.",
+      },
+      limitations: {
+        ...baseRiskResponse.limitations,
+        insufficientEvidence: true,
+        observationCount: 100,
+        minObservationsRequired: 700,
+      } as Rsk01Limitations,
+    };
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(insufficientRiskResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const res = await fetchAnalysis(301);
+    assert.equal(res.result.calculationStatus, "INSUFFICIENT_DATA");
+    assert.equal(res.result.numericValue, null);
+    assert.notEqual(res.result.numericValue, 0); // Strictly forbidden to fabricate 0
+    assert.equal(res.limitations.insufficientEvidence, true);
+  });
+});

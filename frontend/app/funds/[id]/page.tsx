@@ -550,7 +550,7 @@ export default function FundDetailPage({ params }: PageProps) {
         </p>
 
         <div className="mt-4 space-y-4">
-          {/* RSK-01 Card: Implemented Candidate */}
+          {/* RSK-01 Card */}
           <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
               <div>
@@ -562,7 +562,7 @@ export default function FundDetailPage({ params }: PageProps) {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">sigma_ann = sqrt(252) * sqrt( sum((r_t - r_bar)^2) / (N - 1) )</code>. Requires continuous 36M history ($\ge 700$ trading days).
+                  Formula: <code className="font-mono text-cyan-300">sigma_ann = sqrt(252) * sqrt( sum((r_t - r_bar)^2) / (N - 1) )</code>. Requires continuous 36M history (&ge; 700 trading days).
                 </p>
               </div>
 
@@ -572,22 +572,7 @@ export default function FundDetailPage({ params }: PageProps) {
                   disabled={triggering || !selectedOptionId}
                   className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
                 >
-                  {triggering ? (
-                    <>
-                      <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                      Calculating...
-                    </>
-                  ) : (
-                    <>
-                      Execute RSK-01 Run
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    </>
-                  )}
+                  {triggering ? "Calculating..." : "Execute RSK-01 Run"}
                 </button>
               </div>
             </div>
@@ -606,62 +591,202 @@ export default function FundDetailPage({ params }: PageProps) {
                 <span className="text-amber-400 font-semibold">N - 1 Candidate</span>
               </div>
               <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Numerical Kernel</span>
-                <span className="text-zinc-200">Python Vectorized</span>
+                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
+                <span className="text-zinc-200">PERCENTAGE</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RSK-02 Card */}
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-02</span>
+                  <h3 className="text-sm font-semibold text-zinc-100">Downside Semideviation</h3>
+                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                    Candidate — Not Validated
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-300 font-sans">
+                  Formula: <code className="font-mono text-cyan-300">sigma_d = sqrt(252) * sqrt( sum(min(r_t, 0)^2) / (N - 1) )</code>. MAR = 0.0, annualized dispersion of negative daily returns.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleTriggerCalculation("RSK-02")}
+                  disabled={triggering || !selectedOptionId}
+                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
+                >
+                  {triggering ? "Calculating..." : "Execute RSK-02 Run"}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
+                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Threshold (MAR)</span>
+                <span className="text-amber-400 font-semibold">0.0% Candidate</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Denominator</span>
+                <span className="text-amber-400 font-semibold">N - 1 Candidate</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
+                <span className="text-zinc-200">PERCENTAGE</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RSK-03 Card */}
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-03</span>
+                  <h3 className="text-sm font-semibold text-zinc-100">Maximum Drawdown, 3Y</h3>
+                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                    Candidate — Not Validated
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-300 font-sans">
+                  Formula: <code className="font-mono text-cyan-300">MDD = min_{"{"}t{"}"}(NAV_t / max_{"{"}s &le; t{"}"} NAV_s - 1)</code>. Peak-to-trough maximum observed decline.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleTriggerCalculation("RSK-03")}
+                  disabled={triggering || !selectedOptionId}
+                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
+                >
+                  {triggering ? "Calculating..." : "Execute RSK-03 Run"}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
+                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Peak Tracking</span>
+                <span className="text-amber-400 font-semibold">Running Cumulative Max</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Sign Convention</span>
+                <span className="text-amber-400 font-semibold">Signed Negative Decimal</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
+                <span className="text-zinc-200">PERCENTAGE</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RSK-04 Card */}
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-04</span>
+                  <h3 className="text-sm font-semibold text-zinc-100">Maximum Drawdown Duration</h3>
+                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                    Candidate — Not Validated
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-300 font-sans">
+                  Formula: <code className="font-mono text-cyan-300">MDD_Duration = max(recovery_date - peak_date)</code>. Elapsed calendar days from prior peak to full recovery.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleTriggerCalculation("RSK-04")}
+                  disabled={triggering || !selectedOptionId}
+                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
+                >
+                  {triggering ? "Calculating..." : "Execute RSK-04 Run"}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
+                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Time Unit</span>
+                <span className="text-amber-400 font-semibold">Calendar Days (DAYS)</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Unrecovered Drawdown</span>
+                <span className="text-amber-400 font-semibold">Censored at Knowledge Cutoff</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
+                <span className="text-zinc-200">DAYS</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RSK-05 Card */}
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-05</span>
+                  <h3 className="text-sm font-semibold text-zinc-100">Ulcer Index</h3>
+                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                    Candidate — Not Validated
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-300 font-sans">
+                  Formula: <code className="font-mono text-cyan-300">UI = sqrt( (1/N) * sum( ( (NAV_t - max NAV) / max NAV * 100 )^2 ) )</code>. Depth & duration stress metric.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleTriggerCalculation("RSK-05")}
+                  disabled={triggering || !selectedOptionId}
+                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
+                >
+                  {triggering ? "Calculating..." : "Execute RSK-05 Run"}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
+                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Weighting</span>
+                <span className="text-amber-400 font-semibold">Quadratic Drawdown</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Scaling</span>
+                <span className="text-amber-400 font-semibold">Percentage Squared RMS</span>
+              </div>
+              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
+                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
+                <span className="text-zinc-200">POINTS</span>
               </div>
             </div>
           </div>
 
           {/* Unimplemented Risk Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RSK-02: Downside Semideviation</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RSK-03: Maximum Drawdown 3Y</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RSK-04: Maximum Drawdown Duration</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RSK-05: Ulcer Index</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-semibold text-zinc-300">RSK-06: Historical VaR 95%</span>
@@ -754,7 +879,7 @@ export default function FundDetailPage({ params }: PageProps) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <span className="text-zinc-500 text-[10px] uppercase block">Implemented Candidate</span>
-              <span className="text-cyan-300 font-semibold">RET-02, RET-03, RSK-01 (CANDIDATE_V1)</span>
+              <span className="text-cyan-300 font-semibold">RET-02, RET-03, RSK-01..05 (CANDIDATE_V1)</span>
             </div>
             <div>
               <span className="text-zinc-500 text-[10px] uppercase block">Validated Methodologies</span>

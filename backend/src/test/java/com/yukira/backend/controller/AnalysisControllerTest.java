@@ -593,4 +593,104 @@ class AnalysisControllerTest {
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error", is("SCHEME_OPTION_NOT_FOUND")));
     }
+
+    @Test
+    @DisplayName("RSK-02 to RSK-05 API: Endpoints accept valid payloads and execute via quant-engine")
+    void testRsk02To05ControllerEndpoints() throws Exception {
+        OffsetDateTime cutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        LocalDate start = LocalDate.of(2021, 1, 15);
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        // Seed 720 daily observations
+        LocalDate current = start;
+        BigDecimal nav = new BigDecimal("100.00000000");
+        while (!current.isAfter(end)) {
+            NavObservation obs = new NavObservation(schemeOption, current, nav, 1, cutoff);
+            obs.setSourceArtifact(sourceArtifact);
+            navObservationRepository.save(obs);
+            nav = nav.add(new BigDecimal("0.10000000"));
+            current = current.plusDays(1);
+        }
+
+        String jsonPayload = String.format("""
+            {
+                "schemeOptionId": %d,
+                "endDate": "2024-01-15",
+                "knowledgeCutoffTime": "%s",
+                "methodologyTag": "CANDIDATE_V1"
+            }
+            """, schemeOption.getId(), cutoff.toString());
+
+        // Test RSK-02
+        var res02 = mockMvc.perform(post("/api/v1/analysis/rsk02")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-02")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
+            .andReturn();
+
+        long runId02 = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(res02.getResponse().getContentAsString())
+            .path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/rsk02/" + runId02))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-02")));
+
+        // Test RSK-03
+        var res03 = mockMvc.perform(post("/api/v1/analysis/rsk03")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-03")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
+            .andReturn();
+
+        long runId03 = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(res03.getResponse().getContentAsString())
+            .path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/rsk03/" + runId03))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-03")));
+
+        // Test RSK-04
+        var res04 = mockMvc.perform(post("/api/v1/analysis/rsk04")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-04")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("DAYS")))
+            .andReturn();
+
+        long runId04 = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(res04.getResponse().getContentAsString())
+            .path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/rsk04/" + runId04))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-04")));
+
+        // Test RSK-05
+        var res05 = mockMvc.perform(post("/api/v1/analysis/rsk05")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-05")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("POINTS")))
+            .andReturn();
+
+        long runId05 = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(res05.getResponse().getContentAsString())
+            .path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/rsk05/" + runId05))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-05")));
+    }
 }

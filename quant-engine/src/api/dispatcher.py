@@ -13,6 +13,7 @@ from src import (
     ratios,
     returns as ret_mod,
     risk,
+    semideviation,
     statistics,
     tracking_error,
     ulcer_index,
@@ -127,7 +128,7 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                     )
                 )
 
-            elif code == "RSK-01":  # Annualized Volatility
+            elif code == "RSK-01":  # Annualized Volatility (3Y)
                 min_obs = int(params.get("min_observations", 2))
                 if len(nav_values) < min_obs or len(fund_returns) < 1:
                     results.append(
@@ -167,7 +168,171 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
 
-            elif code == "RSK-02":  # Historical VaR 95%
+            elif code == "RSK-02":  # Downside Semideviation (3Y)
+                min_obs = int(params.get("min_observations", 2))
+                target_return = float(params.get("target_return", 0.0))
+                if len(nav_values) < min_obs or len(fund_returns) < 1:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-02: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "target_return_mar": target_return,
+                                "periods_per_year": periods_per_year,
+                            },
+                        )
+                    )
+                else:
+                    val = semideviation.downside_semideviation(
+                        fund_returns, target_return=target_return, periods_per_year=periods_per_year
+                    )
+                    downside_count = sum(1 for r in fund_returns if r < target_return)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=val,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "target_return_mar": target_return,
+                                "periods_per_year": periods_per_year,
+                                "annualization_convention": "SQRT_252_CANDIDATE",
+                                "denominator_convention": "N_MINUS_ONE_CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "return_count": len(fund_returns),
+                                "downside_count": downside_count,
+                            },
+                        )
+                    )
+
+            elif code == "RSK-03":  # 3-Year Maximum Drawdown
+                min_obs = int(params.get("min_observations", 2))
+                if len(nav_values) < min_obs:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-03: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                            },
+                        )
+                    )
+                else:
+                    details = risk.drawdown_details(nav_values, dates)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=details["max_drawdown"],
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "peak_nav": details["peak_nav"],
+                                "trough_nav": details["trough_nav"],
+                                "peak_date": details["peak_date"],
+                                "trough_date": details["trough_date"],
+                                "running_peak_denominator_convention": "RUNNING_PEAK_NAV_CANDIDATE",
+                            },
+                        )
+                    )
+
+            elif code == "RSK-04":  # Maximum Drawdown Duration
+                min_obs = int(params.get("min_observations", 2))
+                if len(nav_values) < min_obs:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="DAYS",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-04: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                            },
+                        )
+                    )
+                else:
+                    duration_info = risk.maximum_drawdown_duration(nav_values, dates)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=float(duration_info["max_duration_calendar_days"]),
+                            units="DAYS",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "max_duration_calendar_days": duration_info["max_duration_calendar_days"],
+                                "max_duration_trading_days": duration_info["max_duration_trading_days"],
+                                "is_ongoing_at_cutoff": duration_info["is_ongoing_at_cutoff"],
+                                "worst_episode_peak_date": duration_info["worst_episode_peak_date"],
+                                "worst_episode_recovery_date": duration_info["worst_episode_recovery_date"],
+                                "worst_episode_trough_date": duration_info["worst_episode_trough_date"],
+                                "worst_episode_trough_nav": duration_info["worst_episode_trough_nav"],
+                            },
+                        )
+                    )
+
+            elif code == "RSK-05":  # Ulcer Index (3Y)
+                min_obs = int(params.get("min_observations", 2))
+                if len(nav_values) < min_obs:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="POINTS",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-05: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                            },
+                        )
+                    )
+                else:
+                    val = ulcer_index.ulcer_index(nav_values)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=val,
+                            units="POINTS",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "denominator_convention": "N_OBSERVATIONS_CANDIDATE",
+                            },
+                        )
+                    )
+
+            elif code == "RSK-06":  # Historical VaR 95%
                 val = var.historical_var(fund_returns, 0.95)
                 results.append(
                     MetricOutputItem(
@@ -179,19 +344,7 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                     )
                 )
 
-            elif code == "RSK-03":  # Parametric VaR 95%
-                val = var.parametric_var(fund_returns, 0.95)
-                results.append(
-                    MetricOutputItem(
-                        metric_code=code,
-                        numeric_value=val,
-                        units="PERCENTAGE",
-                        status=CalculationStatus.CALCULATED,
-                        diagnostics={"confidence_level": 0.95, "methodology_status": "CANDIDATE"},
-                    )
-                )
-
-            elif code == "RSK-04":  # Expected Shortfall (CVaR 95%)
+            elif code == "RSK-07":  # Expected Shortfall (CVaR 95%)
                 val = expected_shortfall.historical_expected_shortfall(fund_returns, 0.95)
                 results.append(
                     MetricOutputItem(
@@ -200,30 +353,6 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         units="PERCENTAGE",
                         status=CalculationStatus.CALCULATED,
                         diagnostics={"confidence_level": 0.95, "methodology_status": "CANDIDATE"},
-                    )
-                )
-
-            elif code == "RSK-05":  # Maximum Drawdown
-                val = risk.maximum_drawdown(nav_values)
-                results.append(
-                    MetricOutputItem(
-                        metric_code=code,
-                        numeric_value=val,
-                        units="PERCENTAGE",
-                        status=CalculationStatus.CALCULATED,
-                        diagnostics={"methodology_status": "CANDIDATE"},
-                    )
-                )
-
-            elif code == "RSK-06":  # Ulcer Index
-                val = ulcer_index.ulcer_index(nav_values)
-                results.append(
-                    MetricOutputItem(
-                        metric_code=code,
-                        numeric_value=val,
-                        units="RATIO",
-                        status=CalculationStatus.CALCULATED,
-                        diagnostics={"methodology_status": "CANDIDATE"},
                     )
                 )
 

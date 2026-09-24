@@ -36,6 +36,21 @@ As an AI coding agent on YUKIRA, you are a **disciplined software and financial 
 - **Report Facts Truthfully:** Report exact test execution counts, exact git commits, exact hashes, and exact error messages. Never report assumed passes.
 - **Stop and Report on Conflicts:** If you encounter architectural ambiguity, data discrepancies, or conflicting specifications, **STOP and report the discrepancy** rather than guessing.
 
+### 2.1 Agent Execution Control & Token Efficiency
+
+> **Core Principle: SPECIFICATION > AGENT INTERPRETATION**
+
+When operating within Project YUKIRA, all agents must adhere to strict execution control and token efficiency rules:
+1. **Literal Execution of Specifications:** Execute explicit task specifications literally and deterministically. Do not redesign, reinterpret, expand scope, or invent financial methodology.
+2. **Minimum Necessary Changes:** Make only the targeted changes required to fulfill the specific prompt directive.
+3. **Reuse Existing Patterns:** Reuse existing YUKIRA architecture, schemas, DTOs, calculation pipelines, and testing patterns rather than inventing ad-hoc abstractions.
+4. **No Speculative Alternatives:** Do not propose, implement, or branch into speculative alternative implementations unless explicitly requested by the project owner.
+5. **Targeted Repository Inspection:** Perform targeted inspections of specific relevant files. Avoid sweeping workspace scans or repeated rereading of unchanged files.
+6. **Concise Output:** Keep tool calls, intermediate scratch files, and final responses concise, structured, and focused strictly on evidence, test results, and verified facts.
+7. **Stop on Ambiguity:** If conflicting specifications, schema mismatches, or architectural discrepancies are found, **STOP immediately and report the discrepancy** instead of guessing or approximating.
+8. **Standard Execution Workflow:** Always follow the deterministic execution pipeline:
+   `SPECIFICATION → TARGETED INSPECTION → MINIMAL IMPLEMENTATION → SUITE VERIFICATION → CONTROLLED AUDIT → EVIDENCE REPORT`
+
 ---
 
 ## 3. Source-of-Truth Hierarchy
@@ -275,6 +290,11 @@ During Phase 2I/2J audits, an intermediate NAV discrepancy was identified for th
 ---
 
 ## 15. Standard Agent Execution Workflow
+
+> **Current Implementation State & Governance Reminder:**
+> - Implemented analytical vertical slices currently include **RET-02**, **RET-03**, and **RSK-01**.
+> - All other methodology-defined metrics remain candidate specifications unless explicitly validated and approved through governance.
+> - **Implementation does NOT equal validation or approval.**
 
 When assigned a task in YUKIRA, follow this systematic workflow:
 

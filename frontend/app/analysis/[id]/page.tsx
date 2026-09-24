@@ -145,8 +145,29 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
   const isCalculated = data.result.calculationStatus === "CALCULATED";
   const isInsufficient = data.result.calculationStatus === "INSUFFICIENT_DATA" || data.limitations.insufficientEvidence;
-  const isRsk01 = data.result.metricCode === "RSK-01";
-  const rskMethodology = isRsk01 ? (data.methodology as { annualizationConvention?: string; denominatorConvention?: string }) : null;
+  const isRiskMetric = data.result.metricCode.startsWith("RSK-");
+  const hasWindow = Boolean(data.window);
+  const rskMethodology = isRiskMetric ? (data.methodology as { annualizationConvention?: string; denominatorConvention?: string }) : null;
+
+  const getMetricDescription = (code: string): string => {
+    switch (code) {
+      case "RSK-01":
+        return "Authoritative 3-year annualized standard deviation of daily returns: sqrt(252) * sqrt(sum((r_t - r_bar)^2)/(N-1)). Realized historical dispersion only; zero predictive forecast.";
+      case "RSK-02":
+        return "Authoritative downside semideviation (MAR = 0.0): sqrt(252) * sqrt(sum(min(r_t, 0)^2)/(N-1)). Annualized dispersion of negative returns only; zero predictive forecast.";
+      case "RSK-03":
+        return "Authoritative 3-year maximum drawdown: peak-to-trough maximum observed decline from running cumulative peak NAV. Realized historical decline only.";
+      case "RSK-04":
+        return "Authoritative maximum drawdown duration: longest elapsed calendar days between prior peak and subsequent recovery. Realized historical duration only.";
+      case "RSK-05":
+        return "Authoritative Ulcer Index: quadratic root-mean-square of percentage drawdowns from running peak NAV. Realized historical depth and duration stress metric.";
+      case "RET-03":
+        return "Authoritative 3-year CAGR: (NAV_end / NAV_start)^(365.25 / elapsed_calendar_days) - 1. Realized historical compound growth only.";
+      case "RET-02":
+      default:
+        return "Authoritative discrete period return: (NAV_end - NAV_start) / NAV_start. Deterministic quantitative engine result.";
+    }
+  };
 
   return (
     <PageContainer
@@ -165,7 +186,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             CANDIDATE METHODOLOGY — NOT VALIDATED FOR PRODUCTION
           </div>
           <p className="mt-1 text-zinc-300 font-sans leading-relaxed text-xs">
-            <strong className="text-white">Implemented ≠ Validated ≠ Approved:</strong> This calculation ({data.methodology.methodologyCode}) was computed deterministically by the Python quantitative engine using candidate methodology specifications. YUKIRA currently has <strong className="text-white">strictly zero validated production methodologies</strong> and <strong className="text-white">exactly zero empirical findings</strong>. This metric does not constitute an investment recommendation, rating, or commercial advice.
+            <strong className="text-white">Implemented &ne; Validated &ne; Approved:</strong> This calculation ({data.methodology.methodologyCode}) was computed deterministically by the Python quantitative engine using candidate methodology specifications. YUKIRA currently has <strong className="text-white">strictly zero validated production methodologies</strong> and <strong className="text-white">exactly zero empirical findings</strong>. This metric does not constitute an investment recommendation, rating, or commercial advice.
           </p>
         </div>
 
@@ -222,7 +243,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             Trigger Parameterized {data.result.metricCode} Calculation
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {!isRsk01 && (
+            {!hasWindow && (
               <div>
                 <label className="block text-zinc-400 mb-1">Requested Start Date</label>
                 <input
@@ -235,7 +256,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
               </div>
             )}
             <div>
-              <label className="block text-zinc-400 mb-1">{isRsk01 ? "Analysis Cutoff Date (T)" : "Requested End Date"}</label>
+              <label className="block text-zinc-400 mb-1">{hasWindow ? "Analysis Cutoff Date (T)" : "Requested End Date"}</label>
               <input
                 type="date"
                 value={customEndDate}
@@ -288,13 +309,9 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                   <MetricValueDisplay
                     label={`${data.result.metricCode} ${data.result.metricName}`}
                     value={data.result.numericValue}
-                    units="PERCENTAGE"
+                    units={data.result.units || "PERCENTAGE"}
                     isCandidate={true}
-                    description={
-                      isRsk01
-                        ? "Authoritative 3-year annualized standard deviation of daily logarithmic/simple returns from Python quant engine: sqrt(252) * sqrt(sum((r_t - r_bar)^2)/(N-1)). Realized historical sample dispersion only; zero predictive forecast."
-                        : "Authoritative discrete period return from backend quant engine: (NAV_end - NAV_start) / NAV_start. Frontend displays authoritative result without client calculation."
-                    }
+                    description={getMetricDescription(data.result.metricCode)}
                   />
                   <div className="font-mono text-xs text-zinc-400">
                     Status: <span className="font-semibold text-zinc-200">{data.result.calculationStatus}</span>
@@ -303,20 +320,20 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
                 <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4 font-mono text-xs space-y-2">
                   <div className="text-zinc-500 uppercase tracking-wider text-[10px]">
-                    {isRsk01 ? "36-Month Analytical Window" : "Evaluation Window"}
+                    {hasWindow ? "36-Month Analytical Window" : "Evaluation Window"}
                   </div>
-                  {isRsk01 && data.window ? (
+                  {hasWindow && data.window ? (
                     <>
                       <div>
                         <span className="text-zinc-400">Target Range: </span>
                         <span className="text-zinc-200 font-semibold">
-                          {data.window.requestedStartDate || "—"} → {data.window.requestedEndDate || "—"}
+                          {data.window.requestedStartDate || "—"} &rarr; {data.window.requestedEndDate || "—"}
                         </span>
                       </div>
                       <div>
                         <span className="text-zinc-400">Resolved Range: </span>
                         <span className="text-cyan-400 font-semibold">
-                          {data.window.actualStartDate || "—"} → {data.window.actualEndDate || "—"}
+                          {data.window.actualStartDate || "—"} &rarr; {data.window.actualEndDate || "—"}
                         </span>
                       </div>
                       <div>
@@ -331,13 +348,13 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                       <div>
                         <span className="text-zinc-400">Requested: </span>
                         <span className="text-zinc-200 font-semibold">
-                          {data.period.requestedStartDate || "—"} → {data.period.requestedEndDate || "—"}
+                          {data.period.requestedStartDate || "—"} &rarr; {data.period.requestedEndDate || "—"}
                         </span>
                       </div>
                       <div>
                         <span className="text-zinc-400">Selected PIT: </span>
                         <span className="text-cyan-400 font-semibold">
-                          {data.period.selectedStartDate || "—"} → {data.period.selectedEndDate || "—"}
+                          {data.period.selectedStartDate || "—"} &rarr; {data.period.selectedEndDate || "—"}
                         </span>
                       </div>
                     </>
@@ -381,7 +398,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             </h4>
 
             {/* Boundary NAV / Window Evidence Cards */}
-            {isRsk01 && data.window ? (
+            {hasWindow && data.window ? (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 font-mono text-xs space-y-3">
                 <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                   <span className="font-semibold text-zinc-300 uppercase tracking-wider">
@@ -492,21 +509,23 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                 <span className="text-zinc-500">Formula: </span>
                 <span className="text-zinc-200">{data.methodology.formulaDisclosure}</span>
               </div>
-              {isRsk01 && rskMethodology ? (
+              {isRiskMetric && rskMethodology?.annualizationConvention ? (
                 <>
                   <div className="text-zinc-400">
                     <span className="text-zinc-500">Annualization: </span>
-                    <span className="text-amber-300 font-semibold">{rskMethodology.annualizationConvention || "SQRT_252_CANDIDATE"} (Candidate — not validated)</span>
+                    <span className="text-amber-300 font-semibold">{rskMethodology.annualizationConvention} (Candidate — not validated)</span>
                   </div>
-                  <div className="text-zinc-400">
-                    <span className="text-zinc-500">Denominator: </span>
-                    <span className="text-amber-300 font-semibold">{rskMethodology.denominatorConvention || "N_MINUS_ONE_CANDIDATE"} (Candidate — not validated)</span>
-                  </div>
+                  {rskMethodology.denominatorConvention && (
+                    <div className="text-zinc-400">
+                      <span className="text-zinc-500">Denominator: </span>
+                      <span className="text-amber-300 font-semibold">{rskMethodology.denominatorConvention} (Candidate — not validated)</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-zinc-400">
                   <span className="text-zinc-500">Window Rule: </span>
-                  <span className="text-zinc-200">{data.methodology.lookbackSpecification}</span>
+                  <span className="text-zinc-200">{data.methodology.lookbackSpecification || "36 calendar months candidate analytical window"}</span>
                 </div>
               )}
               <div className="text-zinc-400">
