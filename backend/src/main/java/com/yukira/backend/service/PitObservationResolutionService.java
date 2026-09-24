@@ -1,8 +1,10 @@
 package com.yukira.backend.service;
 
 import com.yukira.backend.domain.entity.NavObservation;
+import com.yukira.backend.domain.entity.RiskFreeObservation;
 import com.yukira.backend.domain.entity.ValidationIssue;
 import com.yukira.backend.repository.NavObservationRepository;
+import com.yukira.backend.repository.RiskFreeObservationRepository;
 import com.yukira.backend.repository.ValidationIssueRepository;
 import org.springframework.stereotype.Service;
 
@@ -14,13 +16,16 @@ import java.util.*;
 public class PitObservationResolutionService {
 
     private final NavObservationRepository navObservationRepository;
+    private final RiskFreeObservationRepository riskFreeObservationRepository;
     private final ValidationIssueRepository validationIssueRepository;
 
     public PitObservationResolutionService(
         NavObservationRepository navObservationRepository,
+        RiskFreeObservationRepository riskFreeObservationRepository,
         ValidationIssueRepository validationIssueRepository
     ) {
         this.navObservationRepository = navObservationRepository;
+        this.riskFreeObservationRepository = riskFreeObservationRepository;
         this.validationIssueRepository = validationIssueRepository;
     }
 
@@ -40,6 +45,25 @@ public class PitObservationResolutionService {
 
         public static PitResolutionResult ambiguous(List<NavObservation> eligible, String reason) {
             return new PitResolutionResult(Optional.empty(), eligible, true, reason);
+        }
+    }
+
+    public record RiskFreePitResolutionResult(
+        Optional<RiskFreeObservation> authoritativeObservation,
+        List<RiskFreeObservation> eligibleRevisions,
+        boolean isAmbiguous,
+        String diagnosticReason
+    ) {
+        public static RiskFreePitResolutionResult resolved(RiskFreeObservation obs, List<RiskFreeObservation> eligible) {
+            return new RiskFreePitResolutionResult(Optional.of(obs), eligible, false, null);
+        }
+
+        public static RiskFreePitResolutionResult missing(String reason) {
+            return new RiskFreePitResolutionResult(Optional.empty(), Collections.emptyList(), false, reason);
+        }
+
+        public static RiskFreePitResolutionResult ambiguous(List<RiskFreeObservation> eligible, String reason) {
+            return new RiskFreePitResolutionResult(Optional.empty(), eligible, true, reason);
         }
     }
 
@@ -128,5 +152,77 @@ public class PitObservationResolutionService {
 
         NavObservation authoritative = Collections.max(latestCandidates, tieBreaker);
         return PitResolutionResult.resolved(authoritative, eligibleRevisions);
+    }
+
+    /**
+     * Resolves the authoritative risk-free observation for (benchmarkCode, effectiveDate)
+     * strictly at knowledgeCutoffTime according to the approved 6-step PIT selection algorithm.
+     */
+    public RiskFreePitResolutionResult resolveAuthoritativeRiskFreeObservation(
+        String benchmarkCode,
+        LocalDate effectiveDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        if (benchmarkCode == null || benchmarkCode.isBlank() || effectiveDate == null || knowledgeCutoffTime == null) {
+            throw new IllegalArgumentException("benchmarkCode, effectiveDate, and knowledgeCutoffTime must not be null");
+        }
+
+        List<RiskFreeObservation> allRevisions = riskFreeObservationRepository
+            .findByBenchmarkCodeAndEffectiveDate(benchmarkCode, effectiveDate);
+
+        if (allRevisions.isEmpty()) {
+            return RiskFreePitResolutionResult.missing(
+                String.format("No risk-free observations found for benchmark %s on date %s", benchmarkCode, effectiveDate)
+            );
+        }
+
+        List<RiskFreeObservation> eligibleRevisions = allRevisions.stream()
+            .filter(r -> r.getAvailabilityTime() != null && !r.getAvailabilityTime().isAfter(knowledgeCutoffTime))
+            .toList();
+
+        if (eligibleRevisions.isEmpty()) {
+            return RiskFreePitResolutionResult.missing(
+                String.format("All %d revision(s) for benchmark %s on %s have availability_time after knowledge cutoff %s",
+                    allRevisions.size(), benchmarkCode, effectiveDate, knowledgeCutoffTime)
+            );
+        }
+
+        OffsetDateTime maxAvailabilityTime = eligibleRevisions.stream()
+            .map(RiskFreeObservation::getAvailabilityTime)
+            .max(Comparator.naturalOrder())
+            .orElseThrow();
+
+        List<RiskFreeObservation> latestCandidates = eligibleRevisions.stream()
+            .filter(r -> r.getAvailabilityTime().equals(maxAvailabilityTime))
+            .toList();
+
+        boolean hasConflictingValues = latestCandidates.stream()
+            .anyMatch(c -> c.getQuotedYield().compareTo(latestCandidates.get(0).getQuotedYield()) != 0);
+
+        if (hasConflictingValues) {
+            ValidationIssue issue = new ValidationIssue(
+                "RISK_FREE_BENCHMARK",
+                0L,
+                "PIT_AUTHORITY_AMBIGUITY",
+                String.format("Ambiguous authority for risk-free benchmark %s on date %s at cutoff %s: multiple eligible revisions at latest availability instant %s have conflicting values",
+                    benchmarkCode, effectiveDate, knowledgeCutoffTime, maxAvailabilityTime)
+            );
+            issue.setQualityAssessment("SUSPICIOUS");
+            issue.setIntegrityCondition("CONFLICTING");
+            validationIssueRepository.save(issue);
+
+            return RiskFreePitResolutionResult.ambiguous(
+                eligibleRevisions,
+                String.format("Conflicting eligible risk-free revisions with unresolvable authority at latest availability instant %s as of cutoff %s",
+                    maxAvailabilityTime, knowledgeCutoffTime)
+            );
+        }
+
+        Comparator<RiskFreeObservation> tieBreaker = Comparator
+            .comparing(RiskFreeObservation::getRevisionSeq)
+            .thenComparing(obs -> obs.getSourceArtifact() != null ? obs.getSourceArtifact().getId() : 0L);
+
+        RiskFreeObservation authoritative = Collections.max(latestCandidates, tieBreaker);
+        return RiskFreePitResolutionResult.resolved(authoritative, eligibleRevisions);
     }
 }

@@ -138,3 +138,38 @@ def test_calculate_unsupported_metric_error():
     assert response.status_code == 200
     data = response.json()
     assert data["results"][0]["status"] == "ERROR"
+
+
+def test_calculate_with_risk_free_series():
+    payload = {
+        "request_id": "REQ-RF-001",
+        "as_of_date": "2025-01-03",
+        "knowledge_cutoff_time": "2025-01-03T23:59:59+05:30",
+        "metric_codes": ["RAT-01", "REL-01", "REL-04", "RAT-02"],
+        "nav_series": [
+            {"effective_date": "2025-01-01", "value": 100.0, "availability_time": "2025-01-01T18:00:00+05:30"},
+            {"effective_date": "2025-01-02", "value": 99.0, "availability_time": "2025-01-02T18:00:00+05:30"},
+            {"effective_date": "2025-01-03", "value": 98.0, "availability_time": "2025-01-03T18:00:00+05:30"},
+        ],
+        "benchmark_series": [
+            {"effective_date": "2025-01-01", "value": 1000.0, "availability_time": "2025-01-01T18:00:00+05:30"},
+            {"effective_date": "2025-01-02", "value": 990.0, "availability_time": "2025-01-02T18:00:00+05:30"},
+            {"effective_date": "2025-01-03", "value": 980.0, "availability_time": "2025-01-03T18:00:00+05:30"},
+        ],
+        "risk_free_series": [
+            {"effective_date": "2025-01-01", "value": 0.070, "availability_time": "2025-01-01T18:00:00+05:30"},
+            {"effective_date": "2025-01-02", "value": 0.071, "availability_time": "2025-01-02T18:00:00+05:30"},
+            {"effective_date": "2025-01-03", "value": 0.072, "availability_time": "2025-01-03T18:00:00+05:30"},
+        ],
+    }
+    response = client.post("/api/v1/calculate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "SUCCESS"
+    results_map = {r["metric_code"]: r for r in data["results"]}
+    assert results_map["RAT-01"]["status"] == "CALCULATED"
+    assert results_map["REL-01"]["status"] == "CALCULATED"
+    assert results_map["REL-04"]["status"] == "CALCULATED"
+    assert results_map["RAT-02"]["status"] == "CALCULATED"
+    assert results_map["REL-01"]["diagnostics"]["risk_free_aligned"] is True
+    assert results_map["REL-04"]["diagnostics"]["risk_free_required"] is False

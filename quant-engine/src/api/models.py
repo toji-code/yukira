@@ -43,6 +43,7 @@ class CalculationRequest(BaseModel):
     metric_codes: List[str] = Field(..., description="List of candidate metric codes to compute")
     nav_series: List[ObservationItem] = Field(..., description="Historical NAV observation series")
     benchmark_series: Optional[List[ObservationItem]] = Field(default=None, description="Historical benchmark level series")
+    risk_free_series: Optional[List[ObservationItem]] = Field(default=None, description="Historical risk-free observation series")
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Execution parameters (e.g. risk_free_rate)")
 
 

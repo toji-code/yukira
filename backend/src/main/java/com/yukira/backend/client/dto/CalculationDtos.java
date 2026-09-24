@@ -24,8 +24,25 @@ public class CalculationDtos {
         @JsonProperty("metric_codes") List<String> metricCodes,
         @JsonProperty("nav_series") List<ObservationItemDto> navSeries,
         @JsonProperty("benchmark_series") List<ObservationItemDto> benchmarkSeries,
+        @JsonProperty("risk_free_series") List<ObservationItemDto> riskFreeSeries,
         @JsonProperty("parameters") Map<String, Object> parameters
-    ) {}
+    ) {
+        public CalculationRequestDto(
+            String requestId,
+            String schemeId,
+            String benchmarkId,
+            String asOfDate,
+            String knowledgeCutoffTime,
+            String methodologyVersion,
+            List<String> metricCodes,
+            List<ObservationItemDto> navSeries,
+            List<ObservationItemDto> benchmarkSeries,
+            Map<String, Object> parameters
+        ) {
+            this(requestId, schemeId, benchmarkId, asOfDate, knowledgeCutoffTime, methodologyVersion,
+                 metricCodes, navSeries, benchmarkSeries, null, parameters);
+        }
+    }
 
     public record MetricOutputItemDto(
         @JsonProperty("metric_code") String metricCode,

@@ -8,14 +8,17 @@ from src.api.models import CalculationRequest, CalculationStatus, MetricOutputIt
 from src import (
     alpha,
     beta,
+    downside_beta,
     expected_shortfall,
     information_ratio,
     ratios,
     returns as ret_mod,
     risk,
+    risk_free,
     semideviation,
     statistics,
     tracking_error,
+    treynor,
     ulcer_index,
     var,
 )
@@ -92,6 +95,29 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
     rf_annual = float(params.get("risk_free_rate", 0.065))  # Candidate 6.5% default
     periods_per_year = float(params.get("periods_per_year", 252.0))
     rf_periodic = rf_annual / periods_per_year
+
+    # Handle optional risk-free series
+    aligned_rf_returns: Optional[List[float]] = None
+    if request.risk_free_series and len(request.risk_free_series) >= 1:
+        try:
+            rf_obs_list = [
+                risk_free.RiskFreeObservation(
+                    effective_date=datetime.date.fromisoformat(obs.effective_date),
+                    quoted_yield=obs.value,
+                    availability_time=datetime.datetime.fromisoformat(obs.availability_time),
+                    revision_seq=obs.revision_seq,
+                )
+                for obs in request.risk_free_series
+            ]
+            aligned_rf_returns = risk_free.align_risk_free_series(
+                observation_dates=dates,
+                risk_free_observations=rf_obs_list,
+                analysis_cutoff=request.as_of_date,
+                knowledge_cutoff=request.knowledge_cutoff_time,
+                max_lookback_days=4,
+            )
+        except Exception:
+            aligned_rf_returns = None
 
     # Elapsed years for CAGR
     try:
@@ -367,14 +393,42 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
                 else:
-                    val = beta.beta(aligned_fund_returns, bench_returns)
+                    if aligned_rf_returns is not None:
+                        val = beta.beta(aligned_fund_returns, bench_returns, risk_free_rates=aligned_rf_returns)
+                        diag = {"methodology_status": "APPROVED", "risk_free_aligned": True, "risk_free_proxy": "FBIL_91D_TBILL"}
+                    else:
+                        val = beta.beta(aligned_fund_returns, bench_returns)
+                        diag = {"methodology_status": "APPROVED", "risk_free_aligned": False}
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
                             numeric_value=val,
                             units="RATIO",
                             status=CalculationStatus.CALCULATED,
-                            diagnostics={"methodology_status": "CANDIDATE"},
+                            diagnostics=diag,
+                        )
+                    )
+
+            elif code == "REL-04":  # Downside Beta
+                if not bench_returns or len(bench_returns) < 2:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            units="RATIO",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message="Aligned benchmark return series required for Downside Beta.",
+                        )
+                    )
+                else:
+                    min_downside = int(params.get("min_downside_observations", 2))
+                    val = downside_beta.downside_beta(aligned_fund_returns, bench_returns, min_downside_observations=min_downside)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            numeric_value=val,
+                            units="RATIO",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={"methodology_status": "APPROVED", "min_downside_observations": min_downside, "risk_free_required": False},
                         )
                     )
 
@@ -411,7 +465,7 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
                 else:
-                    b_val = beta.beta(aligned_fund_returns, bench_returns)
+                    b_val = beta.beta(aligned_fund_returns, bench_returns, risk_free_rates=aligned_rf_returns)
                     f_ret = ret_mod.period_return(nav_values[0], nav_values[-1])
                     b_ret = ret_mod.period_return(bench_values[0], bench_values[-1])
                     val = alpha.jensens_alpha(f_ret, b_ret, rf_annual, b_val)
@@ -426,16 +480,41 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                     )
 
             elif code == "RAT-01":  # Sharpe Ratio
-                val = ratios.sharpe_ratio(fund_returns, rf_periodic, periods_per_year)
+                rf_input = aligned_rf_returns if aligned_rf_returns is not None else rf_periodic
+                val = ratios.sharpe_ratio(fund_returns, rf_input, periods_per_year)
                 results.append(
                     MetricOutputItem(
                         metric_code=code,
                         numeric_value=val,
                         units="RATIO",
                         status=CalculationStatus.CALCULATED,
-                        diagnostics={"risk_free_rate": rf_annual, "periods_per_year": periods_per_year, "methodology_status": "CANDIDATE"},
+                        diagnostics={"risk_free_aligned": aligned_rf_returns is not None, "periods_per_year": periods_per_year, "methodology_status": "APPROVED"},
                     )
                 )
+
+            elif code in ("RAT-02", "RAT-05"):  # Treynor Ratio
+                if not bench_returns or len(bench_returns) < 2:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            units="RATIO",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message="Aligned benchmark returns required for Treynor Ratio beta denominator.",
+                        )
+                    )
+                else:
+                    rf_input = aligned_rf_returns if aligned_rf_returns is not None else rf_periodic
+                    b_val = beta.beta(aligned_fund_returns, bench_returns, risk_free_rates=aligned_rf_returns)
+                    val = treynor.treynor_ratio(aligned_fund_returns, rf_input, b_val, periods_per_year)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            numeric_value=val,
+                            units="RATIO",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={"beta": b_val, "risk_free_aligned": aligned_rf_returns is not None, "periods_per_year": periods_per_year, "methodology_status": "APPROVED"},
+                        )
+                    )
 
             elif code == "RAT-03":  # Sortino Ratio (Candidate with N vs N-1 divisor flag)
                 val = ratios.sortino_ratio(fund_returns, rf_periodic, periods_per_year=periods_per_year)
