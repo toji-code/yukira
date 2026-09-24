@@ -66,6 +66,25 @@ def test_sharpe_ratio_rejects_invalid_periods():
         )
 
 
+def test_sharpe_ratio_with_risk_free_sequence():
+    returns = [0.010, -0.005, 0.015, -0.002, 0.008]
+    rf_series = [0.0002, 0.0002, 0.0002, 0.0002, 0.0002]
+
+    result = sharpe_ratio(returns, risk_free_rate=rf_series, periods_per_year=252.0)
+    assert result > 0.0
+
+    # Test exact arithmetic equivalence
+    excess = [r - rf for r, rf in zip(returns, rf_series)]
+    import statistics
+    expected = (statistics.mean(excess) / statistics.stdev(excess)) * (252.0 ** 0.5)
+    assert result == pytest.approx(expected, abs=1e-15)
+
+
+def test_sharpe_ratio_mismatched_sequence_length():
+    with pytest.raises(ValueError, match="same length"):
+        sharpe_ratio([0.01, 0.02, 0.03], risk_free_rate=[0.0002, 0.0002])
+
+
 def test_sortino_ratio():
     returns = [0.10, -0.10]
 

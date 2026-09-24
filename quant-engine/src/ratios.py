@@ -18,14 +18,15 @@ def _validate_returns(returns: Sequence[float]) -> None:
 
 def sharpe_ratio(
     returns: Sequence[float],
-    risk_free_rate: float,
-    periods_per_year: float,
+    risk_free_rate: float | Sequence[float],
+    periods_per_year: float = 252.0,
 ) -> float:
     """
     Calculate the annualized Sharpe ratio.
 
     The risk-free rate is expected to be expressed as a
-    return for the same period as each observation.
+    return for the same period as each observation, either as a constant
+    scalar or as a synchronous sequence of daily risk-free rates.
 
     Formula:
 
@@ -40,18 +41,32 @@ def sharpe_ratio(
     """
     _validate_returns(returns)
 
-    if not math.isfinite(risk_free_rate):
-        raise ValueError("risk_free_rate must be finite.")
-
     if not math.isfinite(periods_per_year) or periods_per_year <= 0:
         raise ValueError(
             "periods_per_year must be finite and greater than zero."
         )
 
-    excess_returns = [
-        return_value - risk_free_rate
-        for return_value in returns
-    ]
+    if isinstance(risk_free_rate, (int, float)):
+        if not math.isfinite(risk_free_rate):
+            raise ValueError("risk_free_rate must be finite.")
+        excess_returns = [
+            return_value - float(risk_free_rate)
+            for return_value in returns
+        ]
+    elif isinstance(risk_free_rate, Sequence):
+        if len(risk_free_rate) != len(returns):
+            raise ValueError(
+                "risk_free_rate sequence must have the same length as returns."
+            )
+        for rf in risk_free_rate:
+            if not isinstance(rf, (int, float)) or not math.isfinite(rf):
+                raise ValueError("risk_free_rate sequence must contain only finite numbers.")
+        excess_returns = [
+            return_value - float(rf)
+            for return_value, rf in zip(returns, risk_free_rate)
+        ]
+    else:
+        raise TypeError("risk_free_rate must be a float or a Sequence of floats.")
 
     standard_deviation = stdev(excess_returns)
 
