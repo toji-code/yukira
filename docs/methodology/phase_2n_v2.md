@@ -1,22 +1,19 @@
 # YUKIRA — Phase 2N Methodology V2
 
-**Document:** `docs/methodology/phase_2n_v2.md`  
-**Phase:** 2N / V2  
-**Status:** APPROVED METHODOLOGY — V2  
-**Lifecycle State:** APPROVED (Formal Governance Sign-Off)  
-**Implementation Status:** AUTHORIZED FOR PHASE 2O IMPLEMENTATION (Approved Metrics Only)  
-**Validation Status:** 5 VALIDATED  
-**Approval Status:** 5 APPROVED  
+**Document:** `docs/methodology/phase_2n_v2.md`
+**Phase:** 2N / V2
+**Status:** PROPOSED METHODOLOGY SPECIFICATION (CANDIDATE)
+**Implementation Status:** NOT AUTHORIZED
 
 ---
 
 # 1. Purpose
-Define the authoritative, approved methodology specifications for the 5 quantitative metrics adjudicated in Phase 2N governance, establishing fully deterministic formulas, daycount/annualization conventions, risk-free conversions, boundary condition thresholds, and cross-metric consistency rules for Phase 2O production implementation.
+Define the proposed methodology specification for 5 metrics identified in Phase 2N research as sufficiently defensible for formal governance review.
 
 ---
 
 # 2. Relationship to Phase 2H (Frozen)
-This document acts as an approved successor amendment for specific Phase 2N adjudicated decisions. All definitions in `phase2h_quantitative_methodology.md` remain the **Frozen baseline** for all Phase 2I–2M implemented metrics.
+This document acts as a proposed successor amendment for specific Phase 2N adjudicated decisions. All definitions in `phase2h_quantitative_methodology.md` remain the Frozen baseline for all Phase 2I–2M implemented metrics.
 
 ---
 

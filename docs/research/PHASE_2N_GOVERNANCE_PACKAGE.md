@@ -1,14 +1,14 @@
-# YUKIRA — Phase 2N Formal Methodology Approval Record
+# YUKIRA — Phase 2N Methodology Governance Package
 
-**Document Reference:** `docs/research/PHASE_2N_FORMAL_APPROVAL.md`  
-**Phase:** 2N  
-**Status:** FORMAL GOVERNANCE APPROVAL RECORD  
-**Lifecycle State:** APPROVED (Phase 2N Milestone Gate Complete)  
-**Implementation Authorization:** AUTHORIZED FOR PHASE 2O IMPLEMENTATION (Approved Metrics Only)  
-**Validated Count:** 5  
-**Approved Count:** 5  
-**Deferred Count:** 4  
-**Phase 2H Status:** FROZEN (`phase2h_quantitative_methodology.md` ZERO DIFF)  
+**Document Reference:** `docs/research/PHASE_2N_GOVERNANCE_PACKAGE.md`
+**Phase:** 2N
+**Status:** PROPOSED GOVERNANCE DECISION PACKAGE (CANDIDATE)
+**Lifecycle State:** PENDING GOVERNANCE COMMITTEE REVIEW
+**Implementation Status:** NOT AUTHORIZED FOR PHASE 2O IMPLEMENTATION
+**Validated Count:** 0
+**Approved Count:** 0
+**Phase 2H Status:** FROZEN (`phase2h_quantitative_methodology.md` ZERO DIFF)
+
 
 ---
 

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 def downside_beta(
     portfolio_returns: Sequence[float],
     benchmark_returns: Sequence[float],
-    min_downside_observations: int = 2,
+    min_downside_observations: int = 100,
 ) -> float:
     """
     Calculate portfolio downside beta conditioned on benchmark-down periods (Rb < 0).
@@ -52,7 +52,9 @@ def downside_beta(
         if benchmark < 0.0
     ]
 
-    req_obs = max(2, min_downside_observations)
+    if min_downside_observations < 100:
+        raise ValueError("min_downside_observations must be at least 100")
+    req_obs = min_downside_observations
     if len(downside_periods) < req_obs:
         raise ValueError(
             f"at least {req_obs} benchmark downside observations are required (found {len(downside_periods)})"
