@@ -9,14 +9,14 @@
 ## 1. Project Milestone Roadmap Overview
 
 ```text
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+┌──────────────┝     ┌──────────────┝     ┌──────────────┝     ┌──────────────┝     ┌──────────────┝
 │  Phase 2A–2B │ ──> │  Phase 2C–2E │ ──> │   Phase 2F   │ ──> │  Phase 2G–2H │ ──> │   Phase 2I   │
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
  Concept Audit        Multi-Tier Core      Real AMFI Slice      Governance Freeze    Investor Website
  & 30-Metric Freeze   DB + Backend + UI    Vertical Ret-02      Methodology Spec     Real Pilot (e6880ef)
                                                                                        │
                                                                                        ▼
-                                                                                ┌──────────────┐
+                                                                                ┌──────────────┝
                                                                                 │   Phase 2J   │
                                                                                 │  COMPLETED   │
                                                                                 └──────────────┘
@@ -138,7 +138,8 @@
 ---
 
 ### Phase 2Q � Risk-Adjusted / Market-Sensitivity Analytical Vertical
-- **Commit:** 18fac5f`n- **Focus:** Implementation of Sharpe (RAT-01), Treynor (RAT-02), Beta (REL-01), Downside Beta (REL-04) using Phase 2N approved methodology.
+- **Commit:** 18fac5f
+- **Focus:** Implementation of Sharpe (RAT-01), Treynor (RAT-02), Beta (REL-01), Downside Beta (REL-04) using Phase 2N approved methodology.
 - **Key Deliverables:**
   - Deterministic implementation of approved Phase 2N risk-adjusted metrics.
   - FBIL 91-Day T-Bill risk-free infrastructure.
@@ -149,6 +150,8 @@
 ---
 
 ### Phase 2R � Readiness Assessment / Scope Definition
-- **Focus:** Assessment of project readiness for Phase 2S (Metric expansion/Governance workflow improvements).
+- **Focus:** Assessment of project readiness for subsequent analytical phases.
 - **Deliverables:** Readiness assessment and governance scoping for subsequent analytical phases.
 - **Status:** **READY FOR SCOPE DEFINITION**
+- **Scope:** NOT YET FROZEN
+
