@@ -371,4 +371,39 @@ public class AnalysisController {
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    /**
+     * Executes unified 3-Year Institutional Risk-Return Profile (16 metrics) under CalculationRun architecture.
+     */
+    @PostMapping({"/profile", "/composite"})
+    public ResponseEntity<?> executeProfile(@RequestBody ProfileCalculationRequest request) {
+        if (request.schemeOptionId() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PARAMETER",
+                "message", "Canonical schemeOptionId is required."
+            ));
+        }
+        if (request.asOfDate() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_DATES",
+                "message", "asOfDate is required for profile calculation."
+            ));
+        }
+        if (request.knowledgeCutoffTime() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_CUTOFF",
+                "message", "knowledgeCutoffTime is required to enforce point-in-time constraints."
+            ));
+        }
+
+        if (!schemeOptionRepository.existsById(request.schemeOptionId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", request.schemeOptionId())
+            ));
+        }
+
+        AnalyticalProfileResponse response = analysisService.executeProfileAnalysis(request);
+        return ResponseEntity.ok(response);
+    }
 }

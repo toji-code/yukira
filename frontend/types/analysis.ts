@@ -166,3 +166,86 @@ export interface CalculationRequest {
   knowledgeCutoffTime: string;
   methodologyTag?: string;
 }
+
+export interface ProfileContext {
+  runId: number;
+  schemeOptionId: number;
+  schemeName: string;
+  amfiCode: string;
+  isin: string;
+  optionType: string;
+  planType: string;
+  benchmarkId: number;
+  benchmarkName: string;
+  benchmarkCode: string;
+  riskFreeProxy: string;
+  startDate: string;
+  asOfDate: string;
+  knowledgeCutoffTime: string;
+  runStatus: string;
+}
+
+export interface ProfileMetricItem {
+  metricCode: string;
+  metricName: string;
+  category: string;
+  numericValue: number | null;
+  formattedValue: string | null;
+  units: string;
+  periodType: string;
+  calculationStatus: string;
+  governanceStatus: string;
+  formulaDisclosure: string;
+  interpretation: string;
+  limitations: string;
+  errorMessage?: string | null;
+  diagnostics?: Record<string, unknown>;
+}
+
+export interface ProfileProvenance {
+  calculationRunId: number;
+  runStatus: string;
+  inputSnapshotSha256: string;
+  executionStartedAt: string;
+  executionCompletedAt: string | null;
+  engineSoftwareVersion: string;
+  methodologyTag: string;
+  navObservationCount: number;
+  benchmarkObservationCount: number;
+  riskFreeObservationCount: number;
+  sampleObservations?: Ret02InputObservationRef[];
+}
+
+export interface ProfileQuality {
+  overallAssessment: string;
+  dimensions: Ret02QualityDimension[];
+  validationFlags: string[];
+}
+
+export interface ProfileLimitations {
+  analysisCutoff: string;
+  knowledgeCutoff: string;
+  temporalLimitationDisclosure: string;
+  candidateMethodologyDisclaimer: string;
+}
+
+export interface AnalyticalProfileResponse {
+  context: ProfileContext;
+  returnMetrics: ProfileMetricItem[];
+  riskMetrics: ProfileMetricItem[];
+  riskAdjustedMetrics: ProfileMetricItem[];
+  marketSensitivityMetrics: ProfileMetricItem[];
+  provenance: ProfileProvenance;
+  quality: ProfileQuality;
+  limitations: ProfileLimitations;
+}
+
+export interface ProfileCalculationRequest {
+  schemeOptionId: number;
+  benchmarkId?: number;
+  asOfDate: string;
+  knowledgeCutoffTime: string;
+  methodologyTag?: string;
+  metricCodes?: string[];
+  parameters?: Record<string, unknown>;
+}

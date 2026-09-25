@@ -129,9 +129,11 @@ def test_treynor_and_beta_with_aligned_fbil_series():
 
 
 def test_downside_beta_proves_risk_free_independence():
-    dates = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
-    navs = [100.0, 99.0, 101.0, 98.0]
-    bench = [1000.0, 990.0, 1010.0, 970.0]
+    import datetime
+    start_date = datetime.date(2024, 1, 1)
+    dates = [(start_date + datetime.timedelta(days=i)).isoformat() for i in range(105)]
+    navs = [100.0 - 0.05 * i for i in range(105)]
+    bench = [1000.0 - 0.5 * i for i in range(105)]
 
     nav_series = [
         ObservationItem(effective_date=d, value=v, availability_time=f"{d}T18:00:00+05:30")
@@ -142,11 +144,12 @@ def test_downside_beta_proves_risk_free_independence():
         for d, v in zip(dates, bench)
     ]
 
+    as_of = dates[-1]
     # Run without risk_free_series
     req_no_rf = CalculationRequest(
         request_id="REQ-DBETA-NO-RF",
-        as_of_date="2024-01-04",
-        knowledge_cutoff_time="2024-01-04T23:59:59+05:30",
+        as_of_date=as_of,
+        knowledge_cutoff_time=f"{as_of}T23:59:59+05:30",
         metric_codes=["REL-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
@@ -160,8 +163,8 @@ def test_downside_beta_proves_risk_free_independence():
     ]
     req_with_rf = CalculationRequest(
         request_id="REQ-DBETA-WITH-RF",
-        as_of_date="2024-01-04",
-        knowledge_cutoff_time="2024-01-04T23:59:59+05:30",
+        as_of_date=as_of,
+        knowledge_cutoff_time=f"{as_of}T23:59:59+05:30",
         metric_codes=["REL-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
@@ -233,35 +236,26 @@ def test_pit_excludes_future_risk_free_observations():
 
 
 def test_full_fastapi_endpoint_risk_adjusted_suite():
+    import datetime
+    start_date = datetime.date(2024, 1, 1)
+    nav_series = []
+    benchmark_series = []
+    risk_free_series = []
+    for i in range(105):
+        d_str = (start_date + datetime.timedelta(days=i)).isoformat()
+        nav_series.append({"effective_date": d_str, "value": 100.0 - 0.05 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
+        benchmark_series.append({"effective_date": d_str, "value": 1000.0 - 0.5 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
+        risk_free_series.append({"effective_date": d_str, "value": 0.0695, "availability_time": f"{d_str}T18:00:00+05:30"})
+
+    as_of = (start_date + datetime.timedelta(days=104)).isoformat()
     payload = {
         "request_id": "REQ-FASTAPI-FULL-SUITE",
-        "as_of_date": "2024-01-08",
-        "knowledge_cutoff_time": "2024-01-08T23:59:59+05:30",
+        "as_of_date": as_of,
+        "knowledge_cutoff_time": f"{as_of}T23:59:59+05:30",
         "metric_codes": ["RAT-01", "RAT-02", "REL-01", "REL-04"],
-        "nav_series": [
-            {"effective_date": "2024-01-01", "value": 100.0, "availability_time": "2024-01-01T18:00:00+05:30"},
-            {"effective_date": "2024-01-02", "value": 99.5, "availability_time": "2024-01-02T18:00:00+05:30"},
-            {"effective_date": "2024-01-03", "value": 101.0, "availability_time": "2024-01-03T18:00:00+05:30"},
-            {"effective_date": "2024-01-04", "value": 99.0, "availability_time": "2024-01-04T18:00:00+05:30"},
-            {"effective_date": "2024-01-05", "value": 102.0, "availability_time": "2024-01-05T18:00:00+05:30"},
-            {"effective_date": "2024-01-08", "value": 103.0, "availability_time": "2024-01-08T18:00:00+05:30"},
-        ],
-        "benchmark_series": [
-            {"effective_date": "2024-01-01", "value": 1000.0, "availability_time": "2024-01-01T18:00:00+05:30"},
-            {"effective_date": "2024-01-02", "value": 992.0, "availability_time": "2024-01-02T18:00:00+05:30"},
-            {"effective_date": "2024-01-03", "value": 1008.0, "availability_time": "2024-01-03T18:00:00+05:30"},
-            {"effective_date": "2024-01-04", "value": 985.0, "availability_time": "2024-01-04T18:00:00+05:30"},
-            {"effective_date": "2024-01-05", "value": 1015.0, "availability_time": "2024-01-05T18:00:00+05:30"},
-            {"effective_date": "2024-01-08", "value": 1025.0, "availability_time": "2024-01-08T18:00:00+05:30"},
-        ],
-        "risk_free_series": [
-            {"effective_date": "2024-01-01", "value": 0.0695, "availability_time": "2024-01-01T18:00:00+05:30"},
-            {"effective_date": "2024-01-02", "value": 0.0698, "availability_time": "2024-01-02T18:00:00+05:30"},
-            {"effective_date": "2024-01-03", "value": 0.0700, "availability_time": "2024-01-03T18:00:00+05:30"},
-            {"effective_date": "2024-01-04", "value": 0.0692, "availability_time": "2024-01-04T18:00:00+05:30"},
-            {"effective_date": "2024-01-05", "value": 0.0694, "availability_time": "2024-01-05T18:00:00+05:30"},
-            {"effective_date": "2024-01-08", "value": 0.0696, "availability_time": "2024-01-08T18:00:00+05:30"},
-        ],
+        "nav_series": nav_series,
+        "benchmark_series": benchmark_series,
+        "risk_free_series": risk_free_series,
     }
 
     response = client.post("/api/v1/calculate", json=payload)

@@ -141,26 +141,26 @@ def test_calculate_unsupported_metric_error():
 
 
 def test_calculate_with_risk_free_series():
+    import datetime
+    start_date = datetime.date(2025, 1, 1)
+    nav_series = []
+    benchmark_series = []
+    risk_free_series = []
+    for i in range(105):
+        d_str = (start_date + datetime.timedelta(days=i)).isoformat()
+        nav_series.append({"effective_date": d_str, "value": 100.0 - 0.05 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
+        benchmark_series.append({"effective_date": d_str, "value": 1000.0 - 0.5 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
+        risk_free_series.append({"effective_date": d_str, "value": 0.070, "availability_time": f"{d_str}T18:00:00+05:30"})
+
+    as_of = (start_date + datetime.timedelta(days=104)).isoformat()
     payload = {
         "request_id": "REQ-RF-001",
-        "as_of_date": "2025-01-03",
-        "knowledge_cutoff_time": "2025-01-03T23:59:59+05:30",
+        "as_of_date": as_of,
+        "knowledge_cutoff_time": f"{as_of}T23:59:59+05:30",
         "metric_codes": ["RAT-01", "REL-01", "REL-04", "RAT-02"],
-        "nav_series": [
-            {"effective_date": "2025-01-01", "value": 100.0, "availability_time": "2025-01-01T18:00:00+05:30"},
-            {"effective_date": "2025-01-02", "value": 99.0, "availability_time": "2025-01-02T18:00:00+05:30"},
-            {"effective_date": "2025-01-03", "value": 98.0, "availability_time": "2025-01-03T18:00:00+05:30"},
-        ],
-        "benchmark_series": [
-            {"effective_date": "2025-01-01", "value": 1000.0, "availability_time": "2025-01-01T18:00:00+05:30"},
-            {"effective_date": "2025-01-02", "value": 990.0, "availability_time": "2025-01-02T18:00:00+05:30"},
-            {"effective_date": "2025-01-03", "value": 980.0, "availability_time": "2025-01-03T18:00:00+05:30"},
-        ],
-        "risk_free_series": [
-            {"effective_date": "2025-01-01", "value": 0.070, "availability_time": "2025-01-01T18:00:00+05:30"},
-            {"effective_date": "2025-01-02", "value": 0.071, "availability_time": "2025-01-02T18:00:00+05:30"},
-            {"effective_date": "2025-01-03", "value": 0.072, "availability_time": "2025-01-03T18:00:00+05:30"},
-        ],
+        "nav_series": nav_series,
+        "benchmark_series": benchmark_series,
+        "risk_free_series": risk_free_series,
     }
     response = client.post("/api/v1/calculate", json=payload)
     assert response.status_code == 200
@@ -173,3 +173,32 @@ def test_calculate_with_risk_free_series():
     assert results_map["RAT-02"]["status"] == "CALCULATED"
     assert results_map["REL-01"]["diagnostics"]["risk_free_aligned"] is True
     assert results_map["REL-04"]["diagnostics"]["risk_free_required"] is False
+
+
+def test_calculate_active_return_ret07():
+    payload = {
+        "request_id": "REQ-RET07-001",
+        "as_of_date": "2024-01-15",
+        "knowledge_cutoff_time": "2024-01-31T23:59:59+05:30",
+        "metric_codes": ["RET-07", "REL-02", "REL-03"],
+        "nav_series": [
+            {"effective_date": "2021-01-15", "value": 100.0, "availability_time": "2024-01-31T23:59:59+05:30"},
+            {"effective_date": "2024-01-15", "value": 200.0, "availability_time": "2024-01-31T23:59:59+05:30"},
+        ],
+        "benchmark_series": [
+            {"effective_date": "2021-01-15", "value": 1000.0, "availability_time": "2024-01-31T23:59:59+05:30"},
+            {"effective_date": "2024-01-15", "value": 1500.0, "availability_time": "2024-01-31T23:59:59+05:30"},
+        ],
+    }
+    response = client.post("/api/v1/calculate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    results_map = {r["metric_code"]: r for r in data["results"]}
+    assert results_map["RET-07"]["status"] == "CALCULATED"
+    assert results_map["RET-07"]["period_type"] == "3Y"
+    assert results_map["RET-07"]["numeric_value"] is not None
+    # Fund CAGR: (200/100)^(1/3) - 1 approx 0.2599
+    # Bench CAGR: (1500/1000)^(1/3) - 1 approx 0.1447
+    # Active return = Fund CAGR - Bench CAGR
+    assert results_map["RET-07"]["numeric_value"] > 0.05
+    assert results_map["RET-07"]["diagnostics"]["methodology_status"] == "CANDIDATE"

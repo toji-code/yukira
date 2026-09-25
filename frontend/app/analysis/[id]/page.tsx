@@ -10,9 +10,10 @@ import { DataQualityBadge } from "@/components/epistemic/DataQualityBadge";
 import { EpistemicBanner } from "@/components/epistemic/EpistemicBanner";
 import { ProgressiveDisclosure } from "@/components/disclosure/ProgressiveDisclosure";
 import { MetricValueDisplay } from "@/components/primitives/MetricValueDisplay";
-import { fetchAnalysis, executeAnalysis } from "@/lib/api/analysis";
-import { AnalysisResponse } from "@/types/analysis";
+import { fetchAnalysis, executeAnalysis, executeProfileAnalysis } from "@/lib/api/analysis";
+import { AnalysisResponse, AnalyticalProfileResponse } from "@/types/analysis";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { InstitutionalProfileView } from "@/components/analysis/InstitutionalProfileView";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -23,7 +24,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
   const runId = parseInt(resolvedParams.id, 10);
   const router = useRouter();
 
-  const [data, setData] = useState<AnalysisResponse | null>(null);
+  const [data, setData] = useState<AnalysisResponse | AnalyticalProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,14 +44,20 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
     }
     setLoading(true);
     setError(null);
-    fetchAnalysis(runId)
+    fetchAnalysis<AnalysisResponse | AnalyticalProfileResponse>(runId)
       .then((res) => {
         setData(res);
-        const start = res.period?.requestedStartDate || res.window?.requestedStartDate;
-        const end = res.period?.requestedEndDate || res.window?.requestedEndDate;
-        if (start) setCustomStartDate(start);
-        if (end) setCustomEndDate(end);
-        if (res.pit?.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
+        if ("returnMetrics" in res) {
+          setCustomStartDate(res.context.startDate);
+          setCustomEndDate(res.context.asOfDate);
+          setCustomCutoff(res.context.knowledgeCutoffTime);
+        } else {
+          const start = res.period?.requestedStartDate || res.window?.requestedStartDate;
+          const end = res.period?.requestedEndDate || res.window?.requestedEndDate;
+          if (start) setCustomStartDate(start);
+          if (end) setCustomEndDate(end);
+          if (res.pit?.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
+        }
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Failed to load calculation run analysis");
@@ -65,15 +72,21 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       return;
     }
     let active = true;
-    fetchAnalysis(runId)
+    fetchAnalysis<AnalysisResponse | AnalyticalProfileResponse>(runId)
       .then((res) => {
         if (active) {
           setData(res);
-          const start = res.period?.requestedStartDate || res.window?.requestedStartDate;
-          const end = res.period?.requestedEndDate || res.window?.requestedEndDate;
-          if (start) setCustomStartDate(start);
-          if (end) setCustomEndDate(end);
-          if (res.pit?.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
+          if ("returnMetrics" in res) {
+            setCustomStartDate(res.context.startDate);
+            setCustomEndDate(res.context.asOfDate);
+            setCustomCutoff(res.context.knowledgeCutoffTime);
+          } else {
+            const start = res.period?.requestedStartDate || res.window?.requestedStartDate;
+            const end = res.period?.requestedEndDate || res.window?.requestedEndDate;
+            if (start) setCustomStartDate(start);
+            if (end) setCustomEndDate(end);
+            if (res.pit?.knowledgeCutoffTime) setCustomCutoff(res.pit.knowledgeCutoffTime);
+          }
           setLoading(false);
         }
       })
@@ -91,21 +104,33 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
   const handleExecuteParameterizedRun = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data?.identity.schemeOptionId) return;
+    if (!data) return;
 
     setExecutingCustom(true);
     setCustomError(null);
 
     try {
-      const response = await executeAnalysis(data.result.metricCode, {
-        schemeOptionId: data.identity.schemeOptionId,
-        startDate: customStartDate,
-        endDate: customEndDate,
-        knowledgeCutoffTime: customCutoff,
-        methodologyTag: "CANDIDATE_V1",
-      });
-      setShowParamPanel(false);
-      router.push(`/analysis/${response.provenance.calculationRunId}`);
+      if ("returnMetrics" in data) {
+        const response = await executeProfileAnalysis({
+          schemeOptionId: data.context.schemeOptionId,
+          asOfDate: customEndDate,
+          knowledgeCutoffTime: customCutoff,
+          methodologyTag: "APPROVED_M2N",
+        });
+        setShowParamPanel(false);
+        router.push(`/analysis/${response.provenance.calculationRunId}`);
+      } else {
+        if (!data.identity.schemeOptionId) return;
+        const response = await executeAnalysis(data.result.metricCode, {
+          schemeOptionId: data.identity.schemeOptionId,
+          startDate: customStartDate,
+          endDate: customEndDate,
+          knowledgeCutoffTime: customCutoff,
+          methodologyTag: "CANDIDATE_V1",
+        });
+        setShowParamPanel(false);
+        router.push(`/analysis/${response.provenance.calculationRunId}`);
+      }
     } catch (err: unknown) {
       setCustomError(err instanceof Error ? err.message : "Calculation failed");
     } finally {
@@ -145,7 +170,87 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
     );
   }
 
+  // Phase 2R Unified Profile Branch
+  if ("returnMetrics" in data) {
+    return (
+      <PageContainer
+        title={`Analysis Run #${data.provenance.calculationRunId}`}
+        subtitle={`${data.context.schemeName} • Option #${data.context.schemeOptionId || "—"} (${data.context.optionType})`}
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Funds", href: "/funds" },
+          { label: `Run #${data.provenance.calculationRunId}`, href: `/analysis/${data.provenance.calculationRunId}` },
+        ]}
+      >
+        {showParamPanel && (
+          <form
+            onSubmit={handleExecuteParameterizedRun}
+            className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/90 p-5 font-mono text-xs space-y-4 animate-in fade-in duration-150"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-semibold text-zinc-100 uppercase tracking-wider">
+                Execute Parameterized Institutional Profile Run
+              </h3>
+              <span className="text-zinc-500 text-[10px]">
+                Option #{data.context.schemeOptionId} &bull; 16 Deterministic Metrics
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-zinc-400 mb-1 text-[11px]">Analysis Cutoff Date (T)</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  required
+                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200 focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-400 mb-1 text-[11px]">Knowledge Cutoff Time (ISO 8601)</label>
+                <input
+                  type="text"
+                  value={customCutoff}
+                  onChange={(e) => setCustomCutoff(e.target.value)}
+                  required
+                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200 focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {customError && (
+              <div className="rounded bg-rose-500/10 border border-rose-500/30 p-2 text-rose-300 text-xs">
+                {customError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowParamPanel(false)}
+                className="rounded px-3 py-1.5 text-zinc-400 hover:text-zinc-200 font-mono"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={executingCustom}
+                className="rounded-lg bg-cyan-600 px-4 py-1.5 font-semibold text-white hover:bg-cyan-500 disabled:opacity-50 font-mono"
+              >
+                {executingCustom ? "Executing 16-Metric Profile..." : "Dispatch Profile Run"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <InstitutionalProfileView data={data} onRerunRequested={() => setShowParamPanel(!showParamPanel)} />
+      </PageContainer>
+    );
+  }
+
   const isCalculated = data.result.calculationStatus === "CALCULATED";
+
   const isInsufficient = data.result.calculationStatus === "INSUFFICIENT_DATA" || data.limitations.insufficientEvidence;
   const isRiskMetric = data.result.metricCode.startsWith("RSK-");
   const hasWindow = Boolean(data.window);

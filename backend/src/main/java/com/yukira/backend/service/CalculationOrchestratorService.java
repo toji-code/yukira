@@ -31,6 +31,7 @@ public class CalculationOrchestratorService {
     private final MetricResultRepository metricResultRepository;
     private final CalculationRunInputObservationRepository calculationRunInputObservationRepository;
     private final QuantEngineClient quantEngineClient;
+    private final PitObservationResolutionService pitObservationResolutionService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CalculationOrchestratorService(
@@ -43,7 +44,8 @@ public class CalculationOrchestratorService {
         CalculationRunRepository calculationRunRepository,
         MetricResultRepository metricResultRepository,
         CalculationRunInputObservationRepository calculationRunInputObservationRepository,
-        QuantEngineClient quantEngineClient
+        QuantEngineClient quantEngineClient,
+        PitObservationResolutionService pitObservationResolutionService
     ) {
         this.navObservationRepository = navObservationRepository;
         this.benchmarkObservationRepository = benchmarkObservationRepository;
@@ -55,7 +57,9 @@ public class CalculationOrchestratorService {
         this.metricResultRepository = metricResultRepository;
         this.calculationRunInputObservationRepository = calculationRunInputObservationRepository;
         this.quantEngineClient = quantEngineClient;
+        this.pitObservationResolutionService = pitObservationResolutionService;
     }
+
 
     @Transactional
     public CalculationRun executeCalculationRun(
@@ -95,19 +99,26 @@ public class CalculationOrchestratorService {
         final LocalDate effStartDate = startDate;
 
         // 1. Authoritative PIT Revision-Resolution Query
-        List<NavObservation> rawNav = navObservationRepository
+        List<NavObservation> candidates = navObservationRepository
             .findAuthoritativeObservationsAsOfCutoff(schemeOptionId, asOfDate, knowledgeCutoffTime);
-        Map<LocalDate, NavObservation> dedupNav = new LinkedHashMap<>();
-        for (NavObservation n : rawNav) {
-            if (!n.getEffectiveDate().isBefore(effStartDate) && !n.getEffectiveDate().isAfter(asOfDate)) {
-                dedupNav.putIfAbsent(n.getEffectiveDate(), n);
+        Map<LocalDate, List<NavObservation>> groupedByDate = new TreeMap<>();
+        for (NavObservation obs : candidates) {
+            if (!obs.getEffectiveDate().isBefore(effStartDate) && !obs.getEffectiveDate().isAfter(asOfDate)) {
+                groupedByDate.computeIfAbsent(obs.getEffectiveDate(), k -> new ArrayList<>()).add(obs);
             }
         }
-        List<NavObservation> navObservations = new ArrayList<>(dedupNav.values());
+        List<NavObservation> navObservations = new ArrayList<>();
+        for (Map.Entry<LocalDate, List<NavObservation>> entry : groupedByDate.entrySet()) {
+            LocalDate date = entry.getKey();
+            var pitResult = pitObservationResolutionService.resolveAuthoritativeObservation(schemeOptionId, date, knowledgeCutoffTime);
+            if (pitResult.authoritativeObservation().isPresent()) {
+                navObservations.add(pitResult.authoritativeObservation().get());
+            }
+        }
 
         List<BenchmarkObservation> rawBm = benchmarkObservationRepository
             .findAuthoritativeObservationsAsOfCutoff(benchmarkId, asOfDate, knowledgeCutoffTime);
-        Map<LocalDate, BenchmarkObservation> dedupBm = new LinkedHashMap<>();
+        Map<LocalDate, BenchmarkObservation> dedupBm = new TreeMap<>();
         for (BenchmarkObservation b : rawBm) {
             if (!b.getEffectiveDate().isBefore(effStartDate) && !b.getEffectiveDate().isAfter(asOfDate)) {
                 dedupBm.putIfAbsent(b.getEffectiveDate(), b);
@@ -118,13 +129,14 @@ public class CalculationOrchestratorService {
         List<RiskFreeObservation> rawRf = riskFreeObservationRepository != null
             ? riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff("FBIL_91D_TBILL", asOfDate, knowledgeCutoffTime)
             : Collections.emptyList();
-        Map<LocalDate, RiskFreeObservation> dedupRf = new LinkedHashMap<>();
+        Map<LocalDate, RiskFreeObservation> dedupRf = new TreeMap<>();
         for (RiskFreeObservation r : rawRf) {
             if (!r.getEffectiveDate().isBefore(effStartDate) && !r.getEffectiveDate().isAfter(asOfDate)) {
                 dedupRf.putIfAbsent(r.getEffectiveDate(), r);
             }
         }
         List<RiskFreeObservation> riskFreeObservations = new ArrayList<>(dedupRf.values());
+
 
         // 2. Build input series DTOs
         List<ObservationItemDto> navSeries = navObservations.stream()

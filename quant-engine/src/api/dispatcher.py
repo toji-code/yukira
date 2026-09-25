@@ -150,10 +150,12 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
     for code in request.metric_codes:
         try:
             if code in ("RET-01", "RET-03", "RET-04"):  # CAGR metrics
+                period = "3Y" if code == "RET-03" else ("1Y" if code == "RET-01" else "5Y")
                 val = ret_mod.cagr(nav_values[0], nav_values[-1], elapsed_years)
                 results.append(
                     MetricOutputItem(
                         metric_code=code,
+                        period_type=period,
                         numeric_value=val,
                         units="PERCENTAGE",
                         status=CalculationStatus.CALCULATED,
@@ -172,6 +174,37 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         diagnostics={"methodology_status": "CANDIDATE"},
                     )
                 )
+
+            elif code == "RET-07":  # 3Y Annualized Active Return
+                if not bench_values or len(bench_values) < 2 or len(nav_values) < 2:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message="Aligned benchmark values required for Active Return.",
+                        )
+                    )
+                else:
+                    fund_cagr = ret_mod.cagr(nav_values[0], nav_values[-1], elapsed_years)
+                    bench_cagr = ret_mod.cagr(bench_values[0], bench_values[-1], elapsed_years)
+                    val = fund_cagr - bench_cagr
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=val,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "fund_cagr": fund_cagr,
+                                "benchmark_cagr": bench_cagr,
+                                "elapsed_years": elapsed_years,
+                                "methodology_status": "CANDIDATE",
+                            },
+                        )
+                    )
 
             elif code == "RSK-01":  # Annualized Volatility (3Y)
                 min_obs = int(params.get("min_observations", 2))
@@ -512,24 +545,45 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
                 else:
-                    min_downside = int(params.get("min_downside_observations", 2))
-                    val = downside_beta.downside_beta(aligned_fund_returns, bench_returns, min_downside_observations=min_downside)
-                    results.append(
-                        MetricOutputItem(
-                            metric_code=code,
-                            period_type="3Y",
-                            numeric_value=val,
-                            units="RATIO",
-                            status=CalculationStatus.CALCULATED,
-                            diagnostics={"methodology_status": "APPROVED", "min_downside_observations": min_downside, "risk_free_required": False, "annualization": "NONE"},
+                    downside_count = sum(1 for b in bench_returns if b < 0.0)
+                    min_downside = int(params.get("min_downside_observations", 100))
+                    if downside_count < min_downside or min_downside < 100:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=None,
+                                units="RATIO",
+                                status=CalculationStatus.INSUFFICIENT_DATA,
+                                error_message=f"Insufficient downside observations: {downside_count} provided, minimum {max(100, min_downside)} required.",
+                                diagnostics={
+                                    "methodology_status": "APPROVED",
+                                    "downside_count": downside_count,
+                                    "min_downside_observations": max(100, min_downside),
+                                    "risk_free_required": False,
+                                    "annualization": "NONE",
+                                },
+                            )
                         )
-                    )
+                    else:
+                        val = downside_beta.downside_beta(aligned_fund_returns, bench_returns, min_downside_observations=min_downside)
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=val,
+                                units="RATIO",
+                                status=CalculationStatus.CALCULATED,
+                                diagnostics={"methodology_status": "APPROVED", "downside_count": downside_count, "min_downside_observations": min_downside, "risk_free_required": False, "annualization": "NONE"},
+                            )
+                        )
 
-            elif code == "REL-02":  # Tracking Error
+            elif code == "REL-02":  # Tracking Error (3Y)
                 if not bench_returns or len(bench_returns) < 2:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
+                            period_type="3Y",
                             units="PERCENTAGE",
                             status=CalculationStatus.INSUFFICIENT_DATA,
                             error_message="Aligned benchmark return series required for Tracking Error.",
@@ -540,6 +594,7 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
+                            period_type="3Y",
                             numeric_value=val,
                             units="PERCENTAGE",
                             status=CalculationStatus.CALCULATED,
@@ -547,11 +602,12 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
 
-            elif code == "REL-03":  # Jensen's Alpha
+            elif code == "REL-03":  # Jensen's Alpha (3Y)
                 if not bench_returns or len(bench_returns) < 2:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
+                            period_type="3Y",
                             units="PERCENTAGE",
                             status=CalculationStatus.INSUFFICIENT_DATA,
                             error_message="Benchmark returns required for Alpha.",
@@ -566,6 +622,7 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
+                            period_type="3Y",
                             numeric_value=val,
                             units="PERCENTAGE",
                             status=CalculationStatus.CALCULATED,
