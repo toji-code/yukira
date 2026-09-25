@@ -30,7 +30,7 @@ All three architectural tiers maintain independent, passing automated test suite
 | **Frontend Code Quality** | ESLint | — | `cd frontend && npm run lint` | Clean (0 errors) |
 | **Frontend Production Build** | Next.js Compiler (`next build`) | — | `cd frontend && npm run build` | Successful |
 
-*Note: Baselines reflect actual executed counts verified in repository audit history (416 total passing tests).*
+*Note: Verified test baseline is 544 automated tests (Quant:360, Backend:123, Frontend:61).*
 
 ---
 
