@@ -93,4 +93,14 @@ public class PilotHistoricalBootstrapIntegrationTest {
             assertEquals("VERIFIED", item.verificationStatus());
         }
     }
+
+    @Test
+    @DisplayName("Verify FBIL 3-year historical risk-free series bootstrap and provenance")
+    void testBootstrapHistoricalFbil() {
+        var summary = pilotBootstrapService.bootstrapHistoricalFbil();
+        if (summary != null) {
+            assertTrue(summary.insertedCount() >= 700, "Must insert >=700 FBIL observations");
+            assertNotNull(summary.payloadSha256());
+        }
+    }
 }

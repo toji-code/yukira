@@ -33,4 +33,10 @@ public class DevBootstrapController {
         PilotBootstrapService.HistoricalBootstrapReport report = pilotBootstrapService.bootstrapHistoricalHorizon(5);
         return ResponseEntity.ok(report);
     }
+
+    @PostMapping("/bootstrap-historical-fbil")
+    public ResponseEntity<com.yukira.backend.ingestion.fbil.FbilTBillIngestionService.FbilIngestionSummary> bootstrapHistoricalFbil() {
+        var summary = pilotBootstrapService.bootstrapHistoricalFbil();
+        return ResponseEntity.ok(summary);
+    }
 }

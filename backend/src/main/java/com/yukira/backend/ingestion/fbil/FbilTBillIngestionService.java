@@ -41,6 +41,12 @@ public class FbilTBillIngestionService {
         String payloadSha256
     ) {}
 
+    @Transactional
+    public FbilIngestionSummary ingestRange(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        SourceArtifact artifact = sourceClient.fetchAndPersistArtifact(startDate, endDate);
+        return ingestPayload(artifact.getStorageUri(), artifact.getPayloadBlob());
+    }
+
     /**
      * Ingests FBIL Treasury Bill payload bytes deterministically.
      * Guarantees idempotency, revision tracking, conflict detection, and immutable provenance.

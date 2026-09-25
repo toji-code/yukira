@@ -57,6 +57,8 @@ public class PilotBootstrapService {
     private final AmfiSourceClient amfiSourceClient;
     private final AmfiNavIngestionService ingestionService;
     private final AnalysisService analysisService;
+    private final com.yukira.backend.ingestion.fbil.FbilTBillIngestionService fbilTBillIngestionService;
+    private final RiskFreeObservationRepository riskFreeObservationRepository;
 
     public PilotBootstrapService(
         AmcRepository amcRepository,
@@ -68,7 +70,9 @@ public class PilotBootstrapService {
         SourceArtifactRepository sourceArtifactRepository,
         AmfiSourceClient amfiSourceClient,
         AmfiNavIngestionService ingestionService,
-        AnalysisService analysisService
+        AnalysisService analysisService,
+        com.yukira.backend.ingestion.fbil.FbilTBillIngestionService fbilTBillIngestionService,
+        RiskFreeObservationRepository riskFreeObservationRepository
     ) {
         this.amcRepository = amcRepository;
         this.schemeRepository = schemeRepository;
@@ -80,6 +84,24 @@ public class PilotBootstrapService {
         this.amfiSourceClient = amfiSourceClient;
         this.ingestionService = ingestionService;
         this.analysisService = analysisService;
+        this.fbilTBillIngestionService = fbilTBillIngestionService;
+        this.riskFreeObservationRepository = riskFreeObservationRepository;
+    }
+
+    /**
+     * Idempotently bootstraps the official 3-year FBIL 91-Day Treasury Bill risk-free rate series (2021-01-15 to 2024-01-15).
+     */
+    @Transactional
+    public com.yukira.backend.ingestion.fbil.FbilTBillIngestionService.FbilIngestionSummary bootstrapHistoricalFbil() {
+        LocalDate startDate = LocalDate.of(2021, 1, 15);
+        LocalDate endDate = LocalDate.of(2024, 1, 15);
+        long count = riskFreeObservationRepository.countByBenchmarkCodeAndDateRange("FBIL_91D_TBILL", startDate, endDate);
+        if (count < 700) {
+            log.info("Bootstrapping FBIL 91-Day T-Bill risk-free historical series ({} to {})", startDate, endDate);
+            return fbilTBillIngestionService.ingestRange(startDate, endDate);
+        }
+        log.info("FBIL risk-free observations already present (count={}); skipping redundant fetch.", count);
+        return null;
     }
 
     /**

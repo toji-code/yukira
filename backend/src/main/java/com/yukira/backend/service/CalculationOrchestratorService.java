@@ -23,6 +23,7 @@ public class CalculationOrchestratorService {
 
     private final NavObservationRepository navObservationRepository;
     private final BenchmarkObservationRepository benchmarkObservationRepository;
+    private final RiskFreeObservationRepository riskFreeObservationRepository;
     private final SchemeOptionRepository schemeOptionRepository;
     private final BenchmarkRepository benchmarkRepository;
     private final MethodologyVersionRepository methodologyVersionRepository;
@@ -35,6 +36,7 @@ public class CalculationOrchestratorService {
     public CalculationOrchestratorService(
         NavObservationRepository navObservationRepository,
         BenchmarkObservationRepository benchmarkObservationRepository,
+        RiskFreeObservationRepository riskFreeObservationRepository,
         SchemeOptionRepository schemeOptionRepository,
         BenchmarkRepository benchmarkRepository,
         MethodologyVersionRepository methodologyVersionRepository,
@@ -45,6 +47,7 @@ public class CalculationOrchestratorService {
     ) {
         this.navObservationRepository = navObservationRepository;
         this.benchmarkObservationRepository = benchmarkObservationRepository;
+        this.riskFreeObservationRepository = riskFreeObservationRepository;
         this.schemeOptionRepository = schemeOptionRepository;
         this.benchmarkRepository = benchmarkRepository;
         this.methodologyVersionRepository = methodologyVersionRepository;
@@ -83,6 +86,10 @@ public class CalculationOrchestratorService {
         List<BenchmarkObservation> benchmarkObservations = benchmarkObservationRepository
             .findAuthoritativeObservationsAsOfCutoff(benchmarkId, asOfDate, knowledgeCutoffTime);
 
+        List<RiskFreeObservation> riskFreeObservations = riskFreeObservationRepository != null
+            ? riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff("FBIL_91D_TBILL", asOfDate, knowledgeCutoffTime)
+            : Collections.emptyList();
+
         // 2. Build input series DTOs
         List<ObservationItemDto> navSeries = navObservations.stream()
             .map(n -> new ObservationItemDto(
@@ -102,8 +109,17 @@ public class CalculationOrchestratorService {
             ))
             .toList();
 
+        List<ObservationItemDto> riskFreeSeries = riskFreeObservations.stream()
+            .map(r -> new ObservationItemDto(
+                r.getEffectiveDate().toString(),
+                r.getQuotedYield().doubleValue(),
+                r.getAvailabilityTime().toString(),
+                r.getRevisionSeq()
+            ))
+            .toList();
+
         // 3. Compute Input Snapshot Cryptographic SHA-256 Hash
-        String inputSnapshotHash = computeSnapshotHash(navSeries, benchmarkSeries);
+        String inputSnapshotHash = computeSnapshotHash(navSeries, benchmarkSeries, riskFreeSeries);
 
         // 4. Create and persist calculation_run manifest
         String requestId = "RUN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
@@ -125,6 +141,11 @@ public class CalculationOrchestratorService {
                 run, bm, bm.getEffectiveDate(), bm.getRevisionSeq()
             ));
         }
+        for (RiskFreeObservation rf : riskFreeObservations) {
+            calculationRunInputObservationRepository.save(new CalculationRunInputObservation(
+                run, rf, rf.getEffectiveDate(), rf.getRevisionSeq()
+            ));
+        }
 
         try {
             // 5. Build request and call Quant Engine
@@ -138,6 +159,7 @@ public class CalculationOrchestratorService {
                 metricCodes,
                 navSeries,
                 benchmarkSeries,
+                riskFreeSeries,
                 parameters != null ? parameters : Collections.emptyMap()
             );
 
@@ -177,7 +199,11 @@ public class CalculationOrchestratorService {
         return calculationRunRepository.save(run);
     }
 
-    private String computeSnapshotHash(List<ObservationItemDto> navSeries, List<ObservationItemDto> benchSeries) {
+    private String computeSnapshotHash(
+        List<ObservationItemDto> navSeries,
+        List<ObservationItemDto> benchSeries,
+        List<ObservationItemDto> riskFreeSeries
+    ) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             StringBuilder sb = new StringBuilder();
@@ -187,6 +213,12 @@ public class CalculationOrchestratorService {
             sb.append("|");
             for (ObservationItemDto obs : benchSeries) {
                 sb.append(obs.effectiveDate()).append(":").append(obs.value()).append(";");
+            }
+            sb.append("|");
+            if (riskFreeSeries != null) {
+                for (ObservationItemDto obs : riskFreeSeries) {
+                    sb.append(obs.effectiveDate()).append(":").append(obs.value()).append(";");
+                }
             }
             byte[] hash = digest.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder();

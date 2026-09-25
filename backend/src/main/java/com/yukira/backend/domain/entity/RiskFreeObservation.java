@@ -75,6 +75,11 @@ public class RiskFreeObservation implements Serializable {
         this.ingestionTime = OffsetDateTime.now();
     }
 
+    public RiskFreeObservation(String benchmarkCode, LocalDate effectiveDate, BigDecimal quotedYield,
+                               Integer revisionSeq, OffsetDateTime availabilityTime) {
+        this(benchmarkCode, effectiveDate, quotedYield, "ACT_365", revisionSeq, availabilityTime);
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

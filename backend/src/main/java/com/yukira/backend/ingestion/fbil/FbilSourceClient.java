@@ -77,6 +77,45 @@ public class FbilSourceClient {
         return sourceArtifactRepository.save(artifact);
     }
 
+    public SourceArtifact fetchAndPersistArtifact(LocalDate startDate, LocalDate endDate) {
+        String targetUrl = buildUrl(startDate, endDate);
+        byte[] rawBytes = executeHttpGet(targetUrl);
+        return createOrGetSourceArtifact(targetUrl, rawBytes);
+    }
+
+    private byte[] executeHttpGet(String urlString) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlString);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(60000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            conn.setRequestProperty("Accept", "application/json, text/plain, */*");
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IllegalStateException("FBIL portal returned HTTP status: " + responseCode + " for " + urlString);
+            }
+
+            try (InputStream in = conn.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                }
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch raw artifact from FBIL portal: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
     public String calculateSha256(byte[] data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

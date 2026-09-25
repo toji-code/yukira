@@ -11,4 +11,5 @@ public interface CalculationRunInputObservationRepository extends JpaRepository<
     List<CalculationRunInputObservation> findByCalculationRunId(Long calculationRunId);
     List<CalculationRunInputObservation> findByNavObservationId(Long navObservationId);
     List<CalculationRunInputObservation> findByBenchmarkObservationId(Long benchmarkObservationId);
+    List<CalculationRunInputObservation> findByRiskFreeObservationId(Long riskFreeObservationId);
 }
