@@ -25,7 +25,7 @@ All three architectural tiers maintain independent, passing automated test suite
 | Subsystem / Tier | Test Framework | Passing Tests | Execution Command | Status |
 | :--- | :--- | :---: | :--- | :---: |
 | **Quantitative Engine** | Pytest 8.x / 9.x (Python 3.12+) | **301** | `cd quant-engine && pytest tests/` | Verified Pass |
-| **Backend Service** | JUnit 5 / Spring Boot Test | **69** | `cd backend && ./mvnw test` | Verified Pass |
+| **Backend Service** | JUnit 5 / Spring Boot Test | **122** | `cd backend && ./mvnw test` | Verified Pass |
 | **Frontend Application** | Vitest / Testing Library | **46** | `cd frontend && npm test` | Verified Pass |
 | **Frontend Code Quality** | ESLint | — | `cd frontend && npm run lint` | Clean (0 errors) |
 | **Frontend Production Build** | Next.js Compiler (`next build`) | — | `cd frontend && npm run build` | Successful |

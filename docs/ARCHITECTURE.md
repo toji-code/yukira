@@ -74,8 +74,8 @@
 | Component | Status | Description |
 | :--- | :---: | :--- |
 | **AMFI NAV Ingestion** | **IMPLEMENTED** | Direct HTTP retrieval from AMFI portal, raw payload byte archiving, and SHA-256 computation. |
-| **Benchmark Ingestion** | **PLANNED** | Official total return index (TRI) feeds for NIFTY 50 and BSE 500. |
-| **Risk-Free Rate Ingestion** | **PLANNED** | FBIL 91-day Treasury Bill daily yield curve ingestion. |
+| **Benchmark Ingestion** | **IMPLEMENTED** | Official total return index (TRI) feeds for NIFTY 50 and BSE 500. |
+| **Risk-Free Rate Ingestion** | **IMPLEMENTED** | FBIL 91-day Treasury Bill daily yield curve ingestion. |
 | **Portfolio Holdings Ingestion**| **PLANNED** | SEBI monthly portfolio disclosure sheet parsing and ISIN resolution. |
 | **Data Validation & Parsing** | **IMPLEMENTED** | Delimited text tokenization, numeric NAV parsing, and error record tracking. |
 | **Data Quality Taxonomy** | **PARTIALLY IMPLEMENTED** | Six-dimensional taxonomy defined in schema and DTOs; automated diagnostics expanding in Phase 2J. |
