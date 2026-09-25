@@ -47,6 +47,10 @@ public class PilotBootstrapService {
     public static final LocalDate PILOT_END_DATE = LocalDate.of(2024, 1, 15);
     public static final OffsetDateTime PILOT_KNOWLEDGE_CUTOFF = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
+    public static final String PILOT_BENCHMARK_CODE = "NIFTY_500_TRI";
+    public static final String PILOT_BENCHMARK_NAME = "Nifty 500 Total Returns Index";
+    public static final String PILOT_BENCHMARK_PROVIDER = "NSE Indices Limited";
+
     private final AmcRepository amcRepository;
     private final SchemeRepository schemeRepository;
     private final SchemePlanRepository schemePlanRepository;
@@ -59,6 +63,9 @@ public class PilotBootstrapService {
     private final AnalysisService analysisService;
     private final com.yukira.backend.ingestion.fbil.FbilTBillIngestionService fbilTBillIngestionService;
     private final RiskFreeObservationRepository riskFreeObservationRepository;
+    private final BenchmarkRepository benchmarkRepository;
+    private final BenchmarkObservationRepository benchmarkObservationRepository;
+    private final com.yukira.backend.ingestion.nse.NiftyBenchmarkIngestionService niftyBenchmarkIngestionService;
 
     public PilotBootstrapService(
         AmcRepository amcRepository,
@@ -72,7 +79,10 @@ public class PilotBootstrapService {
         AmfiNavIngestionService ingestionService,
         AnalysisService analysisService,
         com.yukira.backend.ingestion.fbil.FbilTBillIngestionService fbilTBillIngestionService,
-        RiskFreeObservationRepository riskFreeObservationRepository
+        RiskFreeObservationRepository riskFreeObservationRepository,
+        BenchmarkRepository benchmarkRepository,
+        BenchmarkObservationRepository benchmarkObservationRepository,
+        com.yukira.backend.ingestion.nse.NiftyBenchmarkIngestionService niftyBenchmarkIngestionService
     ) {
         this.amcRepository = amcRepository;
         this.schemeRepository = schemeRepository;
@@ -86,6 +96,37 @@ public class PilotBootstrapService {
         this.analysisService = analysisService;
         this.fbilTBillIngestionService = fbilTBillIngestionService;
         this.riskFreeObservationRepository = riskFreeObservationRepository;
+        this.benchmarkRepository = benchmarkRepository;
+        this.benchmarkObservationRepository = benchmarkObservationRepository;
+        this.niftyBenchmarkIngestionService = niftyBenchmarkIngestionService;
+    }
+
+    /**
+     * Idempotently ensures the canonical primary benchmark exists in the database.
+     */
+    @Transactional
+    public Benchmark ensureCanonicalBenchmark() {
+        return benchmarkRepository.findByCode(PILOT_BENCHMARK_CODE)
+            .orElseGet(() -> benchmarkRepository.save(new Benchmark(
+                PILOT_BENCHMARK_CODE, PILOT_BENCHMARK_NAME, PILOT_BENCHMARK_PROVIDER, "TRI"
+            )));
+    }
+
+    /**
+     * Idempotently bootstraps the official 3-year NIFTY 500 Total Returns Index series (2021-01-15 to 2024-01-15).
+     */
+    @Transactional
+    public com.yukira.backend.ingestion.nse.NiftyBenchmarkIngestionService.NiftyIngestionSummary bootstrapHistoricalBenchmark() {
+        Benchmark benchmark = ensureCanonicalBenchmark();
+        LocalDate startDate = LocalDate.of(2021, 1, 15);
+        LocalDate endDate = LocalDate.of(2024, 1, 15);
+        long count = benchmarkObservationRepository.countByBenchmarkIdAndDateRange(benchmark.getId(), startDate, endDate);
+        if (count < 700) {
+            log.info("Bootstrapping NIFTY 500 TRI historical series ({} to {})", startDate, endDate);
+            return niftyBenchmarkIngestionService.ingestRange(startDate, endDate);
+        }
+        log.info("NIFTY 500 TRI observations already present (count={}); skipping redundant fetch.", count);
+        return null;
     }
 
     /**

@@ -1,8 +1,10 @@
 package com.yukira.backend.service;
 
+import com.yukira.backend.domain.entity.BenchmarkObservation;
 import com.yukira.backend.domain.entity.NavObservation;
 import com.yukira.backend.domain.entity.RiskFreeObservation;
 import com.yukira.backend.domain.entity.ValidationIssue;
+import com.yukira.backend.repository.BenchmarkObservationRepository;
 import com.yukira.backend.repository.NavObservationRepository;
 import com.yukira.backend.repository.RiskFreeObservationRepository;
 import com.yukira.backend.repository.ValidationIssueRepository;
@@ -17,15 +19,18 @@ public class PitObservationResolutionService {
 
     private final NavObservationRepository navObservationRepository;
     private final RiskFreeObservationRepository riskFreeObservationRepository;
+    private final BenchmarkObservationRepository benchmarkObservationRepository;
     private final ValidationIssueRepository validationIssueRepository;
 
     public PitObservationResolutionService(
         NavObservationRepository navObservationRepository,
         RiskFreeObservationRepository riskFreeObservationRepository,
+        BenchmarkObservationRepository benchmarkObservationRepository,
         ValidationIssueRepository validationIssueRepository
     ) {
         this.navObservationRepository = navObservationRepository;
         this.riskFreeObservationRepository = riskFreeObservationRepository;
+        this.benchmarkObservationRepository = benchmarkObservationRepository;
         this.validationIssueRepository = validationIssueRepository;
     }
 
@@ -64,6 +69,25 @@ public class PitObservationResolutionService {
 
         public static RiskFreePitResolutionResult ambiguous(List<RiskFreeObservation> eligible, String reason) {
             return new RiskFreePitResolutionResult(Optional.empty(), eligible, true, reason);
+        }
+    }
+
+    public record BenchmarkPitResolutionResult(
+        Optional<BenchmarkObservation> authoritativeObservation,
+        List<BenchmarkObservation> eligibleRevisions,
+        boolean isAmbiguous,
+        String diagnosticReason
+    ) {
+        public static BenchmarkPitResolutionResult resolved(BenchmarkObservation obs, List<BenchmarkObservation> eligible) {
+            return new BenchmarkPitResolutionResult(Optional.of(obs), eligible, false, null);
+        }
+
+        public static BenchmarkPitResolutionResult missing(String reason) {
+            return new BenchmarkPitResolutionResult(Optional.empty(), Collections.emptyList(), false, reason);
+        }
+
+        public static BenchmarkPitResolutionResult ambiguous(List<BenchmarkObservation> eligible, String reason) {
+            return new BenchmarkPitResolutionResult(Optional.empty(), eligible, true, reason);
         }
     }
 
@@ -224,5 +248,77 @@ public class PitObservationResolutionService {
 
         RiskFreeObservation authoritative = Collections.max(latestCandidates, tieBreaker);
         return RiskFreePitResolutionResult.resolved(authoritative, eligibleRevisions);
+    }
+
+    /**
+     * Resolves the authoritative benchmark observation for (benchmarkId, effectiveDate)
+     * strictly at knowledgeCutoffTime according to the approved 6-step PIT selection algorithm.
+     */
+    public BenchmarkPitResolutionResult resolveAuthoritativeBenchmarkObservation(
+        Long benchmarkId,
+        LocalDate effectiveDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        if (benchmarkId == null || effectiveDate == null || knowledgeCutoffTime == null) {
+            throw new IllegalArgumentException("benchmarkId, effectiveDate, and knowledgeCutoffTime must not be null");
+        }
+
+        List<BenchmarkObservation> allRevisions = benchmarkObservationRepository
+            .findByBenchmarkIdAndEffectiveDate(benchmarkId, effectiveDate);
+
+        if (allRevisions.isEmpty()) {
+            return BenchmarkPitResolutionResult.missing(
+                String.format("No benchmark observations found for benchmark %d on date %s", benchmarkId, effectiveDate)
+            );
+        }
+
+        List<BenchmarkObservation> eligibleRevisions = allRevisions.stream()
+            .filter(r -> r.getAvailabilityTime() != null && !r.getAvailabilityTime().isAfter(knowledgeCutoffTime))
+            .toList();
+
+        if (eligibleRevisions.isEmpty()) {
+            return BenchmarkPitResolutionResult.missing(
+                String.format("All %d revision(s) for benchmark %d on %s have availability_time after knowledge cutoff %s",
+                    allRevisions.size(), benchmarkId, effectiveDate, knowledgeCutoffTime)
+            );
+        }
+
+        OffsetDateTime maxAvailabilityTime = eligibleRevisions.stream()
+            .map(BenchmarkObservation::getAvailabilityTime)
+            .max(Comparator.naturalOrder())
+            .orElseThrow();
+
+        List<BenchmarkObservation> latestCandidates = eligibleRevisions.stream()
+            .filter(r -> r.getAvailabilityTime().equals(maxAvailabilityTime))
+            .toList();
+
+        boolean hasConflictingValues = latestCandidates.stream()
+            .anyMatch(c -> c.getIndexLevel().compareTo(latestCandidates.get(0).getIndexLevel()) != 0);
+
+        if (hasConflictingValues) {
+            ValidationIssue issue = new ValidationIssue(
+                "BENCHMARK",
+                benchmarkId,
+                "PIT_AUTHORITY_AMBIGUITY",
+                String.format("Ambiguous authority for benchmark %d on date %s at cutoff %s: multiple eligible revisions at latest availability instant %s have conflicting values",
+                    benchmarkId, effectiveDate, knowledgeCutoffTime, maxAvailabilityTime)
+            );
+            issue.setQualityAssessment("SUSPICIOUS");
+            issue.setIntegrityCondition("CONFLICTING");
+            validationIssueRepository.save(issue);
+
+            return BenchmarkPitResolutionResult.ambiguous(
+                eligibleRevisions,
+                String.format("Conflicting eligible benchmark revisions with unresolvable authority at latest availability instant %s as of cutoff %s",
+                    maxAvailabilityTime, knowledgeCutoffTime)
+            );
+        }
+
+        Comparator<BenchmarkObservation> tieBreaker = Comparator
+            .comparing(BenchmarkObservation::getRevisionSeq)
+            .thenComparing(obs -> obs.getSourceArtifact() != null ? obs.getSourceArtifact().getId() : 0L);
+
+        BenchmarkObservation authoritative = Collections.max(latestCandidates, tieBreaker);
+        return BenchmarkPitResolutionResult.resolved(authoritative, eligibleRevisions);
     }
 }

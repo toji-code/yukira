@@ -42,14 +42,14 @@ class FbilHistoricalIngestionTest {
         String sourceUri = "https://www.fbil.org.in/wasdm/tbill/fetchfiltered?fromDate=2021-01-15&toDate=2024-01-15&authenticated=false";
 
         // First Ingestion
-        var firstSummary = ingestionService.ingestPayload(sourceUri, payload);
+        var firstSummary = ingestionService.ingestPayload("FBIL_91D_TBILL_TEST", sourceUri, payload);
         assertEquals(727, firstSummary.totalParsed(), "Must parse exactly 727 3M observations");
         assertTrue(firstSummary.insertedCount() >= 700, "Must insert >= 700 observations");
         assertEquals(0, firstSummary.revisedCount(), "Zero revision count expected on first ingestion");
         assertEquals("94876ff3a94bdbfdf6fe74bcb976e8400eeddf0e1839f3e6c0bc1e1495f99ba0", firstSummary.payloadSha256());
 
         // Idempotency: Second Ingestion
-        var secondSummary = ingestionService.ingestPayload(sourceUri, payload);
+        var secondSummary = ingestionService.ingestPayload("FBIL_91D_TBILL_TEST", sourceUri, payload);
         assertEquals(727, secondSummary.totalParsed());
         assertEquals(0, secondSummary.insertedCount(), "Second ingestion must insert 0 rows (idempotency)");
         assertEquals(727, secondSummary.skippedCount(), "Second ingestion must skip all 727 rows");
@@ -59,7 +59,7 @@ class FbilHistoricalIngestionTest {
         OffsetDateTime knowledgeCutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
         List<RiskFreeObservation> pitObs = riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff(
-            "FBIL_91D_TBILL", analysisCutoff, knowledgeCutoff
+            "FBIL_91D_TBILL_TEST", analysisCutoff, knowledgeCutoff
         );
 
         assertTrue(pitObs.size() >= 700, "PIT resolved observations must be >= 700 for 3Y analytical window");

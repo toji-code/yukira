@@ -53,6 +53,11 @@ public class FbilTBillIngestionService {
      */
     @Transactional
     public FbilIngestionSummary ingestPayload(String sourceUri, byte[] payloadBytes) {
+        return ingestPayload("FBIL_91D_TBILL", sourceUri, payloadBytes);
+    }
+
+    @Transactional
+    public FbilIngestionSummary ingestPayload(String benchmarkCode, String sourceUri, byte[] payloadBytes) {
         if (sourceUri == null || sourceUri.isBlank()) {
             sourceUri = "https://www.fbil.org.in/money-market/tbill-curve";
         }
@@ -64,7 +69,7 @@ public class FbilTBillIngestionService {
         SourceArtifact artifact = sourceClient.createOrGetSourceArtifact(sourceUri, payloadBytes);
 
         // 2. Deterministically parse records
-        List<FbilTBillRecord> records = parser.parse(payloadBytes);
+        List<FbilTBillRecord> records = parser.parse(payloadBytes, benchmarkCode);
 
         int inserted = 0;
         int skipped = 0;

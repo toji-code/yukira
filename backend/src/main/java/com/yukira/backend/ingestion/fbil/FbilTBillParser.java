@@ -44,33 +44,38 @@ public class FbilTBillParser {
      * Extracts strictly 91-Day / 3-Month Treasury Bill cutoff yield observations.
      */
     public List<FbilTBillRecord> parse(byte[] payloadBytes) {
+        return parse(payloadBytes, "FBIL_91D_TBILL");
+    }
+
+    public List<FbilTBillRecord> parse(byte[] payloadBytes, String benchmarkCode) {
         List<FbilTBillRecord> records = new ArrayList<>();
         if (payloadBytes == null || payloadBytes.length == 0) {
             return records;
         }
 
+        String targetBenchmark = (benchmarkCode != null && !benchmarkCode.isBlank()) ? benchmarkCode : "FBIL_91D_TBILL";
         String rawContent = new String(payloadBytes, StandardCharsets.UTF_8).trim();
         if (rawContent.isEmpty()) {
             return records;
         }
 
         if (rawContent.startsWith("[") || rawContent.startsWith("{")) {
-            return parseJson(rawContent);
+            return parseJson(rawContent, targetBenchmark);
         } else {
-            return parseCsv(payloadBytes);
+            return parseCsv(payloadBytes, targetBenchmark);
         }
     }
 
-    private List<FbilTBillRecord> parseJson(String jsonContent) {
+    private List<FbilTBillRecord> parseJson(String jsonContent, String targetBenchmark) {
         List<FbilTBillRecord> records = new ArrayList<>();
         try {
             JsonNode root = OBJECT_MAPPER.readTree(jsonContent);
             if (root.isArray()) {
                 for (JsonNode node : root) {
-                    processJsonNode(node, records);
+                    processJsonNode(node, records, targetBenchmark);
                 }
             } else if (root.isObject()) {
-                processJsonNode(root, records);
+                processJsonNode(root, records, targetBenchmark);
             }
         } catch (IllegalArgumentException e) {
             throw e;
@@ -80,7 +85,7 @@ public class FbilTBillParser {
         return records;
     }
 
-    private void processJsonNode(JsonNode node, List<FbilTBillRecord> records) {
+    private void processJsonNode(JsonNode node, List<FbilTBillRecord> records, String targetBenchmark) {
         // 1. Tenor filtering
         JsonNode tenorNode = node.get("tenorName");
         if (tenorNode == null || tenorNode.isNull()) {
@@ -169,7 +174,7 @@ public class FbilTBillParser {
 
         records.add(new FbilTBillRecord(
             effectiveDate,
-            "FBIL_91D_TBILL",
+            targetBenchmark,
             tenorStr,
             normalizedYield,
             "ACT_365",
@@ -178,7 +183,7 @@ public class FbilTBillParser {
         ));
     }
 
-    private List<FbilTBillRecord> parseCsv(byte[] payloadBytes) {
+    private List<FbilTBillRecord> parseCsv(byte[] payloadBytes, String targetBenchmark) {
         List<FbilTBillRecord> records = new ArrayList<>();
         Charset charset = StandardCharsets.UTF_8;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(payloadBytes), charset))) {
@@ -286,7 +291,7 @@ public class FbilTBillParser {
 
                 records.add(new FbilTBillRecord(
                     effectiveDate,
-                    "FBIL_91D_TBILL",
+                    targetBenchmark,
                     tenor,
                     normalizedYield,
                     "ACT_365",

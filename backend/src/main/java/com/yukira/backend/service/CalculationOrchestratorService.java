@@ -79,16 +79,52 @@ public class CalculationOrchestratorService {
                 "CORE_QUANT", methodologyTag, "CANDIDATE", "0000000000000000000000000000000000000000"
             )));
 
+        // Resolve calculation horizon start date
+        LocalDate startDate = null;
+        if (parameters != null) {
+            if (parameters.containsKey("start_date")) {
+                startDate = LocalDate.parse(parameters.get("start_date").toString());
+            } else if (parameters.containsKey("lookback_years")) {
+                int years = Integer.parseInt(parameters.get("lookback_years").toString());
+                startDate = asOfDate.minusYears(years);
+            }
+        }
+        if (startDate == null) {
+            startDate = asOfDate.minusYears(3);
+        }
+        final LocalDate effStartDate = startDate;
+
         // 1. Authoritative PIT Revision-Resolution Query
-        List<NavObservation> navObservations = navObservationRepository
+        List<NavObservation> rawNav = navObservationRepository
             .findAuthoritativeObservationsAsOfCutoff(schemeOptionId, asOfDate, knowledgeCutoffTime);
+        Map<LocalDate, NavObservation> dedupNav = new LinkedHashMap<>();
+        for (NavObservation n : rawNav) {
+            if (!n.getEffectiveDate().isBefore(effStartDate) && !n.getEffectiveDate().isAfter(asOfDate)) {
+                dedupNav.putIfAbsent(n.getEffectiveDate(), n);
+            }
+        }
+        List<NavObservation> navObservations = new ArrayList<>(dedupNav.values());
 
-        List<BenchmarkObservation> benchmarkObservations = benchmarkObservationRepository
+        List<BenchmarkObservation> rawBm = benchmarkObservationRepository
             .findAuthoritativeObservationsAsOfCutoff(benchmarkId, asOfDate, knowledgeCutoffTime);
+        Map<LocalDate, BenchmarkObservation> dedupBm = new LinkedHashMap<>();
+        for (BenchmarkObservation b : rawBm) {
+            if (!b.getEffectiveDate().isBefore(effStartDate) && !b.getEffectiveDate().isAfter(asOfDate)) {
+                dedupBm.putIfAbsent(b.getEffectiveDate(), b);
+            }
+        }
+        List<BenchmarkObservation> benchmarkObservations = new ArrayList<>(dedupBm.values());
 
-        List<RiskFreeObservation> riskFreeObservations = riskFreeObservationRepository != null
+        List<RiskFreeObservation> rawRf = riskFreeObservationRepository != null
             ? riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff("FBIL_91D_TBILL", asOfDate, knowledgeCutoffTime)
             : Collections.emptyList();
+        Map<LocalDate, RiskFreeObservation> dedupRf = new LinkedHashMap<>();
+        for (RiskFreeObservation r : rawRf) {
+            if (!r.getEffectiveDate().isBefore(effStartDate) && !r.getEffectiveDate().isAfter(asOfDate)) {
+                dedupRf.putIfAbsent(r.getEffectiveDate(), r);
+            }
+        }
+        List<RiskFreeObservation> riskFreeObservations = new ArrayList<>(dedupRf.values());
 
         // 2. Build input series DTOs
         List<ObservationItemDto> navSeries = navObservations.stream()

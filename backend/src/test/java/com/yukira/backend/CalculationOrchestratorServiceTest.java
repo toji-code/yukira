@@ -131,7 +131,7 @@ class CalculationOrchestratorServiceTest {
             tCutoff,
             List.of("RET-01", "RSK-01", "RAT-01", "REL-01"),
             "CANDIDATE-V1",
-            Map.of("risk_free_rate", 0.065)
+            Map.of("start_date", "2024-12-01", "risk_free_rate", 0.065)
         );
 
         assertNotNull(run.getId(), "CalculationRun must be persisted with an ID");

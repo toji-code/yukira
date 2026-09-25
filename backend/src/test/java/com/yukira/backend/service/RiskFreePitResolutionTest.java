@@ -26,7 +26,7 @@ class RiskFreePitResolutionTest {
     @Autowired
     private RiskFreeObservationRepository riskFreeObservationRepository;
 
-    private static final String BENCHMARK = "FBIL_91D_TBILL";
+    private static final String BENCHMARK = "FBIL_TEST_TBILL";
 
     @Test
     @DisplayName("Resolves authoritative risk-free rate at valid knowledge cutoff")

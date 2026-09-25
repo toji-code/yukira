@@ -13,6 +13,17 @@ import java.util.List;
 @Repository
 public interface BenchmarkObservationRepository extends JpaRepository<BenchmarkObservation, Long> {
 
+    List<BenchmarkObservation> findByBenchmarkIdAndEffectiveDate(Long benchmarkId, LocalDate effectiveDate);
+
+    List<BenchmarkObservation> findByBenchmarkId(Long benchmarkId);
+
+    @Query("SELECT COUNT(b) FROM BenchmarkObservation b WHERE b.benchmark.id = :benchmarkId AND b.effectiveDate >= :startDate AND b.effectiveDate <= :endDate")
+    long countByBenchmarkIdAndDateRange(
+        @Param("benchmarkId") Long benchmarkId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
     @Query(value = """
         WITH latest_eligible AS (
             SELECT b.benchmark_id,
