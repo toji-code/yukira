@@ -134,3 +134,21 @@
 
 > [!NOTE]
 > Phase 2J established a trustworthy, point-in-time historical data substrate for future multi-year quantitative calculations. Quantitative methodology freeze remains intact.
+
+---
+
+### Phase 2Q — Risk-Adjusted / Market-Sensitivity Analytical Vertical
+- **Commit:** 18fac5f`n- **Focus:** Implementation of Sharpe (RAT-01), Treynor (RAT-02), Beta (REL-01), Downside Beta (REL-04) using Phase 2N approved methodology.
+- **Key Deliverables:**
+  - Deterministic implementation of approved Phase 2N risk-adjusted metrics.
+  - FBIL 91-Day T-Bill risk-free infrastructure.
+  - Final integration audit and canonical reproduction.
+  - Full test suite enforcement and methodology compliance auditing.
+- **Status:** **CLOSED**
+
+---
+
+### Phase 2R — Readiness Assessment / Scope Definition
+- **Focus:** Assessment of project readiness for Phase 2S (Metric expansion/Governance workflow improvements).
+- **Deliverables:** Readiness assessment and governance scoping for subsequent analytical phases.
+- **Status:** **READY FOR SCOPE DEFINITION**

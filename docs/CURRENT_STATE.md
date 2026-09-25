@@ -9,12 +9,12 @@
 ## 1. Git & Repository Status
 
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `e6880efc499d39f76171fa94e5dd97a42c8156cf` (Short: `e6880ef`)
-- **Commit Message:** `feat: establish phase 2i working investor website and real-data pilot`
+- **Current HEAD Commit:** `18fac5f90b84a5d2d4bd82548d46f7b2ed0e4c62` (Short: `18fac5f`)
+- **Commit Message:** `fix: enforce approved downside beta observation threshold`
 - **Remote Synchronization:** Local `main` is synchronized with `origin/main` (`ahead 0, behind 0`).
-- **Working Tree State:** Clean (excluding newly created agent context documentation).
-- **Latest Completed Phase:** **Phase 2J** (Historical Analytical Data Foundation + Provenance Reconciliation).
-- **Active Current Phase:** Audit & Verification checkpoint prior to Phase 2K.
+- **Working Tree State:** Clean
+- **Latest Completed Phase:** **Phase 2Q** (Risk-Adjusted / Market-Sensitivity Analytical Vertical)
+- **Active Current Phase:** Phase 2R (Readiness Assessment / Scope Definition)
 
 ---
 
