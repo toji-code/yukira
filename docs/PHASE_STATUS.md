@@ -155,3 +155,17 @@
 - **Status:** **READY FOR SCOPE DEFINITION**
 - **Scope:** NOT YET FROZEN
 
+| Area | Status | Evidence |
+|---|---|---|
+| Data | PASS | 5-Year historical substrate complete |
+| PIT | PASS | Bitemporal query architecture stable |
+| Benchmark | PASS | TRI indices verified |
+| Risk-free | PASS | FBIL T-bill infrastructure verified |
+| Quant engine | PASS | Pure Python authority verified |
+| Backend | PASS | Service orchestration verified |
+| API | PASS | REST contract stable |
+| Frontend | PASS | Epistemic UI foundation stable |
+| Governance | PASS | Phase 2N methodology approved |
+| Testing | PASS | 551 automated tests verified |
+| Provenance | PASS | Cryptographic registry stable |
+
