@@ -71,7 +71,7 @@ export function EpistemicBanner({
             {limitation}
           </div>
           <div className="text-[10px] text-amber-400/80 font-mono pt-1">
-            Unvalidated Candidate &bull; Zero Tips
+            Methodology & Governance Constraint &bull; Zero Tips
           </div>
         </div>
       </div>

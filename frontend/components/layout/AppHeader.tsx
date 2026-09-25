@@ -115,7 +115,7 @@ export function AppHeader() {
             <Link
               href="/methodology"
               className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono uppercase rounded-md bg-zinc-900 text-zinc-300 border border-zinc-800 hover:border-zinc-700 hover:text-zinc-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
-              title="View institutional methodology governance"
+              title="View methodology governance and analytical standards"
             >
               <span className="text-zinc-400">GOVERNANCE:</span>
               <span className="text-cyan-400 font-semibold">5 APPROVED</span>

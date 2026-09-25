@@ -38,7 +38,7 @@ export default function MethodologyPage() {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-lg border border-cyan-500/30 bg-cyan-950/20 p-3.5">
-            <span className="text-zinc-500 text-[10px] uppercase block">Implemented Candidates</span>
+            <span className="text-zinc-500 text-[10px] uppercase block">Implemented Slices</span>
             <span className="text-cyan-300 font-bold text-sm mt-1 block">13 Analytical Slices</span>
             <span className="text-[10px] text-zinc-400 mt-1 block">RET-02/03, RSK-01..07, RAT-01/02, REL-01/04</span>
           </div>
@@ -79,7 +79,7 @@ export default function MethodologyPage() {
               The algorithm is implemented in the Python Quantitative Engine and verified against deterministic unit tests. Given valid point-in-time input observations, it produces verifiable numbers.
             </p>
             <div className="mt-4 border-t border-blue-500/20 pt-3 text-[11px] font-mono text-blue-300">
-              Current: 13 Candidate Slices Executable
+              Current: 13 Analytical Slices Executable in Engine
             </div>
           </div>
 
@@ -93,7 +93,7 @@ export default function MethodologyPage() {
               The methodology has been tested against multi-year historical data across bull, bear, and sideways regimes; reconciled against independent institutional vendor datasets; and verified for statistical soundness.
             </p>
             <div className="mt-4 border-t border-amber-500/20 pt-3 text-[11px] font-mono text-amber-300">
-              Current: Empirical Regime Stress Testing
+              Current: Multi-cycle Empirical Regime Testing
             </div>
           </div>
 
@@ -104,11 +104,67 @@ export default function MethodologyPage() {
             </div>
             <h3 className="mt-2 text-base font-semibold text-zinc-100">Governance Authorization</h3>
             <p className="mt-2 text-xs leading-relaxed text-zinc-300">
-              Formally approved by governance review for production decision support. Five foundational methodology standards approved in Phase 2N.
+              Formally authorized by governance review. In Phase 2N, 5 foundational methodologies were approved, while 4 were deferred.
             </p>
             <div className="mt-4 border-t border-emerald-500/20 pt-3 text-[11px] font-mono text-emerald-300">
               Current: 5 Approved Methodologies (Phase 2N)
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Implemented Analytical Slices Governance Matrix */}
+      <section className="mb-12 rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 font-mono text-xs">
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-800 mb-4">
+          <div>
+            <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">
+              Governance Status of 13 Implemented Analytical Slices
+            </h2>
+            <p className="text-zinc-400 font-sans text-xs mt-1">
+              Implemented vertical slices do not share one identical governance state. They map to approved, candidate, or deferred methodologies.
+            </p>
+          </div>
+          <span className="text-[10px] text-cyan-400 bg-cyan-950 px-2.5 py-1 rounded border border-cyan-800">
+            Phase 2N &bull; Phase 2Q Alignment
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-emerald-300 text-xs uppercase">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Slices Executing Approved Methodologies
+            </div>
+            <p className="text-zinc-300 font-sans text-xs leading-relaxed">
+              These analytical vertical slices execute algorithms governed by Phase 2N approved methodology standards:
+            </p>
+            <ul className="space-y-1.5 text-zinc-300 text-[11px]">
+              <li>&bull; <strong className="text-white">RET-03 (3Y CAGR):</strong> Governed by approved M2N-01 annualization (365.25/D).</li>
+              <li>&bull; <strong className="text-white">RSK-01 (3Y Volatility):</strong> Governed by approved M2N-01 (&radic;252, N-1).</li>
+              <li>&bull; <strong className="text-white">RAT-01 (Sharpe Ratio 3Y):</strong> Governed by approved M2N-01 and M2N-02 (FBIL 91D T-Bill).</li>
+              <li>&bull; <strong className="text-white">RAT-02 (Treynor Ratio 3Y):</strong> Governed by approved M2N-01, M2N-02, M2N-05 (numerator), M2N-06 (Beta).</li>
+              <li>&bull; <strong className="text-white">REL-01 (Beta 3Y):</strong> Governed by approved M2N-06 (excess-return OLS) and M2N-01 (scale-invariant).</li>
+              <li>&bull; <strong className="text-white">REL-04 (Downside Beta 3Y):</strong> Governed by approved M2N-07 (R_b &lt; 0 conditioning).</li>
+            </ul>
+          </div>
+
+          <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-4 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-amber-300 text-xs uppercase">
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              Candidate Slices & Deferred Components
+            </div>
+            <p className="text-zinc-300 font-sans text-xs leading-relaxed">
+              These slices are implemented in code but operate as candidate specifications or contain deferred methodology decisions:
+            </p>
+            <ul className="space-y-1.5 text-zinc-300 text-[11px]">
+              <li>&bull; <strong className="text-white">RSK-02 (Downside Semideviation):</strong> Implemented; M2N-04 divisor convention remains deferred.</li>
+              <li>&bull; <strong className="text-white">RSK-03 (Max Drawdown 3Y):</strong> Implemented candidate algorithm.</li>
+              <li>&bull; <strong className="text-white">RSK-04 (Drawdown Duration):</strong> Implemented candidate algorithm.</li>
+              <li>&bull; <strong className="text-white">RSK-05 (Ulcer Index):</strong> Implemented candidate algorithm.</li>
+              <li>&bull; <strong className="text-white">RSK-06 (Historical VaR 95%):</strong> Implemented candidate algorithm.</li>
+              <li>&bull; <strong className="text-white">RSK-07 (Expected Shortfall 95%):</strong> Implemented candidate algorithm.</li>
+              <li>&bull; <strong className="text-white">RET-02 (Simple Period Return):</strong> Inherited Phase 2F operational primitive.</li>
+            </ul>
           </div>
         </div>
       </section>

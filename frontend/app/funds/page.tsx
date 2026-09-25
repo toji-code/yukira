@@ -63,7 +63,7 @@ export default function FundsCatalogPage() {
   return (
     <PageContainer
       title="Fund Discovery Catalog"
-      subtitle="Institutional directory of registered mutual fund schemes from official AMFI master records."
+      subtitle="Research directory of registered mutual fund schemes from official AMFI master records."
       breadcrumbs={[
         { label: "Home", href: "/" },
         { label: "Funds", href: "/funds" },

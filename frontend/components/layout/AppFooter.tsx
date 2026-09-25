@@ -16,7 +16,7 @@ export function AppFooter() {
               </span>
             </div>
             <p className="text-zinc-400 text-xs leading-relaxed">
-              Institutional-grade Quantitative Investment Intelligence Platform. A deterministic verification checkpoint for investors and allocators before committing capital.
+              Institutional-oriented Quantitative Investment Intelligence Platform. A deterministic verification checkpoint for investors and allocators before committing capital.
             </p>
             <div className="font-mono text-[10px] text-zinc-400">
               Phase 2R &bull; Investor Experience Tier
@@ -65,7 +65,7 @@ export function AppFooter() {
                 rel="noreferrer"
                 className="hover:text-cyan-400 transition-colors inline-flex items-center gap-1"
               >
-                Official AMFI Feeds
+                AMFI Portal (NAV Source)
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -79,7 +79,7 @@ export function AppFooter() {
             &ldquo;Before you commit capital, ask one more question.&rdquo; &bull; Decision Support Only
           </div>
           <div className="text-zinc-400 text-right">
-            Zero Commercial Advice &bull; Zero Star Ratings &bull; Cryptographic Provenance
+            Zero Commercial Advice &bull; Zero Star Ratings &bull; Investment-Risk & Methodology Disclosures
           </div>
         </div>
       </div>

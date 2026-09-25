@@ -8,7 +8,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden pt-6 pb-12">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 font-mono text-[11px] font-medium text-cyan-400">
           <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          QUANTITATIVE INVESTMENT INTELLIGENCE &bull; INSTITUTIONAL CHECKPOINT
+          QUANTITATIVE INVESTMENT INTELLIGENCE &bull; INSTITUTIONAL-ORIENTED CHECKPOINT
         </div>
 
         <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-zinc-100 sm:text-5xl lg:text-6xl font-sans">
@@ -66,7 +66,7 @@ export default function HomePage() {
               </span>
             </div>
             <p className="text-xs leading-relaxed text-zinc-200">
-              In YUKIRA, implementing an algorithm in code does not constitute approval for live investment advice. Phase 2N established 5 formally approved methodologies (<code className="font-mono text-cyan-300 text-[11px]">M2N-01, M2N-02, M2N-05, M2N-06, M2N-07</code>), while 13 analytical vertical slices operate as deterministic candidate specifications.
+              In YUKIRA, implementing an algorithm in code does not constitute approval for live investment advice. Phase 2N established 5 formally approved methodologies (<code className="font-mono text-cyan-300 text-[11px]">M2N-01, M2N-02, M2N-05, M2N-06, M2N-07</code>), while 13 analytical vertical slices are implemented across distinct approved, candidate, and deferred governance states.
             </p>
             <p className="text-[11px] leading-relaxed text-zinc-400 font-mono">
               Zero automated buy/sell tips &bull; Zero 5-star ratings &bull; Zero synthetic NAV imputation &bull; Zero LLM hallucinations in financial calculations.

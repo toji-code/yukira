@@ -141,14 +141,14 @@ export default function FundDetailPage({ params }: PageProps) {
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono">
-                Methodology Status: Candidate Verification
+                Methodology Governance & Operational Status
               </h2>
               <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-200 border border-amber-500/30">
                 ZERO STAR RATINGS &bull; ZERO TIPS
               </span>
             </div>
             <p className="text-xs text-zinc-200 font-sans leading-relaxed">
-              Analytical metrics displayed below operate strictly as candidate specifications. Executable metrics are computed deterministically by the Python quantitative engine against historical point-in-time observations. YUKIRA does not generate commercial ratings or investment forecasts.
+              Analytical metrics displayed below reflect verified point-in-time observations. Metrics executing Phase 2N approved methodologies (M2N-01, M2N-02, M2N-05, M2N-06, M2N-07) adhere to formal standards, while other vertical slices operate as candidate specifications. YUKIRA does not generate commercial ratings or investment forecasts.
             </p>
           </div>
         </div>
@@ -368,7 +368,7 @@ export default function FundDetailPage({ params }: PageProps) {
             name="3-Year Compound Annual Growth Rate (CAGR)"
             category="return"
             categoryLabel="Annualized Return"
-            governanceStatus="candidate"
+            governanceStatus="approved"
             period="36 Calendar Months (≥ 700 trading days)"
             description="Annualized compound return evaluated over a continuous 36-month lookback window."
             interpretation="Normalizes cumulative multi-year growth onto an annualized basis using 365.25 calendar days convention."
@@ -415,7 +415,7 @@ export default function FundDetailPage({ params }: PageProps) {
             <h2 className="text-lg font-bold text-zinc-100 font-sans">Total & Downside Risk</h2>
           </div>
           <span className="font-mono text-xs text-zinc-400">
-            2 Implemented &bull; Candidate Stage
+            2 Implemented Slices
           </span>
         </div>
 
@@ -425,7 +425,7 @@ export default function FundDetailPage({ params }: PageProps) {
             name="3-Year Annualized Volatility"
             category="risk"
             categoryLabel="Total Dispersion"
-            governanceStatus="candidate"
+            governanceStatus="approved"
             period="36 Calendar Months (≥ 700 trading days)"
             description="Annualized sample standard deviation of daily log/discrete returns."
             interpretation="Measures the total dispersion of daily returns around the sample mean over 36 months."
@@ -470,7 +470,7 @@ export default function FundDetailPage({ params }: PageProps) {
             <h2 className="text-lg font-bold text-zinc-100 font-sans">Drawdown & Path Stress</h2>
           </div>
           <span className="font-mono text-xs text-zinc-400">
-            3 Implemented &bull; Candidate Stage
+            3 Implemented Slices
           </span>
         </div>
 
@@ -596,7 +596,7 @@ export default function FundDetailPage({ params }: PageProps) {
             <h2 className="text-lg font-bold text-zinc-100 font-sans">Risk-Adjusted Ratios & Market Sensitivity</h2>
           </div>
           <span className="font-mono text-xs text-zinc-400">
-            4 Candidate Algorithms (Phase 2Q Verified)
+            4 Phase 2Q Verified Slices (Phase 2N Approved Methodology)
           </span>
         </div>
 
@@ -606,7 +606,7 @@ export default function FundDetailPage({ params }: PageProps) {
             name="Sharpe Ratio (3Y)"
             category="risk_adjusted"
             categoryLabel="Excess Return per Unit Total Risk"
-            governanceStatus="candidate"
+            governanceStatus="approved"
             period="36 Calendar Months"
             description="Ratio of annualized excess return above the risk-free rate to annualized return volatility."
             interpretation="Evaluates how effectively the fund compensated for total standard deviation above 91-day T-bills."
@@ -616,7 +616,7 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Risk-Free Benchmark', value: 'FBIL 91D T-Bill' },
               { label: 'Compounding', value: 'Geometric Annualized' },
             ]}
-            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-01/M2N-02 methodology)."
           />
 
           <MetricCard
@@ -624,7 +624,7 @@ export default function FundDetailPage({ params }: PageProps) {
             name="Treynor Ratio (3Y)"
             category="risk_adjusted"
             categoryLabel="Excess Return per Unit Systematic Risk"
-            governanceStatus="candidate"
+            governanceStatus="approved"
             period="36 Calendar Months"
             description="Ratio of annualized excess return above the risk-free rate to systematic equity Beta."
             interpretation="Measures excess reward earned per unit of unavoidable broad-market systematic risk."
@@ -634,7 +634,7 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Systematic Beta', value: '3Y Nifty 50 TRI Beta' },
               { label: 'Denominator Rule', value: 'Beta > 0 required' },
             ]}
-            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-05/M2N-06 methodology)."
           />
 
           <MetricCard
@@ -642,7 +642,7 @@ export default function FundDetailPage({ params }: PageProps) {
             name="Equity Beta (3Y)"
             category="risk_adjusted"
             categoryLabel="Systematic Sensitivity"
-            governanceStatus="candidate"
+            governanceStatus="approved"
             period="36 Calendar Months"
             description="Slope coefficient from linear regression of daily fund returns against benchmark returns."
             interpretation="Measures the portfolio sensitivity to broad market movements (Beta > 1 implies amplified swings)."
@@ -652,7 +652,7 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Benchmark', value: 'Official NIFTY 50 TRI' },
               { label: 'Regression', value: 'Ordinary Least Squares (OLS)' },
             ]}
-            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-06 methodology)."
           />
 
           <MetricCard
@@ -660,7 +660,7 @@ export default function FundDetailPage({ params }: PageProps) {
             name="Downside Beta (3Y)"
             category="risk_adjusted"
             categoryLabel="Asymmetric Sensitivity"
-            governanceStatus="candidate"
+            governanceStatus="approved"
             period="36 Calendar Months (Benchmark < 0)"
             description="Beta calculated conditioning exclusively on trading days when benchmark return was negative."
             interpretation="Identifies whether fund sensitivity increases during market sell-offs vs up-trending regimes."
@@ -670,7 +670,7 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Conditioning', value: 'r_benchmark < 0.0' },
               { label: 'Min Observations', value: '100 downside market days' },
             ]}
-            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-07 methodology)."
           />
         </div>
       </section>
@@ -732,7 +732,7 @@ export default function FundDetailPage({ params }: PageProps) {
 
         <div className="mt-4 space-y-3 font-sans text-xs text-zinc-300">
           <p>
-            YUKIRA guarantees that all numerical calculations originate exclusively from authenticated primary source documents. For scheme <strong className="text-white font-mono">{scheme.code}</strong> (AMFI <strong className="text-white font-mono">{selectedOption?.amfiCode || "118955"}</strong>), observations are cryptographically anchored to:
+            All numerical calculations originate strictly from authenticated primary source documents in the repository&apos;s bitemporal ledger. For scheme <strong className="text-white font-mono">{scheme.code}</strong> (AMFI <strong className="text-white font-mono">{selectedOption?.amfiCode || "118955"}</strong>), observations are cryptographically anchored to:
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 font-mono text-xs">

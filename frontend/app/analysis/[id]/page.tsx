@@ -163,6 +163,18 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         return "Maximum drawdown duration: longest calendar days between a peak and subsequent full recovery to prior high.";
       case "RSK-05":
         return "Ulcer Index: quadratic root-mean-square of percentage drawdowns from running peak NAV. Evaluates compound holding stress (depth × duration).";
+      case "RSK-06":
+        return "Historical Value at Risk (95%): empirical 5th percentile daily loss threshold over the 36-month lookback window.";
+      case "RSK-07":
+        return "Expected Shortfall (CVaR 95%): conditional mean of daily returns strictly below the 5th percentile VaR cutoff.";
+      case "RAT-01":
+        return "Sharpe Ratio (3Y): annualized excess return per unit of total risk above the FBIL 91-day T-bill risk-free benchmark.";
+      case "RAT-02":
+        return "Treynor Ratio (3Y): annualized excess return per unit of systematic equity market risk (Beta).";
+      case "REL-01":
+        return "Equity Beta (3Y): slope coefficient from single-index excess-return OLS regression against the NIFTY 50 TRI benchmark.";
+      case "REL-04":
+        return "Downside Beta (3Y): market sensitivity conditioned exclusively on trading days where the benchmark experienced negative returns (R_b < 0).";
       case "RET-03":
         return "3-Year CAGR: compound annualized growth rate normalized across 36 calendar months using 365.25 calendar days per year convention.";
       case "RET-02":
@@ -174,17 +186,29 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
   const getMetricLimitation = (code: string): string => {
     switch (code) {
       case "RSK-01":
-        return "Candidate methodology (CANDIDATE_V1). Assumes stationary √252 trading-day annualizer and N-1 denominator. Past realized volatility does not forecast future volatility.";
+        return "Phase 2N approved annualization (M2N-01, √252, N-1). Assumes stationary trading-day scaling; realized historical volatility does not forecast future volatility.";
       case "RSK-02":
-        return "Candidate methodology (CANDIDATE_V1). MAR set to 0.0% (does not account for inflation or hurdle rate). Realized downside volatility only.";
+        return "Candidate methodology (CANDIDATE_V1). MAR set to 0.0% (M2N-04 divisor convention remains deferred). Realized downside dispersion only.";
       case "RSK-03":
-        return "Candidate methodology (CANDIDATE_V1). Historical worst-case decline does not guarantee a floor on future market cycle drawdowns.";
+        return "Candidate methodology (CANDIDATE_V1). Historical worst-case decline does not place a mathematical upper bound on future market cycle drawdowns.";
       case "RSK-04":
         return "Candidate methodology (CANDIDATE_V1). Unrecovered drawdowns are strictly censored as of knowledge cutoff timestamp.";
       case "RSK-05":
         return "Candidate methodology (CANDIDATE_V1). Quadratic weighting penalizes deep drawdowns more heavily than shallow ones.";
+      case "RSK-06":
+        return "Candidate methodology (CANDIDATE_V1). Non-parametric empirical quantile; does not describe severity in the remaining 5% tail.";
+      case "RSK-07":
+        return "Candidate methodology (CANDIDATE_V1). Sub-sample tail average subject to estimation variance during calm market regimes.";
+      case "RAT-01":
+        return "Phase 2N approved methodology (M2N-01, M2N-02). Symmetrical standard deviation penalty treats upside and downside dispersion equally.";
+      case "RAT-02":
+        return "Phase 2N approved methodology (M2N-01, M2N-02, M2N-05, M2N-06). Applicable only when systematic Beta > 0; meaningful for diversified equity portfolios.";
+      case "REL-01":
+        return "Phase 2N approved methodology (M2N-01, M2N-06). Linear excess-return OLS model assuming constant market sensitivity; beta varies across market regimes.";
+      case "REL-04":
+        return "Phase 2N approved methodology (M2N-07). Requires a minimum of 100 negative benchmark trading days in lookback window.";
       case "RET-03":
-        return "Candidate methodology (CANDIDATE_V1). Point-to-point annualized CAGR masks multi-month intermediate drawdowns and volatility.";
+        return "Phase 2N approved annualization (M2N-01, 365.25/D). Point-to-point annualized CAGR masks multi-month intermediate drawdowns and volatility.";
       case "RET-02":
       default:
         return "Candidate methodology (CANDIDATE_V1). Discrete period return only; unvalidated for live investor decision support.";
@@ -202,6 +226,14 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
     if (code === "RSK-05") {
       return `${code} ${data.result.metricName}: ${Number(data.result.numericValue).toFixed(2)} points.`;
+    }
+
+    if (code === "RAT-01" || code === "RAT-02") {
+      return `${code} ${data.result.metricName}: ${Number(data.result.numericValue).toFixed(2)}x ratio (${data.result.numericValue}).`;
+    }
+
+    if (code === "REL-01" || code === "REL-04") {
+      return `${code} ${data.result.metricName}: ${Number(data.result.numericValue).toFixed(4)} beta coefficient (${data.result.numericValue}).`;
     }
 
     return `${code} ${data.result.metricName}: ${(Number(data.result.numericValue) * 100).toFixed(2)}% (${data.result.numericValue}).`;
@@ -356,7 +388,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                     label={`${data.result.metricCode} • ${data.result.metricName}`}
                     value={data.result.numericValue}
                     units={data.result.units || "PERCENTAGE"}
-                    isCandidate={true}
+                    isCandidate={data.methodology.approvalStatus !== "APPROVED"}
                     candidateConvention={data.methodology.methodologyVersion}
                     description={getMetricInterpretation(data.result.metricCode)}
                   />

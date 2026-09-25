@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "YUKIRA — Institutional Investment Intelligence & Verification Platform",
+  title: "YUKIRA — Institutional-Oriented Investment Intelligence & Verification Platform",
   description: "Deterministic quantitative analysis, point-in-time empirical verification, and cryptographic provenance for Indian mutual funds. Before you commit capital, ask one more question.",
 };
 
