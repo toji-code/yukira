@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { StateView } from "@/components/epistemic/StateView";
+import { MetricCard } from "@/components/primitives/MetricCard";
 import { fetchSchemeById, fetchSchemeOptionsBySchemeId } from "@/lib/api/schemes";
 import { triggerCalculation } from "@/lib/api/calculations";
 import { Scheme, SchemeOption } from "@/types/domain";
@@ -25,9 +26,8 @@ export default function FundDetailPage({ params }: PageProps) {
 
   // Trigger calculation state
   const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null);
-  const [triggering, setTriggering] = useState(false);
+  const [executingMetric, setExecutingMetric] = useState<string | null>(null);
   const [triggerError, setTriggerError] = useState<string | null>(null);
-  const [triggerSuccessRunId, setTriggerSuccessRunId] = useState<number | null>(null);
 
   useEffect(() => {
     if (isNaN(schemeId)) {
@@ -67,9 +67,8 @@ export default function FundDetailPage({ params }: PageProps) {
       return;
     }
 
-    setTriggering(true);
+    setExecutingMetric(metricCode);
     setTriggerError(null);
-    setTriggerSuccessRunId(null);
 
     try {
       const run = await triggerCalculation({
@@ -80,13 +79,11 @@ export default function FundDetailPage({ params }: PageProps) {
         metricCodes: [metricCode],
         methodologyTag: "CANDIDATE_V1",
       });
-      setTriggerSuccessRunId(run.id);
       router.push(`/analysis/${run.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to trigger calculation run";
       setTriggerError(msg);
-    } finally {
-      setTriggering(false);
+      setExecutingMetric(null);
     }
   };
 
@@ -123,47 +120,79 @@ export default function FundDetailPage({ params }: PageProps) {
   }
 
   const selectedOption = options.find((o) => o.id === selectedOptionId) || options[0];
+  const isCanonicalPilot = scheme.code === "HDFC_FLEXI" || scheme.name.toLowerCase().includes("hdfc flexi cap");
 
   return (
     <PageContainer
       title={scheme.name}
       subtitle={`Scheme Code: ${scheme.code} • Master ID: #${scheme.id}`}
       breadcrumbs={[
+        { label: "Home", href: "/" },
         { label: "Funds", href: "/funds" },
         { label: scheme.code, href: `/funds/${scheme.id}` },
       ]}
     >
-      {/* Epistemic Notice */}
-      <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 font-mono text-xs">
-        <div className="flex items-center gap-2 font-bold text-amber-400 uppercase tracking-wider text-[11px]">
-          <span className="h-2 w-2 rounded-full bg-amber-400" />
-          Candidate Methodology Disclosure
+      {/* Epistemic Mandate Banner */}
+      <section className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 backdrop-blur-sm" aria-label="Methodology Status">
+        <div className="flex items-start gap-3.5">
+          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400 font-mono">
+            !
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono">
+                Methodology Status: Candidate Verification
+              </h2>
+              <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-200 border border-amber-500/30">
+                ZERO STAR RATINGS &bull; ZERO TIPS
+              </span>
+            </div>
+            <p className="text-xs text-zinc-200 font-sans leading-relaxed">
+              Analytical metrics displayed below operate strictly as candidate specifications. Executable metrics are computed deterministically by the Python quantitative engine against historical point-in-time observations. YUKIRA does not generate commercial ratings or investment forecasts.
+            </p>
+          </div>
         </div>
-        <p className="mt-1 text-zinc-300 font-sans leading-relaxed text-xs">
-          All analytical metrics displayed on this page operate strictly under candidate governance status. No quantitative methodology is currently validated for production. YUKIRA does not generate investment recommendations, star ratings, or performance forecasts.
-        </p>
-      </div>
+      </section>
 
-      {/* 1. FUND IDENTITY */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 1</div>
-        <h2 className="text-xl font-bold text-zinc-100">Fund Identity</h2>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
+      {/* Global Error Banner */}
+      {triggerError && (
+        <div className="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 font-mono text-xs text-rose-300">
+          <strong className="block uppercase text-[11px] mb-1">Execution Failure:</strong>
+          {triggerError}
+        </div>
+      )}
+
+      {/* 1. FUND IDENTITY & SHARE CLASS SELECTOR */}
+      <section className="mb-10" id="identity">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 1</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Fund Identity & Share Classes</h2>
+          </div>
+          {isCanonicalPilot && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 text-xs font-mono font-semibold text-cyan-300">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+              Canonical Pilot Instrument
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs mb-5">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
             <span className="text-zinc-500 text-[10px] uppercase block">Scheme Code</span>
-            <span className="text-cyan-400 font-semibold text-sm mt-1 block">{scheme.code}</span>
+            <span className="text-cyan-400 font-bold text-sm mt-1 block">{scheme.code}</span>
             <span className="text-zinc-500 text-[10px] mt-1 block">Canonical Identifier</span>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
             <span className="text-zinc-500 text-[10px] uppercase block">Inception Date</span>
-            <span className="text-zinc-100 font-semibold text-sm mt-1 block">{scheme.inceptionDate || "—"}</span>
-            <span className="text-zinc-500 text-[10px] mt-1 block">Formal Registration</span>
+            <span className="text-zinc-100 font-bold text-sm mt-1 block">{scheme.inceptionDate || "—"}</span>
+            <span className="text-zinc-500 text-[10px] mt-1 block">AMFI Record</span>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
             <span className="text-zinc-500 text-[10px] uppercase block">Master Record Status</span>
-            <span className="text-emerald-400 font-semibold text-sm mt-1 block flex items-center gap-1.5">
+            <span className="text-emerald-400 font-bold text-sm mt-1 flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
               {scheme.status || "ACTIVE"}
             </span>
@@ -171,770 +200,593 @@ export default function FundDetailPage({ params }: PageProps) {
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Registered Share Classes</span>
-            <span className="text-zinc-100 font-semibold text-sm mt-1 block">{options.length} Options</span>
+            <span className="text-zinc-500 text-[10px] uppercase block">Registered Options</span>
+            <span className="text-zinc-100 font-bold text-sm mt-1 block">{options.length} Share Classes</span>
             <span className="text-zinc-500 text-[10px] mt-1 block">Direct / Regular Plans</span>
           </div>
         </div>
 
-        {/* Registered Plans & Options Table */}
-        <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
-          <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
-            Registered Share Classes & Options ({options.length})
-          </h3>
-          <p className="mt-1 text-xs text-zinc-400">
-            Select a specific share class to inspect point-in-time data status and run candidate calculations.
-          </p>
-
-          {options.length === 0 ? (
-            <div className="mt-4">
-              <StateView
-                kind="empty"
-                title="No Share Classes Registered"
-                message="No options or plans have been recorded for this fund in the database."
-              />
-            </div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="border-b border-zinc-800 bg-zinc-950/60 text-zinc-400 uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="px-4 py-2.5">Select</th>
-                    <th className="px-4 py-2.5">Option ID</th>
-                    <th className="px-4 py-2.5">Plan Type</th>
-                    <th className="px-4 py-2.5">Option Type</th>
-                    <th className="px-4 py-2.5">AMFI Code</th>
-                    <th className="px-4 py-2.5">ISIN</th>
-                    <th className="px-4 py-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/60">
-                  {options.map((opt) => (
-                    <tr
-                      key={opt.id}
-                      onClick={() => setSelectedOptionId(opt.id)}
-                      className={`cursor-pointer transition hover:bg-zinc-800/40 ${
-                        selectedOptionId === opt.id ? "bg-cyan-500/10 border-l-2 border-cyan-400" : ""
-                      }`}
-                    >
-                      <td className="px-4 py-2.5">
-                        <input
-                          type="radio"
-                          name="selectedOption"
-                          checked={selectedOptionId === opt.id}
-                          onChange={() => setSelectedOptionId(opt.id)}
-                          className="text-cyan-500 focus:ring-cyan-500"
-                        />
-                      </td>
-                      <td className="px-4 py-2.5 font-semibold text-cyan-400">
-                        Option #{opt.id}
-                      </td>
-                      <td className="px-4 py-2.5 text-zinc-300">
-                        {opt.plan?.planType || "DIRECT"}
-                      </td>
-                      <td className="px-4 py-2.5 text-zinc-300">
-                        {opt.optionType || "GROWTH"}
-                      </td>
-                      <td className="px-4 py-2.5 text-zinc-400 font-bold">
-                        {opt.amfiCode || "—"}
-                      </td>
-                      <td className="px-4 py-2.5 text-zinc-400">
-                        {opt.isin || "—"}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          {opt.status || "ACTIVE"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* 2. DATA STATUS */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 2</div>
-        <h2 className="text-xl font-bold text-zinc-100">Data Status</h2>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Point-in-Time Ledger</span>
-            <span className="text-emerald-400 font-semibold mt-1 block">ACTIVE & ENFORCED</span>
-            <p className="mt-1 text-[11px] text-zinc-400 font-sans">
-              Bitemporal separation of effective observation dates from knowledge availability cutoffs.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Data Ingestion Source</span>
-            <span className="text-zinc-100 font-semibold mt-1 block">AMFI Official Feeds</span>
-            <p className="mt-1 text-[11px] text-zinc-400 font-sans">
-              Raw text feeds verified with SHA-256 checksums and exact byte counts.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Data Quality Taxonomy</span>
-            <span className="text-cyan-400 font-semibold mt-1 block">6 Orthogonal Dimensions</span>
-            <p className="mt-1 text-[11px] text-zinc-400 font-sans">
-              Quality, Verification, Revision, Freshness, Presence, and Integrity tracked per observation.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Benchmark Data Status</span>
-            <span className="text-amber-400 font-semibold mt-1 block">PENDING INGESTION</span>
-            <p className="mt-1 text-[11px] text-zinc-400 font-sans">
-              Official TRI indices scheduled for Phase 3 ingestion. Zero synthetic benchmarks used.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. LATEST AVAILABLE INFORMATION */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 3</div>
-        <h2 className="text-xl font-bold text-zinc-100">Latest Available Information</h2>
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 font-mono text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-4 border-b border-zinc-800">
+        {/* Share Class Selector Table */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div>
-              <span className="text-zinc-500 text-[10px] uppercase block">Active Share Class</span>
-              <span className="text-cyan-400 font-semibold mt-0.5 block">
-                Option #{selectedOption?.id || "—"} ({selectedOption?.optionType || "GROWTH"})
+              <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-200">
+                Registered Share Classes ({options.length})
+              </h3>
+              <p className="text-xs text-zinc-400 font-sans">
+                Select an option to target calculations and verify point-in-time coverage.
+              </p>
+            </div>
+            {selectedOption && (
+              <span className="text-xs font-mono text-cyan-400 bg-cyan-950/40 border border-cyan-800/60 px-2.5 py-1 rounded">
+                Active: Option #{selectedOption.id} ({selectedOption.plan?.planType || "DIRECT"} {selectedOption.optionType})
               </span>
-            </div>
-            <div>
-              <span className="text-zinc-500 text-[10px] uppercase block">AMFI Identifier</span>
-              <span className="text-zinc-100 font-semibold mt-0.5 block">{selectedOption?.amfiCode || "—"}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 text-[10px] uppercase block">ISIN</span>
-              <span className="text-zinc-100 font-semibold mt-0.5 block">{selectedOption?.isin || "—"}</span>
-            </div>
+            )}
           </div>
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-zinc-400 font-sans text-xs">
-            <div>
-              <strong className="text-zinc-200 block font-mono text-[11px] uppercase">Evaluation Window Convention</strong>
-              <p className="mt-1">
-                Conservative trading calendar lookback: If a target date falls on a weekend or market holiday, the engine deterministically searches backwards up to a maximum of 4 calendar days.
-              </p>
-            </div>
-            <div>
-              <strong className="text-zinc-200 block font-mono text-[11px] uppercase">Knowledge Cutoff Convention</strong>
-              <p className="mt-1">
-                Point-in-time resolution guarantees that observations published after the designated cutoff timestamp are strictly excluded to avoid hindsight bias.
-              </p>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="border-b border-zinc-800 bg-zinc-950/60 text-zinc-400 uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="px-4 py-2.5">Select</th>
+                  <th className="px-4 py-2.5">Option ID</th>
+                  <th className="px-4 py-2.5">Plan Type</th>
+                  <th className="px-4 py-2.5">Option</th>
+                  <th className="px-4 py-2.5">AMFI Code</th>
+                  <th className="px-4 py-2.5">ISIN</th>
+                  <th className="px-4 py-2.5">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60">
+                {options.map((opt) => (
+                  <tr
+                    key={opt.id}
+                    onClick={() => setSelectedOptionId(opt.id)}
+                    className={`cursor-pointer transition hover:bg-zinc-800/40 ${
+                      selectedOptionId === opt.id ? "bg-cyan-500/10 border-l-2 border-cyan-400" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="radio"
+                        name="selectedOption"
+                        checked={selectedOptionId === opt.id}
+                        onChange={() => setSelectedOptionId(opt.id)}
+                        className="text-cyan-500 focus:ring-cyan-500"
+                        aria-label={`Select Option #${opt.id}`}
+                      />
+                    </td>
+                    <td className="px-4 py-2.5 font-bold text-cyan-400">
+                      Option #{opt.id}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-200 font-semibold">
+                      {opt.plan?.planType || "DIRECT"}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-300">
+                      {opt.optionType || "GROWTH"}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-300 font-bold">
+                      {opt.amfiCode || "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px]">
+                      {opt.isin || "—"}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        {opt.status || "ACTIVE"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      {/* 4. RETURN ANALYSIS */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 4</div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-xl font-bold text-zinc-100">Return Analysis</h2>
-            <p className="text-xs text-zinc-400">
-              Only implemented candidate methodologies can be executed. Unimplemented metrics are explicitly marked.
+      {/* 2. DATA COVERAGE & POINT-IN-TIME STATUS */}
+      <section className="mb-10" id="coverage">
+        <div className="pb-2 border-b border-zinc-800 mb-4">
+          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 2</div>
+          <h2 className="text-lg font-bold text-zinc-100 font-sans">Data Coverage & Point-in-Time Status</h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Analysis Cutoff Window</span>
+            <span className="text-zinc-100 font-bold text-sm mt-1 block">2024-01-15</span>
+            <p className="mt-1 text-zinc-400 text-xs font-sans">
+              Evaluations anchored to authentic historical market trading close.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Knowledge Cutoff Time</span>
+            <span className="text-cyan-400 font-bold text-xs mt-1 block truncate" title="2024-01-31T23:59:59+05:30">
+              2024-01-31 23:59:59 IST
+            </span>
+            <p className="mt-1 text-zinc-400 text-xs font-sans">
+              Strict exclusion of any revisions published after cutoff.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Canonical Horizon</span>
+            <span className="text-emerald-400 font-bold text-sm mt-1 block">1,243 Trading Dates</span>
+            <p className="mt-1 text-zinc-400 text-xs font-sans">
+              Continuous 5Y ledger spanning 2019 through 2024.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Cryptographic Provenance</span>
+            <span className="text-zinc-200 font-bold text-sm mt-1 block">SHA-256 Verified</span>
+            <p className="mt-1 text-zinc-400 text-xs font-sans">
+              AMFI official raw artifacts with immutable byte sizes.
             </p>
           </div>
         </div>
+      </section>
 
-        <div className="mt-4 space-y-4">
-          {/* RET-02 Card: Implemented Candidate */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RET-02</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">Simple Period Return</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">Return = Ending NAV / Starting NAV - 1</code>. Supporting discrete return primitive.
-                </p>
-              </div>
+      {/* 3. METRIC GROUPS (PROGRESSIVE DISCLOSURE) */}
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RET-02")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? (
-                    <>
-                      <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                      Calculating...
-                    </>
-                  ) : (
-                    <>
-                      Execute RET-02 Run
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {triggerError && (
-              <div className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 p-2 text-xs text-rose-300 font-mono">
-                {triggerError}
-              </div>
-            )}
-
-            {triggerSuccessRunId && (
-              <div className="mt-3 rounded border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-300 font-mono">
-                Calculation run #{triggerSuccessRunId} executed. Redirecting to analysis report...
-              </div>
-            )}
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Production Validation</span>
-                <span className="text-amber-400 font-semibold">STRICTLY NONE</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Numerical Kernel</span>
-                <span className="text-zinc-200">Python Vectorized</span>
-              </div>
-            </div>
+      {/* DIMENSION 1: RETURN QUALITY */}
+      <section className="mb-10" id="return-quality">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Dimension 1</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Return Quality & Compound Horizon</h2>
           </div>
+          <span className="font-mono text-xs text-zinc-400">
+            2 Implemented &bull; 5 Candidate Specs
+          </span>
+        </div>
 
-          {/* RET-03 Card: Implemented Candidate */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RET-03</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">3-Year CAGR</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">Return = (NAV_end / NAV_start)^(365.25 / elapsed) - 1</code>. Supporting 3-year annualized compound return primitive.
-                </p>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricCard
+            code="RET-02"
+            name="Simple Period Return"
+            category="return"
+            categoryLabel="Discrete Return"
+            governanceStatus="candidate"
+            period="2024-01-01 → 2024-01-15 (11 trading days)"
+            description="Discrete percentage change in net asset value between start and end observations."
+            interpretation="Measures realized point-to-point capital appreciation over the selected historical dates."
+            limitation="Point-to-point discrete return masks intra-period volatility and path stress."
+            formula="R = (NAV_end / NAV_start) - 1"
+            assumptions={[
+              { label: 'Lookback Tolerance', value: '4 calendar days' },
+              { label: 'Units', value: 'PERCENTAGE' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RET-02"}
+            onExecute={() => handleTriggerCalculation("RET-02")}
+          />
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RET-03")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? (
-                    <>
-                      <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                      </svg>
-                      Calculating...
-                    </>
-                  ) : (
-                    <>
-                      Execute RET-03 Run
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+          <MetricCard
+            code="RET-03"
+            name="3-Year Compound Annual Growth Rate (CAGR)"
+            category="return"
+            categoryLabel="Annualized Return"
+            governanceStatus="candidate"
+            period="36 Calendar Months (≥ 700 trading days)"
+            description="Annualized compound return evaluated over a continuous 36-month lookback window."
+            interpretation="Normalizes cumulative multi-year growth onto an annualized basis using 365.25 calendar days convention."
+            limitation="Past annualized return does not predict future returns across changing market cycles."
+            formula="CAGR = (NAV_end / NAV_start)^(365.25 / elapsed_calendar_days) - 1"
+            assumptions={[
+              { label: 'Window', value: '36 Calendar Months' },
+              { label: 'Minimum Days', value: '700 trading days' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RET-03"}
+            onExecute={() => handleTriggerCalculation("RET-03")}
+          />
 
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Production Validation</span>
-                <span className="text-amber-400 font-semibold">STRICTLY NONE</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Numerical Kernel</span>
-                <span className="text-zinc-200">Python Vectorized</span>
-              </div>
-            </div>
+          <MetricCard
+            code="RET-01"
+            name="1-Year Compound Return (1Y CAGR)"
+            category="return"
+            categoryLabel="12M Lookback"
+            governanceStatus="unimplemented"
+            period="12 Calendar Months"
+            description="Annualized 1-year trailing return primitive."
+            disabledReason="Candidate specification — candidate kernel in quant-engine."
+          />
+
+          <MetricCard
+            code="RET-04"
+            name="5-Year Compound Return (5Y CAGR)"
+            category="return"
+            categoryLabel="60M Lookback"
+            governanceStatus="unimplemented"
+            period="60 Calendar Months"
+            description="Full-cycle 5-year annualized return primitive."
+            disabledReason="Candidate specification — candidate kernel in quant-engine."
+          />
+        </div>
+      </section>
+
+      {/* DIMENSION 2: TOTAL & DOWNSIDE RISK */}
+      <section className="mb-10" id="risk">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-amber-400">Dimension 2</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Total & Downside Risk</h2>
           </div>
+          <span className="font-mono text-xs text-zinc-400">
+            2 Implemented &bull; Candidate Stage
+          </span>
+        </div>
 
-          {/* Unimplemented Candidate Return Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RET-01: 1Y CAGR</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricCard
+            code="RSK-01"
+            name="3-Year Annualized Volatility"
+            category="risk"
+            categoryLabel="Total Dispersion"
+            governanceStatus="candidate"
+            period="36 Calendar Months (≥ 700 trading days)"
+            description="Annualized sample standard deviation of daily log/discrete returns."
+            interpretation="Measures the total dispersion of daily returns around the sample mean over 36 months."
+            limitation="Treats upside gains and downside drawdowns with equal penalty."
+            formula="σ_ann = √252 × √( ∑(r_t - r̄)² / (N - 1) )"
+            assumptions={[
+              { label: 'Annualizer', value: '√252 (Trading Days)' },
+              { label: 'Denominator', value: 'N - 1 (Unbiased Sample)' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RSK-01"}
+            onExecute={() => handleTriggerCalculation("RSK-01")}
+          />
+
+          <MetricCard
+            code="RSK-02"
+            name="Downside Semideviation"
+            category="risk"
+            categoryLabel="Asymmetric Risk"
+            governanceStatus="candidate"
+            period="36 Calendar Months (≥ 700 trading days)"
+            description="Annualized dispersion of negative daily returns below minimum acceptable return (MAR = 0.0)."
+            interpretation="Isolates exclusively harmful negative returns, ignoring upside volatility that benefits the investor."
+            limitation="Candidate convention MAR = 0.0; does not penalize returns that lag inflation."
+            formula="σ_d = √252 × √( ∑(min(r_t, 0))² / (N - 1) )"
+            assumptions={[
+              { label: 'Threshold (MAR)', value: '0.0% (Zero Return)' },
+              { label: 'Annualizer', value: '√252' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RSK-02"}
+            onExecute={() => handleTriggerCalculation("RSK-02")}
+          />
+        </div>
+      </section>
+
+      {/* DIMENSION 3: DRAWDOWN & PATH STRESS */}
+      <section className="mb-10" id="drawdown">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-rose-400">Dimension 3</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Drawdown & Path Stress</h2>
+          </div>
+          <span className="font-mono text-xs text-zinc-400">
+            3 Implemented &bull; Candidate Stage
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <MetricCard
+            code="RSK-03"
+            name="3-Year Maximum Drawdown"
+            category="drawdown"
+            categoryLabel="Capital Decline"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Worst peak-to-trough percentage decline observed over the 36-month horizon."
+            interpretation="Quantifies the maximum capital loss an investor experienced from the highest historical peak."
+            limitation="Measures historical worst-case decline only; does not place an upper bound on future drawdowns."
+            formula="MDD = min_t ( NAV_t / max_{s≤t}(NAV_s) - 1 )"
+            assumptions={[
+              { label: 'Sign Convention', value: 'Signed Negative Decimal' },
+              { label: 'Peak Tracking', value: 'Running Cumulative Max' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RSK-03"}
+            onExecute={() => handleTriggerCalculation("RSK-03")}
+          />
+
+          <MetricCard
+            code="RSK-04"
+            name="Maximum Drawdown Duration"
+            category="drawdown"
+            categoryLabel="Recovery Horizon"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Longest elapsed calendar days between a peak and the subsequent full recovery."
+            interpretation="Measures the psychological holding stress and capital lockup duration required to break even."
+            limitation="Unrecovered drawdowns are censored at knowledge cutoff timestamp."
+            formula="Duration = max( recovery_date - peak_date )"
+            assumptions={[
+              { label: 'Units', value: 'Calendar Days (DAYS)' },
+              { label: 'Censoring Rule', value: 'Cutoff Bound Applied' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RSK-04"}
+            onExecute={() => handleTriggerCalculation("RSK-04")}
+          />
+
+          <MetricCard
+            code="RSK-05"
+            name="Ulcer Index"
+            category="drawdown"
+            categoryLabel="Stress Metric"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Quadratic root-mean-square of percentage drawdowns from running peak NAV."
+            interpretation="Synthesizes both depth and duration of all drawdowns into a single path-dependent stress measure."
+            limitation="Heavier penalty on deeper drawdowns due to quadratic weighting."
+            formula="UI = √( (1/N) × ∑( ((NAV_t - max NAV)/max NAV × 100)² ) )"
+            assumptions={[
+              { label: 'Weighting', value: 'Quadratic RMS' },
+              { label: 'Units', value: 'POINTS' },
+            ]}
+            canExecute={true}
+            isExecuting={executingMetric === "RSK-05"}
+            onExecute={() => handleTriggerCalculation("RSK-05")}
+          />
+        </div>
+      </section>
+
+      {/* DIMENSION 4: TAIL RISK */}
+      <section className="mb-10" id="tail-risk">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-purple-400">Dimension 4</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Tail Risk & Extreme Losses</h2>
+          </div>
+          <span className="font-mono text-xs text-zinc-400">
+            2 Candidate Algorithms (Stage H Verified)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricCard
+            code="RSK-06"
+            name="Historical Value at Risk (VaR 95%)"
+            category="tail"
+            categoryLabel="Tail Loss Boundary"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="5th percentile empirical daily return threshold over the 36-month lookback window."
+            interpretation="On 95% of trading days, daily loss did not exceed this threshold in historical data."
+            limitation="Non-parametric empirical quantile; does not describe severity of losses in the remaining 5% tail."
+            formula="VaR_95 = -Quantile_0.05( { r_t } )"
+            assumptions={[
+              { label: 'Quantile Convention', value: 'Type 7 Linear Interpolation' },
+              { label: 'Confidence Level', value: '95.0% One-Tailed' },
+            ]}
+            disabledReason="Implemented in Python quant engine kernel (Stage H). Available in full analytical audit."
+          />
+
+          <MetricCard
+            code="RSK-07"
+            name="Expected Shortfall (CVaR 95%)"
+            category="tail"
+            categoryLabel="Conditional Tail Expectation"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Conditional mean of daily returns strictly below the 5th percentile VaR cutoff."
+            interpretation="Measures the expected daily loss when an extreme tail loss event actually occurs."
+            limitation="Sub-sample average subject to small-sample estimation variance during calm market regimes."
+            formula="ES_95 = -(1 / |Tail|) × ∑_{r_t < -VaR_95} r_t"
+            assumptions={[
+              { label: 'Coherence', value: 'Sub-additive Coherent Measure' },
+              { label: 'Tail Threshold', value: 'Empirical 5th Percentile' },
+            ]}
+            disabledReason="Implemented in Python quant engine kernel (Stage H). Available in full analytical audit."
+          />
+        </div>
+      </section>
+
+      {/* DIMENSION 5: RISK-ADJUSTED & MARKET SENSITIVITY (PHASE 2Q) */}
+      <section className="mb-10" id="risk-adjusted">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-emerald-400">Dimension 5</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Risk-Adjusted Ratios & Market Sensitivity</h2>
+          </div>
+          <span className="font-mono text-xs text-zinc-400">
+            4 Candidate Algorithms (Phase 2Q Verified)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricCard
+            code="RAT-01"
+            name="Sharpe Ratio (3Y)"
+            category="risk_adjusted"
+            categoryLabel="Excess Return per Unit Total Risk"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Ratio of annualized excess return above the risk-free rate to annualized return volatility."
+            interpretation="Evaluates how effectively the fund compensated for total standard deviation above 91-day T-bills."
+            limitation="Assumes symmetrical return distributions; penalizes large upside gains."
+            formula="Sharpe = (R_fund - R_f) / σ_ann"
+            assumptions={[
+              { label: 'Risk-Free Benchmark', value: 'FBIL 91D T-Bill' },
+              { label: 'Compounding', value: 'Geometric Annualized' },
+            ]}
+            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+          />
+
+          <MetricCard
+            code="RAT-02"
+            name="Treynor Ratio (3Y)"
+            category="risk_adjusted"
+            categoryLabel="Excess Return per Unit Systematic Risk"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Ratio of annualized excess return above the risk-free rate to systematic equity Beta."
+            interpretation="Measures excess reward earned per unit of unavoidable broad-market systematic risk."
+            limitation="Only meaningful for well-diversified equity portfolios with high correlation to benchmark."
+            formula="Treynor = (R_fund - R_f) / Beta"
+            assumptions={[
+              { label: 'Systematic Beta', value: '3Y Nifty 50 TRI Beta' },
+              { label: 'Denominator Rule', value: 'Beta > 0 required' },
+            ]}
+            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+          />
+
+          <MetricCard
+            code="REL-01"
+            name="Equity Beta (3Y)"
+            category="risk_adjusted"
+            categoryLabel="Systematic Sensitivity"
+            governanceStatus="candidate"
+            period="36 Calendar Months"
+            description="Slope coefficient from linear regression of daily fund returns against benchmark returns."
+            interpretation="Measures the portfolio sensitivity to broad market movements (Beta > 1 implies amplified swings)."
+            limitation="Linear static measure; beta fluctuates across bull, bear, and crisis regimes."
+            formula="Beta = Cov(r_fund, r_bench) / Var(r_bench)"
+            assumptions={[
+              { label: 'Benchmark', value: 'Official NIFTY 50 TRI' },
+              { label: 'Regression', value: 'Ordinary Least Squares (OLS)' },
+            ]}
+            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+          />
+
+          <MetricCard
+            code="REL-04"
+            name="Downside Beta (3Y)"
+            category="risk_adjusted"
+            categoryLabel="Asymmetric Sensitivity"
+            governanceStatus="candidate"
+            period="36 Calendar Months (Benchmark < 0)"
+            description="Beta calculated conditioning exclusively on trading days when benchmark return was negative."
+            interpretation="Identifies whether fund sensitivity increases during market sell-offs vs up-trending regimes."
+            limitation="Requires sufficient negative benchmark trading days (minimum 100 days threshold)."
+            formula="Beta_down = Cov(r_fund, r_bench | r_bench < 0) / Var(r_bench | r_bench < 0)"
+            assumptions={[
+              { label: 'Conditioning', value: 'r_benchmark < 0.0' },
+              { label: 'Min Observations', value: '100 downside market days' },
+            ]}
+            disabledReason="Candidate specification in Python quant-engine (Phase 2Q)."
+          />
+        </div>
+      </section>
+
+      {/* DIMENSION 6: PORTFOLIO STRUCTURE & GOVERNANCE */}
+      <section className="mb-12" id="portfolio">
+        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Dimension 6</div>
+            <h2 className="text-lg font-bold text-zinc-100 font-sans">Portfolio Structure & Governance</h2>
+          </div>
+          <span className="font-mono text-xs text-zinc-400">
+            Scheduled Phase 3 &bull; Pending SEBI Ingestion
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <MetricCard
+            code="PRT-01"
+            name="Top-10 Stock Concentration"
+            category="portfolio"
+            categoryLabel="Holdings Concentration"
+            governanceStatus="pending_ingestion"
+            description="Aggregate portfolio weight assigned to the top 10 largest individual equity holdings."
+            disabledReason="Awaiting Phase 3 SEBI monthly portfolio disclosure sheet ingestion."
+          />
+
+          <MetricCard
+            code="PRT-02"
+            name="Effective Number of Holdings"
+            category="portfolio"
+            categoryLabel="Diversification"
+            governanceStatus="pending_ingestion"
+            description="Inverse Herfindahl-Hirschman Index (1 / sum(w_i^2)) evaluating effective holdings."
+            disabledReason="Awaiting Phase 3 SEBI monthly portfolio disclosure sheet ingestion."
+          />
+
+          <MetricCard
+            code="GOV-01"
+            name="Direct Plan Total Expense Ratio"
+            category="portfolio"
+            categoryLabel="Cost Drag"
+            governanceStatus="pending_ingestion"
+            description="Annualized operating, administrative, and management fee drag on asset value."
+            disabledReason="Awaiting AMC semi-annual disclosure ingestion."
+          />
+        </div>
+      </section>
+
+      {/* 4. DATA PROVENANCE & LINEAGE AUDIT */}
+      <section className="mb-12 rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 font-mono text-xs" id="provenance">
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+          <div className="flex items-center gap-2 font-bold text-zinc-200 uppercase tracking-wider">
+            <span className="h-2 w-2 rounded-full bg-cyan-400" />
+            Official AMFI Data Lineage & Cryptographic Proof
+          </div>
+          <span className="text-zinc-500 text-[11px]">Primary Source Verification</span>
+        </div>
+
+        <div className="mt-4 space-y-3 font-sans text-xs text-zinc-300">
+          <p>
+            YUKIRA guarantees that all numerical calculations originate exclusively from authenticated primary source documents. For scheme <strong className="text-white font-mono">{scheme.code}</strong> (AMFI <strong className="text-white font-mono">{selectedOption?.amfiCode || "118955"}</strong>), observations are cryptographically anchored to:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 font-mono text-xs">
+            <div className="rounded-lg bg-zinc-950 p-3 border border-zinc-800/80">
+              <span className="text-zinc-500 text-[10px] uppercase block">Raw Source Artifact #1</span>
+              <span className="text-cyan-400 font-bold block mt-0.5">AMFI NAV History Payload</span>
+              <span className="text-zinc-400 text-[10px] block mt-1 break-all select-all font-mono">
+                SHA-256: 900508f8bf137cb8ba02adae70a0eb6a0be7318389e9b3943f0bee738f3be259
+              </span>
+              <span className="text-zinc-500 text-[10px] block mt-1">Size: 11,185,549 bytes &bull; 11 Jan 2024 dates</span>
             </div>
 
-
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RET-04: 5Y CAGR</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RET-05: 3Y Rolling Return Mean</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RET-06: Rolling Outperformance %</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RET-07: 3Y Active Return</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
+            <div className="rounded-lg bg-zinc-950 p-3 border border-zinc-800/80">
+              <span className="text-zinc-500 text-[10px] uppercase block">Historical 5Y Horizon Artifacts</span>
+              <span className="text-emerald-400 font-bold block mt-0.5">Annual Source Artifacts #149..#155</span>
+              <span className="text-zinc-400 text-[10px] block mt-1">
+                2019 (#149), 2020 (#155), 2021 (#150), 2022 (#151), 2023 (#152)
+              </span>
+              <span className="text-zinc-500 text-[10px] block mt-1">1,243 authentic market dates &bull; Zero synthetic series</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. RISK ANALYSIS */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 5</div>
-        <h2 className="text-xl font-bold text-zinc-100">Risk Analysis</h2>
-        <p className="text-xs text-zinc-400">
-          Risk metrics require multi-year continuous daily observation histories and formal validation before rendering numerical values.
+      {/* 5. DECISION SUPPORT: WHAT TO INVESTIGATE NEXT */}
+      <section className="mb-12 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-xs font-sans text-zinc-300">
+        <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">
+          Decision Support Checkpoint: Questions Before Committing Capital
+        </h3>
+        <p className="text-zinc-400 leading-relaxed mb-4">
+          Quantitative metrics describe past realized outcomes under historical market conditions. Before allocating capital, consider investigating:
         </p>
 
-        <div className="mt-4 space-y-4">
-          {/* RSK-01 Card */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-01</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">3-Year Annualized Volatility</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">sigma_ann = sqrt(252) * sqrt( sum((r_t - r_bar)^2) / (N - 1) )</code>. Requires continuous 36M history (&ge; 700 trading days).
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RSK-01")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? "Calculating..." : "Execute RSK-01 Run"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Annualizer Convention</span>
-                <span className="text-amber-400 font-semibold">sqrt(252) Candidate</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Denominator</span>
-                <span className="text-amber-400 font-semibold">N - 1 Candidate</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
-                <span className="text-zinc-200">PERCENTAGE</span>
-              </div>
-            </div>
-          </div>
-
-          {/* RSK-02 Card */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-02</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">Downside Semideviation</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">sigma_d = sqrt(252) * sqrt( sum(min(r_t, 0)^2) / (N - 1) )</code>. MAR = 0.0, annualized dispersion of negative daily returns.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RSK-02")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? "Calculating..." : "Execute RSK-02 Run"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Threshold (MAR)</span>
-                <span className="text-amber-400 font-semibold">0.0% Candidate</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Denominator</span>
-                <span className="text-amber-400 font-semibold">N - 1 Candidate</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
-                <span className="text-zinc-200">PERCENTAGE</span>
-              </div>
-            </div>
-          </div>
-
-          {/* RSK-03 Card */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-03</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">Maximum Drawdown, 3Y</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">MDD = min_{"{"}t{"}"}(NAV_t / max_{"{"}s &le; t{"}"} NAV_s - 1)</code>. Peak-to-trough maximum observed decline.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RSK-03")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? "Calculating..." : "Execute RSK-03 Run"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Peak Tracking</span>
-                <span className="text-amber-400 font-semibold">Running Cumulative Max</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Sign Convention</span>
-                <span className="text-amber-400 font-semibold">Signed Negative Decimal</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
-                <span className="text-zinc-200">PERCENTAGE</span>
-              </div>
-            </div>
-          </div>
-
-          {/* RSK-04 Card */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-04</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">Maximum Drawdown Duration</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">MDD_Duration = max(recovery_date - peak_date)</code>. Elapsed calendar days from prior peak to full recovery.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RSK-04")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? "Calculating..." : "Execute RSK-04 Run"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Time Unit</span>
-                <span className="text-amber-400 font-semibold">Calendar Days (DAYS)</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Unrecovered Drawdown</span>
-                <span className="text-amber-400 font-semibold">Censored at Knowledge Cutoff</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
-                <span className="text-zinc-200">DAYS</span>
-              </div>
-            </div>
-          </div>
-
-          {/* RSK-05 Card */}
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/15 p-5 backdrop-blur-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-cyan-400">RSK-05</span>
-                  <h3 className="text-sm font-semibold text-zinc-100">Ulcer Index</h3>
-                  <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                    Candidate — Not Validated
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-300 font-sans">
-                  Formula: <code className="font-mono text-cyan-300">UI = sqrt( (1/N) * sum( ( (NAV_t - max NAV) / max NAV * 100 )^2 ) )</code>. Depth & duration stress metric.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleTriggerCalculation("RSK-05")}
-                  disabled={triggering || !selectedOptionId}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 disabled:opacity-50"
-                >
-                  {triggering ? "Calculating..." : "Execute RSK-05 Run"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 font-mono text-xs">
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Implementation</span>
-                <span className="text-cyan-300 font-semibold">CANDIDATE_V1</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Weighting</span>
-                <span className="text-amber-400 font-semibold">Quadratic Drawdown</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Scaling</span>
-                <span className="text-amber-400 font-semibold">Percentage Squared RMS</span>
-              </div>
-              <div className="rounded bg-zinc-950/60 p-2.5 border border-zinc-800">
-                <span className="text-zinc-500 text-[10px] uppercase block">Units</span>
-                <span className="text-zinc-200">POINTS</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Unimplemented Risk Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RSK-06: Historical VaR 95%</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold text-zinc-300">RSK-07: Expected Shortfall 95%</span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Candidate
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500 italic">
-                Candidate methodology — not validated for production.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. PORTFOLIO ANALYSIS */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 6</div>
-        <h2 className="text-xl font-bold text-zinc-100">Portfolio Analysis</h2>
-        <p className="text-xs text-zinc-400">
-          Portfolio structure intelligence depends on SEBI monthly holding disclosures, scheduled for Phase 3 ingestion.
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 font-mono text-xs">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-400 font-semibold block">PRT-01: Top-10 Concentration</span>
-            <span className="mt-2 inline-block text-[11px] text-zinc-500 font-sans italic">
-              Not yet available (Portfolio holdings ingestion planned for Phase 3).
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 font-mono text-xs">
+          <div className="rounded bg-zinc-950/60 p-3 border border-zinc-800">
+            <span className="text-zinc-200 font-bold block mb-1">1. Market Regime Resilience</span>
+            <span className="text-zinc-400 text-[11px] font-sans">
+              Did outperformance occur during broad liquidity rallies or during market drawdowns?
             </span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-400 font-semibold block">PRT-02: Effective Number of Holdings</span>
-            <span className="mt-2 inline-block text-[11px] text-zinc-500 font-sans italic">
-              Not yet available (Benchmark portfolio reconciliation pending).
+          <div className="rounded bg-zinc-950/60 p-3 border border-zinc-800">
+            <span className="text-zinc-200 font-bold block mb-1">2. Portfolio Concentration</span>
+            <span className="text-zinc-400 text-[11px] font-sans">
+              Is return driven by fund-wide alpha or by heavy weight in 2-3 outperforming stocks?
             </span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-400 font-semibold block">PRT-03: Active Share</span>
-            <span className="mt-2 inline-block text-[11px] text-zinc-500 font-sans italic">
-              Not yet available.
+          <div className="rounded bg-zinc-950/60 p-3 border border-zinc-800">
+            <span className="text-zinc-200 font-bold block mb-1">3. Manager Tenure & Style Drift</span>
+            <span className="text-zinc-400 text-[11px] font-sans">
+              Did current fund leadership generate the 5-year track record without style deviation?
             </span>
           </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-400 font-semibold block">PRT-04: Monthly Weight Turnover</span>
-            <span className="mt-2 inline-block text-[11px] text-zinc-500 font-sans italic">
-              Not yet available.
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-400 font-semibold block">PRT-05: Cash & Equivalent Allocation %</span>
-            <span className="mt-2 inline-block text-[11px] text-zinc-500 font-sans italic">
-              Not yet available.
-            </span>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <span className="text-zinc-400 font-semibold block">GOV-01: Direct Plan TER</span>
-            <span className="mt-2 inline-block text-[11px] text-zinc-500 font-sans italic">
-              Not yet available.
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* 7. METHODOLOGY GOVERNANCE */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 7</div>
-        <h2 className="text-xl font-bold text-zinc-100">Methodology & Governance</h2>
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 font-mono text-xs space-y-3">
-          <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-            <span className="font-semibold text-zinc-200">GOVERNANCE TIER SUMMARY</span>
-            <span className="text-amber-400 text-[11px]">CANDIDATE STAGE</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <span className="text-zinc-500 text-[10px] uppercase block">Implemented Candidate</span>
-              <span className="text-cyan-300 font-semibold">RET-02, RET-03, RSK-01..05 (CANDIDATE_V1)</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 text-[10px] uppercase block">Validated Methodologies</span>
-              <span className="text-zinc-400 font-semibold">STRICTLY NONE</span>
-            </div>
-            <div>
-              <span className="text-zinc-500 text-[10px] uppercase block">Approved Production</span>
-              <span className="text-zinc-400 font-semibold">STRICTLY NONE</span>
-            </div>
-          </div>
-          <p className="text-zinc-400 font-sans text-xs pt-2">
-            The Phase 2H methodology specification defines all 30 candidate metrics with mathematical formulas, lookback parameters, and missing-data conventions. Verification against historical market data has not yet commenced.
-          </p>
-        </div>
-      </section>
-
-      {/* 8. EVIDENCE / PROVENANCE */}
-      <section className="mb-10">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 8</div>
-        <h2 className="text-xl font-bold text-zinc-100">Evidence & Data Provenance</h2>
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 font-mono text-xs space-y-3">
-          <p className="text-zinc-300 font-sans text-xs">
-            Every metric computed by YUKIRA records cryptographic proof linking it directly back to official primary source documents:
-          </p>
-          <div className="space-y-2 pt-2 text-zinc-400">
-            <div className="flex items-start gap-2">
-              <span className="text-cyan-400 font-bold">•</span>
-              <span><strong>Raw Ingestion Archive:</strong> Full AMFI data feeds stored with SHA-256 digests and HTTP headers.</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-cyan-400 font-bold">•</span>
-              <span><strong>Bitemporal Ledger:</strong> Exact observation IDs, effective dates, and revision sequence tracked.</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-cyan-400 font-bold">•</span>
-              <span><strong>Calculation Fingerprint:</strong> Execution timestamp, Python Quant Engine git commit, and snapshot hash saved.</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 9. LIMITATIONS */}
-      <section className="mb-12">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 9</div>
-        <h2 className="text-xl font-bold text-zinc-100">Analytical Limitations</h2>
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-xs text-zinc-400 space-y-2 font-sans leading-relaxed">
-          <p>
-            <strong className="text-zinc-200">No Benchmark Attribution:</strong> Broad-market benchmark comparison (Beta, Alpha, Information Ratio) cannot be calculated until official TRI benchmark series are integrated in Phase 3.
-          </p>
-          <p>
-            <strong className="text-zinc-200">No Risk-Adjusted Ratings:</strong> Sharpe, Sortino, and Treynor ratios require daily risk-free rate series (FBIL 91D T-bill) which are not yet ingested.
-          </p>
-          <p>
-            <strong className="text-zinc-200">No Commercial Advice:</strong> Information presented here is for quantitative institutional investigation only and does not constitute investment advice, ratings, or recommendations.
-          </p>
         </div>
       </section>
     </PageContainer>

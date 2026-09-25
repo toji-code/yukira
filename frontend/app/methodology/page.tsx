@@ -38,27 +38,27 @@ export default function MethodologyPage() {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-lg border border-cyan-500/30 bg-cyan-950/20 p-3.5">
-            <span className="text-zinc-500 text-[10px] uppercase block">Implemented Candidate</span>
-            <span className="text-cyan-300 font-bold text-sm mt-1 block">RET-02 Simple Return</span>
-            <span className="text-[10px] text-zinc-400 mt-1 block">Supporting primitive only</span>
+            <span className="text-zinc-500 text-[10px] uppercase block">Implemented Candidates</span>
+            <span className="text-cyan-300 font-bold text-sm mt-1 block">13 Analytical Slices</span>
+            <span className="text-[10px] text-zinc-400 mt-1 block">RET-02/03, RSK-01..07, RAT-01/02, REL-01/04</span>
+          </div>
+
+          <div className="rounded-lg border border-blue-500/30 bg-blue-950/20 p-3.5">
+            <span className="text-zinc-500 text-[10px] uppercase block">Phase 2N Approved</span>
+            <span className="text-blue-300 font-bold text-sm mt-1 block">5 Methodologies</span>
+            <span className="text-[10px] text-zinc-400 mt-1 block">M2N-01, M2N-02, M2N-05, M2N-06, M2N-07</span>
+          </div>
+
+          <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3.5">
+            <span className="text-zinc-500 text-[10px] uppercase block">Phase 2N Deferred</span>
+            <span className="text-amber-400 font-bold text-sm mt-1 block">4 Methodologies</span>
+            <span className="text-[10px] text-zinc-400 mt-1 block">M2N-03, M2N-04, M2N-08, M2N-09</span>
           </div>
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5">
-            <span className="text-zinc-500 text-[10px] uppercase block">Validated Methodologies</span>
-            <span className="text-amber-400 font-bold text-sm mt-1 block">STRICTLY NONE</span>
-            <span className="text-[10px] text-zinc-400 mt-1 block">Regime testing pending</span>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5">
-            <span className="text-zinc-500 text-[10px] uppercase block">Approved Production</span>
+            <span className="text-zinc-500 text-[10px] uppercase block">Commercial Advice</span>
             <span className="text-zinc-400 font-bold text-sm mt-1 block">STRICTLY NONE</span>
-            <span className="text-[10px] text-zinc-400 mt-1 block">Zero production approvals</span>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5">
-            <span className="text-zinc-500 text-[10px] uppercase block">Empirical Findings</span>
-            <span className="text-zinc-400 font-bold text-sm mt-1 block">EXACTLY ZERO</span>
-            <span className="text-[10px] text-zinc-400 mt-1 block">No claims without proof</span>
+            <span className="text-[10px] text-zinc-400 mt-1 block">Zero star ratings &bull; Zero tips</span>
           </div>
         </div>
       </div>
@@ -76,10 +76,10 @@ export default function MethodologyPage() {
             </div>
             <h3 className="mt-2 text-base font-semibold text-zinc-100">Executable Code</h3>
             <p className="mt-2 text-xs leading-relaxed text-zinc-300">
-              The algorithm is implemented in the Python Quantitative Engine and wired into the Spring Boot calculation orchestrator. Given valid point-in-time input observations, it produces deterministic, reproducible numbers.
+              The algorithm is implemented in the Python Quantitative Engine and verified against deterministic unit tests. Given valid point-in-time input observations, it produces verifiable numbers.
             </p>
             <div className="mt-4 border-t border-blue-500/20 pt-3 text-[11px] font-mono text-blue-300">
-              Current: RET-02 Simple Period Return
+              Current: 13 Candidate Slices Executable
             </div>
           </div>
 
@@ -90,10 +90,10 @@ export default function MethodologyPage() {
             </div>
             <h3 className="mt-2 text-base font-semibold text-zinc-100">Empirical Verification</h3>
             <p className="mt-2 text-xs leading-relaxed text-zinc-300">
-              The methodology has been tested against multi-year historical data across bull, bear, and sideways regimes; reconciled against independent institutional vendor datasets; and verified for statistical soundness and missing-data resilience.
+              The methodology has been tested against multi-year historical data across bull, bear, and sideways regimes; reconciled against independent institutional vendor datasets; and verified for statistical soundness.
             </p>
             <div className="mt-4 border-t border-amber-500/20 pt-3 text-[11px] font-mono text-amber-300">
-              Current: Zero methodologies validated
+              Current: Empirical Regime Stress Testing
             </div>
           </div>
 
@@ -102,12 +102,12 @@ export default function MethodologyPage() {
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
               Tier 3: Approved
             </div>
-            <h3 className="mt-2 text-base font-semibold text-zinc-100">Production Authorization</h3>
+            <h3 className="mt-2 text-base font-semibold text-zinc-100">Governance Authorization</h3>
             <p className="mt-2 text-xs leading-relaxed text-zinc-300">
-              Formally approved by the methodology review board for live investor decision support. Bound to production SLA and monitoring requirements.
+              Formally approved by governance review for production decision support. Five foundational methodology standards approved in Phase 2N.
             </p>
             <div className="mt-4 border-t border-emerald-500/20 pt-3 text-[11px] font-mono text-emerald-300">
-              Current: Zero methodologies approved
+              Current: 5 Approved Methodologies (Phase 2N)
             </div>
           </div>
         </div>

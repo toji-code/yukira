@@ -1,11 +1,13 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { StateView } from "@/components/epistemic/StateView";
 import { MethodologyBadge } from "@/components/epistemic/MethodologyBadge";
 import { DataQualityBadge } from "@/components/epistemic/DataQualityBadge";
+import { EpistemicBanner } from "@/components/epistemic/EpistemicBanner";
 import { ProgressiveDisclosure } from "@/components/disclosure/ProgressiveDisclosure";
 import { MetricValueDisplay } from "@/components/primitives/MetricValueDisplay";
 import { fetchAnalysis, executeAnalysis } from "@/lib/api/analysis";
@@ -25,7 +27,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Parameterized run state
+  // Parameterized run launcher state
   const [showParamPanel, setShowParamPanel] = useState(false);
   const [customStartDate, setCustomStartDate] = useState("2024-01-01");
   const [customEndDate, setCustomEndDate] = useState("2024-01-15");
@@ -113,11 +115,11 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <PageContainer title="Quantitative Analysis">
+      <PageContainer title="Quantitative Analysis Workspace">
         <StateView
           kind="loading"
           title="Retrieving Authoritative Quantitative Audit"
-          message={`Fetching calculation run #${runId} and authoritative audit manifest from backend...`}
+          message={`Fetching calculation run #${runId} and cryptographic audit manifest from backend...`}
         />
       </PageContainer>
     );
@@ -133,9 +135,9 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
           action={
             <button
               onClick={reloadAnalysis}
-              className="inline-flex rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700"
+              className="inline-flex rounded-md bg-zinc-800 px-3.5 py-2 text-xs font-mono font-medium text-zinc-200 hover:bg-zinc-700"
             >
-              Try Again
+              Retry Retrieval
             </button>
           }
         />
@@ -149,74 +151,94 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
   const hasWindow = Boolean(data.window);
   const rskMethodology = isRiskMetric ? (data.methodology as { annualizationConvention?: string; denominatorConvention?: string }) : null;
 
-  const getMetricDescription = (code: string): string => {
+  const getMetricInterpretation = (code: string): string => {
     switch (code) {
       case "RSK-01":
-        return "Authoritative 3-year annualized standard deviation of daily returns: sqrt(252) * sqrt(sum((r_t - r_bar)^2)/(N-1)). Realized historical dispersion only; zero predictive forecast.";
+        return "Annualized standard deviation of daily returns: measures total historical return dispersion around the sample mean. Treats upside gains and downside drawdowns with equal mathematical penalty.";
       case "RSK-02":
-        return "Authoritative downside semideviation (MAR = 0.0): sqrt(252) * sqrt(sum(min(r_t, 0)^2)/(N-1)). Annualized dispersion of negative returns only; zero predictive forecast.";
+        return "Annualized downside semideviation: measures dispersion strictly among negative trading days below zero return (MAR = 0.0). Isolates asymmetric downside volatility.";
       case "RSK-03":
-        return "Authoritative 3-year maximum drawdown: peak-to-trough maximum observed decline from running cumulative peak NAV. Realized historical decline only.";
+        return "3-Year maximum drawdown: peak-to-trough worst observed decline from cumulative running peak NAV. Realized historical capital impairment only.";
       case "RSK-04":
-        return "Authoritative maximum drawdown duration: longest elapsed calendar days between prior peak and subsequent recovery. Realized historical duration only.";
+        return "Maximum drawdown duration: longest calendar days between a peak and subsequent full recovery to prior high.";
       case "RSK-05":
-        return "Authoritative Ulcer Index: quadratic root-mean-square of percentage drawdowns from running peak NAV. Realized historical depth and duration stress metric.";
+        return "Ulcer Index: quadratic root-mean-square of percentage drawdowns from running peak NAV. Evaluates compound holding stress (depth × duration).";
       case "RET-03":
-        return "Authoritative 3-year CAGR: (NAV_end / NAV_start)^(365.25 / elapsed_calendar_days) - 1. Realized historical compound growth only.";
+        return "3-Year CAGR: compound annualized growth rate normalized across 36 calendar months using 365.25 calendar days per year convention.";
       case "RET-02":
       default:
-        return "Authoritative discrete period return: (NAV_end - NAV_start) / NAV_start. Deterministic quantitative engine result.";
+        return "Discrete period return: percentage capital appreciation between start and end net asset value observations.";
     }
+  };
+
+  const getMetricLimitation = (code: string): string => {
+    switch (code) {
+      case "RSK-01":
+        return "Candidate methodology (CANDIDATE_V1). Assumes stationary √252 trading-day annualizer and N-1 denominator. Past realized volatility does not forecast future volatility.";
+      case "RSK-02":
+        return "Candidate methodology (CANDIDATE_V1). MAR set to 0.0% (does not account for inflation or hurdle rate). Realized downside volatility only.";
+      case "RSK-03":
+        return "Candidate methodology (CANDIDATE_V1). Historical worst-case decline does not guarantee a floor on future market cycle drawdowns.";
+      case "RSK-04":
+        return "Candidate methodology (CANDIDATE_V1). Unrecovered drawdowns are strictly censored as of knowledge cutoff timestamp.";
+      case "RSK-05":
+        return "Candidate methodology (CANDIDATE_V1). Quadratic weighting penalizes deep drawdowns more heavily than shallow ones.";
+      case "RET-03":
+        return "Candidate methodology (CANDIDATE_V1). Point-to-point annualized CAGR masks multi-month intermediate drawdowns and volatility.";
+      case "RET-02":
+      default:
+        return "Candidate methodology (CANDIDATE_V1). Discrete period return only; unvalidated for live investor decision support.";
+    }
+  };
+
+  const getMetricObservation = (code: string): string => {
+    if (!isCalculated || data.result.numericValue === null || data.result.numericValue === undefined) {
+      return `Metric ${code} status: ${data.result.calculationStatus}. ${data.result.errorMessage || "Minimum observation threshold not met."}`;
+    }
+
+    if (code === "RSK-04") {
+      return `${code} ${data.result.metricName}: ${data.result.numericValue} calendar days elapsed.`;
+    }
+
+    if (code === "RSK-05") {
+      return `${code} ${data.result.metricName}: ${Number(data.result.numericValue).toFixed(2)} points.`;
+    }
+
+    return `${code} ${data.result.metricName}: ${(Number(data.result.numericValue) * 100).toFixed(2)}% (${data.result.numericValue}).`;
   };
 
   return (
     <PageContainer
       title={`Analysis Run #${data.provenance.calculationRunId}`}
-      subtitle={`${data.identity.schemeName} — Option #${data.identity.schemeOptionId || "—"} (${data.identity.optionType})`}
+      subtitle={`${data.identity.schemeName} • Option #${data.identity.schemeOptionId || "—"} (${data.identity.optionType})`}
       breadcrumbs={[
+        { label: "Home", href: "/" },
         { label: "Funds", href: "/funds" },
         { label: `Run #${data.provenance.calculationRunId}`, href: `/analysis/${data.provenance.calculationRunId}` },
       ]}
+      action={
+        <Link
+          href={`/funds/${data.identity.schemeOptionId || 1}`}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-mono text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Fund Detail Workspace
+        </Link>
+      }
     >
-      {/* Top Banner: Epistemic Invariants & Governance */}
-      <div className="mb-6 space-y-3">
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3.5 text-xs text-amber-200">
-          <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-[11px] text-amber-400 font-mono">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            CANDIDATE METHODOLOGY — NOT VALIDATED FOR PRODUCTION
-          </div>
-          <p className="mt-1 text-zinc-300 font-sans leading-relaxed text-xs">
-            <strong className="text-white">Implemented &ne; Validated &ne; Approved:</strong> This calculation ({data.methodology.methodologyCode}) was computed deterministically by the Python quantitative engine using candidate methodology specifications. YUKIRA currently has <strong className="text-white">strictly zero validated production methodologies</strong> and <strong className="text-white">exactly zero empirical findings</strong>. This metric does not constitute an investment recommendation, rating, or commercial advice.
-          </p>
-        </div>
-
-        {/* Temporal Limitation Disclosure Banner */}
-        <div className="rounded-lg border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-xs text-zinc-300">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-semibold text-zinc-400 uppercase tracking-wider text-[11px]">
-                PIT & Temporal Limitation:
-              </span>
-              <span>{data.pit.temporalLimitationDisclosure}</span>
-            </div>
-            <span className="font-mono text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
-              {data.pit.cutoffConventionApplied}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Top Controls: Re-run & Parameter Launcher */}
+      {/* 1. TOP STATUS & CONTROLS BAR */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800 pb-4">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-xs text-zinc-400">Status:</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono text-xs text-zinc-400">Execution Status:</span>
           <span
-            className={`inline-flex items-center rounded px-2.5 py-1 text-xs font-mono font-semibold ${
+            className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-mono font-semibold ${
               isCalculated
-                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
                 : isInsufficient
-                ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
             }`}
           >
             {data.result.calculationStatus}
@@ -230,129 +252,154 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
         <button
           onClick={() => setShowParamPanel(!showParamPanel)}
-          className="rounded border border-zinc-700 bg-zinc-800/80 px-3 py-1 text-xs font-mono text-zinc-200 hover:bg-zinc-700"
+          className="rounded-lg border border-zinc-700 bg-zinc-800/90 px-3 py-1.5 text-xs font-mono font-medium text-zinc-200 hover:bg-zinc-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
         >
-          {showParamPanel ? "Close Parameter Panel" : `Run Parameterized ${data.result.metricCode}`}
+          {showParamPanel ? "Close Parameter Controls" : `Re-run Parameterized ${data.result.metricCode}`}
         </button>
       </div>
 
-      {/* Parameterized Calculation Form */}
+      {/* Parameterized Calculation Drawer */}
       {showParamPanel && (
-        <form onSubmit={handleExecuteParameterizedRun} className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/90 p-5 font-mono text-xs">
-          <h4 className="font-semibold text-zinc-200 uppercase tracking-wider mb-4">
-            Trigger Parameterized {data.result.metricCode} Calculation
-          </h4>
+        <form
+          onSubmit={handleExecuteParameterizedRun}
+          className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/90 p-5 font-mono text-xs space-y-4 animate-in fade-in duration-150"
+        >
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+            <h3 className="font-semibold text-zinc-100 uppercase tracking-wider">
+              Execute Parameterized {data.result.metricCode} Run
+            </h3>
+            <span className="text-zinc-500 text-[10px]">
+              Option #{data.identity.schemeOptionId} &bull; Deterministic Execution
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {!hasWindow && (
               <div>
-                <label className="block text-zinc-400 mb-1">Requested Start Date</label>
+                <label className="block text-zinc-400 mb-1 text-[11px]">Requested Start Date</label>
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
                   required
-                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200"
+                  className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200 focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             )}
             <div>
-              <label className="block text-zinc-400 mb-1">{hasWindow ? "Analysis Cutoff Date (T)" : "Requested End Date"}</label>
+              <label className="block text-zinc-400 mb-1 text-[11px]">
+                {hasWindow ? "Analysis Cutoff Date (T)" : "Requested End Date"}
+              </label>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 required
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200"
+                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200 focus:border-cyan-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-zinc-400 mb-1">Knowledge Cutoff Time (ISO)</label>
+              <label className="block text-zinc-400 mb-1 text-[11px]">Knowledge Cutoff Time (ISO 8601)</label>
               <input
                 type="text"
                 value={customCutoff}
                 onChange={(e) => setCustomCutoff(e.target.value)}
                 required
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200"
+                className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-zinc-200 focus:border-cyan-500 focus:outline-none"
               />
             </div>
           </div>
+
           {customError && (
-            <div className="mt-3 text-rose-400 text-[11px]">{customError}</div>
+            <div className="rounded bg-rose-500/10 border border-rose-500/30 p-2 text-rose-300 text-xs">
+              {customError}
+            </div>
           )}
-          <div className="mt-4 flex justify-end gap-3">
+
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setShowParamPanel(false)}
-              className="rounded px-3 py-1 text-zinc-400 hover:text-zinc-200"
+              className="rounded px-3 py-1.5 text-zinc-400 hover:text-zinc-200 font-mono"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={executingCustom}
-              className="rounded bg-cyan-600 px-4 py-1.5 font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
+              className="rounded-lg bg-cyan-600 px-4 py-1.5 font-semibold text-white hover:bg-cyan-500 disabled:opacity-50 font-mono"
             >
-              {executingCustom ? "Executing Quant Engine..." : "Execute Calculation"}
+              {executingCustom ? "Executing Python Kernel..." : "Dispatch Run"}
             </button>
           </div>
         </form>
       )}
 
-      {/* 3-Level Progressive Disclosure */}
+      {/* 2. EPISTEMIC TRI-PARTITE DISTINCTION: Observation vs. Interpretation vs. Limitation */}
+      <div className="mb-8">
+        <EpistemicBanner
+          observation={getMetricObservation(data.result.metricCode)}
+          interpretation={getMetricInterpretation(data.result.metricCode)}
+          limitation={getMetricLimitation(data.result.metricCode)}
+        />
+      </div>
+
+      {/* 3. PROGRESSIVE DISCLOSURE ARCHITECTURE */}
       <ProgressiveDisclosure
         level1={
           <div className="space-y-6">
-            {/* Primary KPI Display */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-4">
+            {/* Primary KPI Card */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 backdrop-blur-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-3">
                   <MetricValueDisplay
-                    label={`${data.result.metricCode} ${data.result.metricName}`}
+                    label={`${data.result.metricCode} • ${data.result.metricName}`}
                     value={data.result.numericValue}
                     units={data.result.units || "PERCENTAGE"}
                     isCandidate={true}
-                    description={getMetricDescription(data.result.metricCode)}
+                    candidateConvention={data.methodology.methodologyVersion}
+                    description={getMetricInterpretation(data.result.metricCode)}
                   />
                   <div className="font-mono text-xs text-zinc-400">
-                    Status: <span className="font-semibold text-zinc-200">{data.result.calculationStatus}</span>
+                    Engine Status: <strong className="text-zinc-200">{data.result.calculationStatus}</strong>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-4 font-mono text-xs space-y-2">
-                  <div className="text-zinc-500 uppercase tracking-wider text-[10px]">
-                    {hasWindow ? "36-Month Analytical Window" : "Evaluation Window"}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 font-mono text-xs space-y-2">
+                  <div className="text-zinc-500 uppercase tracking-wider text-[10px] font-bold">
+                    {hasWindow ? "36-Month Lookback Window" : "Evaluation Window"}
                   </div>
                   {hasWindow && data.window ? (
                     <>
                       <div>
-                        <span className="text-zinc-400">Target Range: </span>
-                        <span className="text-zinc-200 font-semibold">
+                        <span className="text-zinc-500">Target Range: </span>
+                        <span className="text-zinc-300 font-semibold">
                           {data.window.requestedStartDate || "—"} &rarr; {data.window.requestedEndDate || "—"}
                         </span>
                       </div>
                       <div>
-                        <span className="text-zinc-400">Resolved Range: </span>
+                        <span className="text-zinc-500">Resolved Dates: </span>
                         <span className="text-cyan-400 font-semibold">
                           {data.window.actualStartDate || "—"} &rarr; {data.window.actualEndDate || "—"}
                         </span>
                       </div>
                       <div>
-                        <span className="text-zinc-400">Daily Observations: </span>
+                        <span className="text-zinc-500">Observation Count: </span>
                         <span className="text-emerald-400 font-semibold">
-                          {data.window.observationCount} / {data.window.minObservationsRequired} min req
+                          {data.window.observationCount} days ({data.window.minObservationsRequired} required)
                         </span>
                       </div>
                     </>
                   ) : data.period ? (
                     <>
                       <div>
-                        <span className="text-zinc-400">Requested: </span>
-                        <span className="text-zinc-200 font-semibold">
+                        <span className="text-zinc-500">Requested Dates: </span>
+                        <span className="text-zinc-300 font-semibold">
                           {data.period.requestedStartDate || "—"} &rarr; {data.period.requestedEndDate || "—"}
                         </span>
                       </div>
                       <div>
-                        <span className="text-zinc-400">Selected PIT: </span>
+                        <span className="text-zinc-500">Resolved Dates: </span>
                         <span className="text-cyan-400 font-semibold">
                           {data.period.selectedStartDate || "—"} &rarr; {data.period.selectedEndDate || "—"}
                         </span>
@@ -364,13 +411,13 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
               {isInsufficient && data.result.errorMessage && (
                 <div className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-300 font-mono">
-                  <span className="font-bold uppercase">Evidence Limitation: </span>
+                  <strong className="uppercase">Evidence Limitation: </strong>
                   {data.result.errorMessage}
                 </div>
               )}
             </div>
 
-            {/* Scheme Metadata Summary */}
+            {/* Scheme Metadata Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
                 <span className="text-zinc-500 text-[10px] uppercase block">AMFI Code</span>
@@ -393,16 +440,16 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         }
         level2={
           <div className="space-y-6">
-            <h4 className="font-mono text-xs uppercase tracking-wider text-zinc-400">
+            <h3 className="font-mono text-xs uppercase tracking-wider text-zinc-400">
               Evidence Base & Methodology Resolution
-            </h4>
+            </h3>
 
-            {/* Boundary NAV / Window Evidence Cards */}
+            {/* Window / Period Evidence Details */}
             {hasWindow && data.window ? (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 font-mono text-xs space-y-3">
                 <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                   <span className="font-semibold text-zinc-300 uppercase tracking-wider">
-                    36-Month Rolling Window Evidence ({data.window.observationCount} Observations)
+                    36-Month Trading Continuity
                   </span>
                   <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
                     Sufficient History ({data.window.observationCount} &ge; {data.window.minObservationsRequired} required)
@@ -420,8 +467,8 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                     <span className="text-zinc-500 text-[10px]">Requested: {data.window.requestedEndDate}</span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 text-[10px] uppercase block">Continuity & Gaps</span>
-                    <span className="text-zinc-200 font-semibold mt-1 block">{data.window.observationCount} trading days</span>
+                    <span className="text-zinc-500 text-[10px] uppercase block">Trading Continuity</span>
+                    <span className="text-zinc-200 font-semibold mt-1 block">{data.window.observationCount} trading dates</span>
                     <span className="text-zinc-500 text-[10px]">Zero synthetic imputation</span>
                   </div>
                 </div>
@@ -484,23 +531,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
               </div>
             ) : null}
 
-            {/* Benchmark Disclosure Card */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 font-mono text-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-zinc-500" />
-                <span className="font-semibold text-zinc-300 uppercase tracking-wider">
-                  Benchmark Status: NOT REQUIRED / NOT USED
-                </span>
-              </div>
-              <p className="mt-2 text-zinc-400 leading-relaxed">
-                {data.benchmark.benchmarkNotice}
-              </p>
-              <div className="mt-3 text-[11px] text-zinc-500">
-                Database constraint verification: <code className="text-zinc-400">calculation_run.benchmark_id = null</code> (Flyway V6 validated). No synthetic entities created.
-              </div>
-            </div>
-
-            {/* Methodology Specification */}
+            {/* Methodology Specification Panel */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 font-mono text-xs space-y-2">
               <span className="font-semibold text-zinc-300 uppercase tracking-wider block mb-2">
                 Methodology Specification ({data.methodology.methodologyCode})
@@ -537,11 +568,11 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         }
         level3={
           <div className="space-y-6">
-            <h4 className="font-mono text-xs uppercase tracking-wider text-zinc-400">
+            <h3 className="font-mono text-xs uppercase tracking-wider text-zinc-400">
               Institutional Audit & Deep Provenance
-            </h4>
+            </h3>
 
-            {/* 6-Dimension Quality Grid */}
+            {/* 6-Dimension Quality States */}
             <div>
               <span className="font-mono text-xs text-zinc-400 block mb-3 uppercase tracking-wider">
                 Approved 6-Dimensional Data Quality States

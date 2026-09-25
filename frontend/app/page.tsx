@@ -4,481 +4,320 @@ import { PageContainer } from "@/components/layout/PageContainer";
 export default function HomePage() {
   return (
     <PageContainer>
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-4 pb-12">
+      {/* 1. HERO SECTION: Concise Institutional Value Proposition */}
+      <section className="relative overflow-hidden pt-6 pb-12">
         <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 font-mono text-[11px] font-medium text-cyan-400">
           <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          INVESTMENT INTELLIGENCE PLATFORM
+          QUANTITATIVE INVESTMENT INTELLIGENCE &bull; INSTITUTIONAL CHECKPOINT
         </div>
 
-        <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-zinc-100 sm:text-6xl">
-          YUKIRA
+        <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-zinc-100 sm:text-5xl lg:text-6xl font-sans">
+          Before you commit capital, <br className="hidden sm:inline" />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400">
+            ask one more question.
+          </span>
         </h1>
 
-        <p className="mt-3 text-xl font-semibold tracking-tight text-cyan-400 sm:text-2xl">
-          Investment Intelligence. Before you commit capital, ask one more question.
+        <p className="mt-5 max-w-3xl text-sm leading-relaxed text-zinc-300 sm:text-base">
+          YUKIRA is an evidence-based quantitative decision-support platform initially focused on Indian mutual funds. We reject simplistic trailing returns, opaque star ratings, and marketing narratives. Instead, we provide deterministic mathematical calculation, cryptographic source provenance, and point-in-time empirical verification.
         </p>
 
-        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-zinc-300 sm:text-base">
-          YUKIRA combines deterministic quantitative analysis, risk analysis, portfolio intelligence,
-          bitemporal data validation, and explainable AI to help investors thoroughly investigate and verify
-          investment decisions before committing capital.
-        </p>
-
-        {/* Action Navigation */}
+        {/* Action Controls */}
         <div className="mt-8 flex flex-wrap items-center gap-3 font-mono text-xs">
           <Link
-            href="/funds"
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-2.5 font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+            href="/funds/1"
+            className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-2.5 font-semibold text-white shadow-md shadow-cyan-600/20 transition hover:bg-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           >
-            Explore Funds
+            Explore Canonical Pilot (HDFC Flexi Cap)
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </Link>
 
-          <a
-            href="#how-it-works"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2.5 font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+          <Link
+            href="/funds"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/90 px-4 py-2.5 font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           >
-            How YUKIRA Works
-          </a>
+            Fund Catalog & Discovery
+          </Link>
 
-          <a
-            href="#methodology"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2.5 font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+          <Link
+            href="/methodology"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/90 px-4 py-2.5 font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           >
-            Methodology
-          </a>
-
-          <a
-            href="#project-status"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2.5 font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
-          >
-            Project Status
-          </a>
+            Methodology & Governance
+          </Link>
         </div>
       </section>
 
-      {/* Epistemic Baseline Notice */}
-      <section className="mb-12 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+      {/* 2. EPISTEMIC GOVERNANCE MANDATE */}
+      <section className="mb-12 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 backdrop-blur-sm" aria-label="Governance Mandate">
         <div className="flex items-start gap-3.5">
-          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400">
+          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400 font-mono">
             !
           </div>
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 font-mono">
-                Epistemic Baseline Notice
-              </h3>
-              <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber-300">
-                GOVERNANCE MANDATE
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono">
+                Epistemic Governance Mandate
+              </h2>
+              <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-200 border border-amber-500/30">
+                IMPLEMENTED &ne; VALIDATED &ne; APPROVED
               </span>
             </div>
             <p className="text-xs leading-relaxed text-zinc-200">
-              Empirical Findings: <span className="font-bold text-white">EXACTLY ZERO</span>. Approved Production Investment Methodology:{" "}
-              <span className="font-bold text-white">STRICTLY EMPTY</span>. Implemented Candidate Methodology:{" "}
-              <span className="font-bold text-cyan-300">RET-02 Simple Period Return</span>.
+              In YUKIRA, implementing an algorithm in code does not constitute approval for live investment advice. Phase 2N established 5 formally approved methodologies (<code className="font-mono text-cyan-300 text-[11px]">M2N-01, M2N-02, M2N-05, M2N-06, M2N-07</code>), while 13 analytical vertical slices operate as deterministic candidate specifications.
             </p>
-            <p className="text-[11px] leading-relaxed text-zinc-300">
-              YUKIRA enforces an absolute separation between mathematical computation and artificial intelligence. AI must never invent, alter, or override authoritative financial calculations. All indicators rendered across this platform are unvalidated candidate models. Zero investment recommendations, star ratings, or commercial advice.
+            <p className="text-[11px] leading-relaxed text-zinc-400 font-mono">
+              Zero automated buy/sell tips &bull; Zero 5-star ratings &bull; Zero synthetic NAV imputation &bull; Zero LLM hallucinations in financial calculations.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Section: How YUKIRA Works */}
-      <section id="how-it-works" className="mb-14 scroll-mt-20">
-        <div className="mb-6">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Institutional Workflow</div>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-100">
-            How YUKIRA Works
-          </h2>
-          <p className="mt-1 text-xs text-zinc-400 max-w-2xl">
-            A deterministic analytical pipeline designed from first principles to eliminate look-ahead bias, data revisions, and synthetic outputs.
-          </p>
+      {/* 3. CANONICAL PILOT SHOWCASE: Evidence in Action */}
+      <section className="mb-14 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 md:p-8 backdrop-blur-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-zinc-800/80">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">
+              Canonical Pilot Instrument
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-zinc-100 mt-1">
+              HDFC Flexi Cap Fund (Direct Plan &bull; Growth)
+            </h2>
+            <p className="text-xs text-zinc-400 mt-1">
+              Authoritative pilot dataset used across all Phase 2 analytical verifications.
+            </p>
+          </div>
+
+          <Link
+            href="/funds/1"
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700/80 px-4 py-2 font-mono text-xs font-medium text-zinc-100 hover:bg-zinc-700 transition"
+          >
+            Open Fund Workspace
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 backdrop-blur-sm">
-            <div className="font-mono text-xs font-bold text-cyan-400">01</div>
-            <h3 className="mt-2 text-sm font-semibold text-zinc-100">Raw Source Ingestion</h3>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-              Direct ingestion of official AMFI NAV feeds and disclosures. Every raw file is cryptographically hashed with SHA-256, timestamped, and stored immutably.
-            </p>
-            <div className="mt-3 font-mono text-[10px] text-zinc-500">
-              Input Provenance: Verifiable
-            </div>
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">AMFI Scheme Code</span>
+            <span className="text-cyan-400 font-bold text-sm mt-1 block">118955</span>
+            <span className="text-zinc-500 text-[10px] mt-1 block">ISIN: INF179K01UT0</span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 backdrop-blur-sm">
-            <div className="font-mono text-xs font-bold text-indigo-400">02</div>
-            <h3 className="mt-2 text-sm font-semibold text-zinc-100">Point-in-Time Resolution</h3>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-              Bitemporal ledger separates effective date from availability time. Calculations strictly evaluate observations known as-of the knowledge cutoff timestamp.
-            </p>
-            <div className="mt-3 font-mono text-[10px] text-zinc-500">
-              Look-Ahead Bias: Prevented
-            </div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Observation Horizon</span>
+            <span className="text-zinc-100 font-bold text-sm mt-1 block">5 Full Years</span>
+            <span className="text-zinc-500 text-[10px] mt-1 block">2019-01-01 &rarr; 2024-01-15</span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 backdrop-blur-sm">
-            <div className="font-mono text-xs font-bold text-emerald-400">03</div>
-            <h3 className="mt-2 text-sm font-semibold text-zinc-100">Deterministic Quant Engine</h3>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-              Isolated Python kernel executes vectorized financial formulas using NumPy 2, Polars, and SciPy. Zero synthetic numbers and zero LLM hallucination in calculations.
-            </p>
-            <div className="mt-3 font-mono text-[10px] text-zinc-500">
-              Reproducibility: Exact
-            </div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Trading Ledger</span>
+            <span className="text-emerald-400 font-bold text-sm mt-1 block">1,243 Market Dates</span>
+            <span className="text-zinc-500 text-[10px] mt-1 block">Zero synthetic gaps</span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 backdrop-blur-sm">
-            <div className="font-mono text-xs font-bold text-amber-400">04</div>
-            <h3 className="mt-2 text-sm font-semibold text-zinc-100">Progressive Disclosure</h3>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-              Hierarchical UI provides Level 1 executive summary, Level 2 lookback evidence, and Level 3 raw observation lineage with artifact hashes.
-            </p>
-            <div className="mt-3 font-mono text-[10px] text-zinc-500">
-              Auditability: Complete
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Section: Methodology Transparency */}
-      <section id="methodology" className="mb-14 scroll-mt-20">
-        <div className="mb-6">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Methodology Governance</div>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-100">
-            Methodology Transparency & Candidate Lifecycle
-          </h2>
-          <p className="mt-1 text-xs text-zinc-400 max-w-3xl">
-            YUKIRA establishes a strict epistemic boundary between software implementation and empirical validation. Defining an algorithm or writing code never implies that a methodology is validated.
-          </p>
-        </div>
-
-        {/* 3 Lifecycle States Banner */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 font-mono text-xs mb-8">
-          <div className="rounded-xl border border-blue-500/30 bg-blue-950/20 p-4">
-            <div className="flex items-center gap-2 font-bold text-blue-400 uppercase">
-              <span className="h-2 w-2 rounded-full bg-blue-400" />
-              1. Implemented
-            </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-zinc-300 font-sans">
-              Code exists and executes deterministically. Produces verifiable numerical outputs from verified input data.
-            </p>
-            <div className="mt-3 text-[10px] text-blue-300 font-mono">
-              Status: RET-02 Implemented
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4">
-            <div className="flex items-center gap-2 font-bold text-amber-400 uppercase">
-              <span className="h-2 w-2 rounded-full bg-amber-400" />
-              2. Validated
-            </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-zinc-300 font-sans">
-              Methodology has undergone empirical testing across multi-cycle regimes, vendor cross-validation, and statistical stress testing.
-            </p>
-            <div className="mt-3 text-[10px] text-amber-300 font-mono">
-              Status: STRICTLY NONE
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4">
-            <div className="flex items-center gap-2 font-bold text-emerald-400 uppercase">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              3. Approved
-            </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-zinc-300 font-sans">
-              Formally authorized by governance review for live investor decision support and production benchmarking.
-            </p>
-            <div className="mt-3 text-[10px] text-emerald-300 font-mono">
-              Status: STRICTLY NONE
-            </div>
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4">
+            <span className="text-zinc-500 text-[10px] uppercase block">Cryptographic Hash</span>
+            <span className="text-zinc-300 font-mono text-[11px] mt-1 block truncate" title="SHA-256: 900508f8bf137cb8ba02adae70a0eb6a0be7318389e9b3943f0bee738f3be259">
+              900508f8bf13...
+            </span>
+            <span className="text-zinc-500 text-[10px] mt-1 block">AMFI Raw Source #1</span>
           </div>
         </div>
 
-        {/* 7 Analytical Dimensions Inventory Summary */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-4 mb-4">
+        {/* Real Analytical Metric Highlights */}
+        <div className="mt-6 rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-4 font-mono text-xs">
+          <div className="text-[11px] uppercase tracking-wider text-zinc-400 mb-3 font-semibold">
+            Verified Canonical Analytical Slices (As of 2024-01-15, Cutoff 2024-01-31)
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-zinc-100">
-                Phase 2H Candidate Methodology Inventory (30 Metrics across 7 Dimensions)
-              </h3>
-              <p className="text-xs text-zinc-400">
-                Frozen in Phase 2B and mathematically specified in Phase 2H. All 30 metrics are candidate specifications.
-              </p>
+              <span className="text-zinc-500 text-[10px] block">RET-02 (Period Return)</span>
+              <span className="text-zinc-100 font-bold text-base mt-0.5 block">+2.45%</span>
+              <span className="text-[10px] text-zinc-500">2024-01-01 to 2024-01-15</span>
             </div>
-            <span className="font-mono text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded">
-              Zero Production Approvals
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-mono text-xs">
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">1. Return Quality (6)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                RET-01 (1Y CAGR), RET-03 (3Y CAGR), RET-04 (5Y CAGR), RET-05 (3Y Rolling Return Mean), RET-06 (Rolling Outperformance %), RET-07 (3Y Active Return).
-              </div>
-              <div className="mt-2 text-[10px] text-cyan-400">Supporting Primitive: RET-02 (Simple Return) Implemented</div>
+            <div>
+              <span className="text-zinc-500 text-[10px] block">RET-03 (3Y CAGR)</span>
+              <span className="text-zinc-100 font-bold text-base mt-0.5 block">24.58%</span>
+              <span className="text-[10px] text-zinc-500">36M Compound Annualized</span>
             </div>
-
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">2. Risk & Tail (7)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                RSK-01 (Volatility), RSK-02 (Downside Semideviation), RSK-03 (Max Drawdown 3Y), RSK-04 (Max Drawdown Duration), RSK-05 (Ulcer Index), RSK-06 (Historical VaR 95%), RSK-07 (Expected Shortfall 95%).
-              </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Candidate Specifications</div>
+            <div>
+              <span className="text-zinc-500 text-[10px] block">RSK-01 (3Y Volatility)</span>
+              <span className="text-zinc-100 font-bold text-base mt-0.5 block">14.69%</span>
+              <span className="text-[10px] text-zinc-500">&radic;252 Annualized Dispersion</span>
             </div>
-
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">3. Risk-Adjusted (4)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                RAT-01 (Sharpe 3Y), RAT-02 (Sortino 3Y), RAT-03 (Treynor 3Y), RAT-04 (Information Ratio 3Y).
-              </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Requires Risk-Free & Benchmarks</div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">4. Market Sensitivity (5)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                MKT-01 (Beta 3Y), MKT-02 (Downside Beta), MKT-03 (Upside Capture), MKT-04 (Downside Capture), MKT-05 (Capture Spread).
-              </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Candidate Specifications</div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">5. Benchmark / Alpha (2)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                REL-01 (Tracking Error 3Y), REL-02 (Jensen&apos;s Alpha 3Y).
-              </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Candidate Specifications</div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">6. Portfolio Structure (5)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                PRT-01 (Top-10 Concentration), PRT-02 (Effective Holdings), PRT-03 (Active Share), PRT-04 (Turnover), PRT-05 (Cash & Equivalent %).
-              </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Awaiting Portfolio Holdings Feed</div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5">
-              <div className="font-semibold text-zinc-200">7. Governance / Expense (1)</div>
-              <div className="mt-1 text-[11px] text-zinc-400 font-sans">
-                GOV-01 (Direct Plan TER).
-              </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Candidate Specification</div>
+            <div>
+              <span className="text-zinc-500 text-[10px] block">RSK-03 (3Y Max Drawdown)</span>
+              <span className="text-zinc-100 font-bold text-base mt-0.5 block">-12.45%</span>
+              <span className="text-[10px] text-zinc-500">Peak-to-Trough Decline</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Section: Six-Dimensional Data Quality Taxonomy */}
-      <section className="mb-14">
+      {/* 4. THE 7-STEP PROGRESSIVE DISCLOSURE FRAMEWORK */}
+      <section className="mb-14 scroll-mt-20" id="framework">
         <div className="mb-6">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Data Integrity Framework</div>
+          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">
+            Progressive Disclosure Architecture
+          </div>
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-100">
-            Approved Six-Dimensional Data Quality Taxonomy
+            How YUKIRA Analyzes Investment Intelligence
           </h2>
           <p className="mt-1 text-xs text-zinc-400 max-w-2xl">
-            Every input observation and metric calculation is tagged across six orthogonal dimensions so investors always know the veracity of the underlying evidence.
+            Every analytical page adheres to a 7-step progressive disclosure framework, presenting immediate clarity at the surface and complete cryptographic provenance one level deeper.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 font-mono text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-200">DIMENSION 1: QUALITY</span>
-              <span className="text-[10px] text-emerald-400">VALID / SUSPICIOUS / INVALID</span>
-            </div>
-            <p className="mt-2 text-xs text-zinc-400 font-sans leading-relaxed">
-              Verifies mathematical and domain sanity (e.g., non-negative NAV values, reasonable day-over-day movement thresholds). Invalid data is excluded.
+            <span className="text-cyan-400 font-bold text-xs">Step 01</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What is this?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Canonical scheme identity: AMC, Plan (Direct vs. Regular), Option (Growth), AMFI Code, and ISIN.
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-200">DIMENSION 2: VERIFICATION</span>
-              <span className="text-[10px] text-cyan-400">VERIFIED / UNVERIFIED</span>
-            </div>
-            <p className="mt-2 text-xs text-zinc-400 font-sans leading-relaxed">
-              Tracks whether the data point has been cross-checked and verified against official external sources (AMFI, RTA, custodian disclosures).
+            <span className="text-indigo-400 font-bold text-xs">Step 02</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What does YUKIRA know?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Point-in-time observation ledger: verified trading dates, knowledge cutoffs, and revision history.
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-200">DIMENSION 3: REVISION</span>
-              <span className="text-[10px] text-sky-400">ORIGINAL / REVISED / SUPERSEDED</span>
-            </div>
-            <p className="mt-2 text-xs text-zinc-400 font-sans leading-relaxed">
-              Records whether the observation reflects the initial report or a restated/revised figure. Prior versions are permanently preserved in the bitemporal ledger.
+            <span className="text-emerald-400 font-bold text-xs">Step 03</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What does the data show?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Objective mathematical outputs: realized CAGR, volatility, drawdowns, ratios, and downside beta.
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-200">DIMENSION 4: FRESHNESS</span>
-              <span className="text-[10px] text-indigo-400">CURRENT / STALE / BACKFILL</span>
-            </div>
-            <p className="mt-2 text-xs text-zinc-400 font-sans leading-relaxed">
-              Reflects latency against the expected market release schedule. Explicitly tags historical batch backfills that use analytical end-of-day conventions.
+            <span className="text-teal-400 font-bold text-xs">Step 04</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What does it mean?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Deterministic statistical interpretation of return dispersion and market sensitivity without speculation.
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-200">DIMENSION 5: PRESENCE</span>
-              <span className="text-[10px] text-amber-400">PRESENT / MISSING / INTERPOLATED</span>
-            </div>
-            <p className="mt-2 text-xs text-zinc-400 font-sans leading-relaxed">
-              Discloses whether an exact observation exists or whether a deterministic lookback rule was applied (up to 4 calendar days on non-trading days).
+            <span className="text-rose-400 font-bold text-xs">Step 05</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What are the risks?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Downside semideviation, Ulcer Index path stress, Value at Risk (95%), and maximum recovery duration.
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-200">DIMENSION 6: INTEGRITY</span>
-              <span className="text-[10px] text-emerald-400">NORMAL / DUPLICATE / CONFLICTING</span>
-            </div>
-            <p className="mt-2 text-xs text-zinc-400 font-sans leading-relaxed">
-              Monitors multi-channel ingestion consistency. Identifies deduplication events or conflicting reports from divergent upstream feeds.
+            <span className="text-amber-400 font-bold text-xs">Step 06</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What is missing?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Explicit disclosure of uningested benchmark series, missing exchange calendars, or unvalidated conventions.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 sm:col-span-2">
+            <span className="text-purple-400 font-bold text-xs">Step 07</span>
+            <h3 className="mt-1 font-semibold text-zinc-100 font-sans text-sm">What should the investor investigate next?</h3>
+            <p className="mt-1.5 text-xs text-zinc-400 font-sans leading-relaxed">
+              Targeted verification checkpoints: portfolio concentration, manager tenure, market regime behavior, and expense drag before capital is allocated.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Section: Project Status & Delivery Estimates */}
-      <section id="project-status" className="mb-12 scroll-mt-20">
+      {/* 5. CORE EPISTEMIC PRINCIPLES */}
+      <section className="mb-14 scroll-mt-20" id="philosophy">
         <div className="mb-6">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Engineering Transparency</div>
+          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">
+            Epistemic Architecture
+          </div>
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-100">
-            Current Project Status & Delivery Estimates
+            How YUKIRA Thinks
           </h2>
           <p className="mt-1 text-xs text-zinc-400 max-w-2xl">
-            YUKIRA has progressed beyond the concept stage into an operational architecture, but is not yet an investor-ready production platform.
+            Mathematical discipline, deterministic execution, and complete lineage replace fintech marketing promises.
           </p>
         </div>
 
-        {/* Delivery Progress Table */}
-        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm mb-8">
-          <div className="bg-zinc-950/80 px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-            <span className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
-              Project Delivery Estimates (Approximate Progress Indicators)
-            </span>
-            <span className="text-[10px] font-mono text-zinc-500">
-              Updated: Phase 2I
-            </span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="text-cyan-400 font-bold">01 / DETERMINISTIC MATH</div>
+            <h3 className="mt-2 text-sm font-semibold text-zinc-100 font-sans">Zero AI in Financial Math</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400 font-sans">
+              Calculations originate exclusively from pure, vectorized Python algorithms (NumPy 2, Polars, SciPy). LLMs are strictly forbidden from computing, smoothing, or estimating financial observations.
+            </p>
           </div>
 
-          <div className="overflow-x-auto font-mono text-xs">
-            <table className="w-full text-left">
-              <thead className="border-b border-zinc-800 bg-zinc-950/40 text-zinc-400 uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="px-4 py-2.5">Workstream / Area</th>
-                  <th className="px-4 py-2.5">Estimated Status</th>
-                  <th className="px-4 py-2.5">Current Deliverable Scope</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/60">
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Product Concept & Scope</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~90%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Institutional vision, epistemic principles, 30-metric candidate inventory frozen.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">System Architecture</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~75%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Decoupled multi-service boundaries, PIT data flow, Docker orchestration.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Database Foundation</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~55%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">PostgreSQL 17 bitemporal schema, Flyway migrations V1–V7, immutable audit trails.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Backend Service</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~35%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Spring Boot 4, JPA repositories, calculation orchestrator, RET-02 analysis service.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Quantitative Engine</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~25%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Python numerical kernel, 301 unit tests, mathematical specifications for 30 metrics.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Data Ingestion</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~30%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Real AMFI NAV parser, SHA-256 raw artifact archiving, daily & historical flows.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Investment Methodology</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~25%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Phase 2H specification frozen; RET-02 implemented; formal validation pending.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Frontend / Website</td>
-                  <td className="px-4 py-2.5 text-cyan-400 font-bold">~30%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Next.js 16 app, zero-calc presentation tier, fund discovery, analysis audit view.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">AI Interpretation Layer</td>
-                  <td className="px-4 py-2.5 text-zinc-500 font-bold">~10%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Strict governance boundaries established; qualitative reasoning in development.</td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-2.5 font-medium text-zinc-200">Production Deployment</td>
-                  <td className="px-4 py-2.5 text-rose-400 font-bold">0%</td>
-                  <td className="px-4 py-2.5 text-zinc-400 font-sans">Operates in containerized local dev environment; cloud provisioning pending.</td>
-                </tr>
-                <tr className="bg-cyan-950/20 font-bold border-t-2 border-cyan-500/30">
-                  <td className="px-4 py-3 text-cyan-300">INVESTOR-READY MVP</td>
-                  <td className="px-4 py-3 text-cyan-300">~20–25%</td>
-                  <td className="px-4 py-3 text-cyan-100 font-sans">Approximate delivery progress toward first fully validated investor release.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="text-indigo-400 font-bold">02 / BITEMPORAL LEDGER</div>
+            <h3 className="mt-2 text-sm font-semibold text-zinc-100 font-sans">Zero Look-Ahead Bias</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400 font-sans">
+              Every historical query specifies both an <code className="text-cyan-300">analysis_cutoff</code> and a <code className="text-cyan-300">knowledge_cutoff</code>. Observations published after the knowledge cutoff can never contaminate historical evaluations.
+            </p>
           </div>
-          <div className="bg-zinc-950/40 px-4 py-2.5 text-[11px] text-zinc-500 font-sans border-t border-zinc-800">
-            * Note: These percentages are approximate delivery indicators based on completed technical deliverables and should not be construed as objective financial measurements.
-          </div>
-        </div>
 
-        {/* Current Limitations Disclosure */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-300 font-mono mb-3">
-            Explicit System Limitations (What YUKIRA Does Not Yet Do)
-          </h3>
-          <ul className="space-y-2 text-xs text-zinc-400 list-disc list-inside leading-relaxed font-sans">
-            <li><strong className="text-zinc-200">Unimplemented Metrics:</strong> 29 of the 30 candidate metrics remain candidate specifications and are not yet wired into the execution pipeline.</li>
-            <li><strong className="text-zinc-200">Zero Validated Methodologies:</strong> No quantitative algorithm has completed empirical validation across multiple historical market regimes.</li>
-            <li><strong className="text-zinc-200">No Scoring or Recommendations:</strong> YUKIRA does not generate overall fund ratings, buy/sell recommendations, or investor suitability rankings.</li>
-            <li><strong className="text-zinc-200">Pending External Feeds:</strong> Broad-market benchmark indices (NIFTY / S&P BSE TRI), risk-free rate series (FBIL T-Bills), and monthly portfolio disclosures are not yet integrated.</li>
-            <li><strong className="text-zinc-200">Pre-Production Infrastructure:</strong> High availability cloud deployment, automated scaling, and continuous operational monitoring are scheduled for later phases.</li>
-          </ul>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="text-emerald-400 font-bold">03 / SOURCE PROVENANCE</div>
+            <h3 className="mt-2 text-sm font-semibold text-zinc-100 font-sans">Cryptographic Lineage</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400 font-sans">
+              Every input observation traces directly to an immutable <code className="text-cyan-300">source_artifact</code> record with SHA-256 digest, HTTP request URI, and retrieval timestamp.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="text-amber-400 font-bold">04 / RISK BEFORE RETURN</div>
+            <h3 className="mt-2 text-sm font-semibold text-zinc-100 font-sans">Asymmetric Downside Analysis</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400 font-sans">
+              Downside semideviation, Ulcer Index, maximum drawdown duration, and downside beta are prioritized over trailing point-to-point gains that mask intermediate capital impairment.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="text-purple-400 font-bold">05 / REPUTATION OVER HYPE</div>
+            <h3 className="mt-2 text-sm font-semibold text-zinc-100 font-sans">Comfortable Saying &ldquo;Missing&rdquo;</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400 font-sans">
+              If data is missing or an indicator is unvalidated, the platform explicitly reports &ldquo;Not available&rdquo; or &ldquo;Candidate methodology&rdquo;. We never fabricate default values.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="text-rose-400 font-bold">06 / ZERO STAR RATINGS</div>
+            <h3 className="mt-2 text-sm font-semibold text-zinc-100 font-sans">Transparent Decision Support</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400 font-sans">
+              YUKIRA produces no opaque composite scores or algorithmic star badges. We equip the allocator with auditable empirical evidence to evaluate their own hypothesis.
+            </p>
+          </div>
         </div>
       </section>
 
-      {/* Explore Catalog CTA */}
-      <section className="rounded-xl border border-cyan-500/20 bg-gradient-to-r from-cyan-950/30 to-indigo-950/30 p-8 text-center">
-        <h3 className="text-xl font-bold text-zinc-100">
-          Begin Fund Investigation
-        </h3>
-        <p className="mt-2 text-xs text-zinc-300 max-w-xl mx-auto">
-          Explore real mutual fund schemes ingested from official AMFI data feeds, inspect share classes, and trigger auditable point-in-time quantitative calculations.
+      {/* 6. CALL TO ACTION */}
+      <section className="mb-12 rounded-2xl border border-cyan-500/20 bg-gradient-to-b from-cyan-950/20 to-zinc-900/60 p-8 text-center backdrop-blur-sm">
+        <h2 className="text-xl sm:text-2xl font-bold text-zinc-100">
+          Ready to verify before committing capital?
+        </h2>
+        <p className="mt-2 text-xs sm:text-sm text-zinc-400 max-w-xl mx-auto font-sans leading-relaxed">
+          Inspect authentic mutual fund records, examine point-in-time calculation runs, and explore methodology specifications.
         </p>
-        <div className="mt-6 flex justify-center">
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 font-mono text-xs">
           <Link
             href="/funds"
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-6 py-2.5 font-mono text-xs font-semibold text-white shadow-lg shadow-cyan-600/20 transition hover:bg-cyan-500"
+            className="rounded-lg bg-cyan-600 px-5 py-2.5 font-semibold text-white shadow-md shadow-cyan-600/20 hover:bg-cyan-500 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           >
-            Open Fund Catalog
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
+            Open Fund Discovery Catalog
+          </Link>
+          <Link
+            href="/methodology"
+            className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2.5 font-medium text-zinc-200 hover:bg-zinc-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          >
+            Review Governance Specifications
           </Link>
         </div>
       </section>

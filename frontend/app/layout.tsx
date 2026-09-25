@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project YUKIRA — Institutional Mutual Fund Quantitative Engine",
-  description: "Bitemporal point-in-time mutual fund analytics platform with complete provenance and epistemic auditability.",
+  title: "YUKIRA — Institutional Investment Intelligence & Verification Platform",
+  description: "Deterministic quantitative analysis, point-in-time empirical verification, and cryptographic provenance for Indian mutual funds. Before you commit capital, ask one more question.",
 };
 
 export default function RootLayout({
