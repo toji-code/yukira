@@ -307,4 +307,68 @@ public class AnalysisController {
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    /**
+     * Executes real RSK-06 (Historical VaR 95%, 3Y) vertical slice.
+     */
+    @PostMapping("/rsk06")
+    public ResponseEntity<?> executeRsk06(@RequestBody Rsk06CalculationRequest request) {
+        if (request.schemeOptionId() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "MISSING_PARAMETER", "message", "Canonical schemeOptionId is required."));
+        }
+        if (request.endDate() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "MISSING_DATES", "message", "endDate is required for RSK-06 calculation."));
+        }
+        if (request.knowledgeCutoffTime() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "MISSING_PIT_CUTOFF", "message", "knowledgeCutoffTime is required."));
+        }
+        if (!schemeOptionRepository.existsById(request.schemeOptionId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "SCHEME_OPTION_NOT_FOUND", "message", "SchemeOption not found."));
+        }
+
+        RiskAnalysisResponse response = analysisService.executeRsk06Analysis(request);
+        if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+        }
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/rsk06/{runId}")
+    public ResponseEntity<RiskAnalysisResponse> getRsk06Analysis(@PathVariable Long runId) {
+        return analysisService.getRiskAnalysisByRunIdAndCode(runId, "RSK-06")
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Executes real RSK-07 (Historical Expected Shortfall / CVaR 95%, 3Y) vertical slice.
+     */
+    @PostMapping("/rsk07")
+    public ResponseEntity<?> executeRsk07(@RequestBody Rsk07CalculationRequest request) {
+        if (request.schemeOptionId() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "MISSING_PARAMETER", "message", "Canonical schemeOptionId is required."));
+        }
+        if (request.endDate() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "MISSING_DATES", "message", "endDate is required for RSK-07 calculation."));
+        }
+        if (request.knowledgeCutoffTime() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "MISSING_PIT_CUTOFF", "message", "knowledgeCutoffTime is required."));
+        }
+        if (!schemeOptionRepository.existsById(request.schemeOptionId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "SCHEME_OPTION_NOT_FOUND", "message", "SchemeOption not found."));
+        }
+
+        RiskAnalysisResponse response = analysisService.executeRsk07Analysis(request);
+        if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+        }
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/rsk07/{runId}")
+    public ResponseEntity<RiskAnalysisResponse> getRsk07Analysis(@PathVariable Long runId) {
+        return analysisService.getRiskAnalysisByRunIdAndCode(runId, "RSK-07")
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
 }

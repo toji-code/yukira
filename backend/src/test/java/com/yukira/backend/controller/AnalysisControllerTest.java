@@ -692,5 +692,41 @@ class AnalysisControllerTest {
         mockMvc.perform(get("/api/v1/analysis/rsk05/" + runId05))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.result.metricCode", is("RSK-05")));
+
+        // Test RSK-06
+        var res06 = mockMvc.perform(post("/api/v1/analysis/rsk06")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-06")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
+            .andReturn();
+
+        long runId06 = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(res06.getResponse().getContentAsString())
+            .path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/rsk06/" + runId06))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-06")));
+
+        // Test RSK-07
+        var res07 = mockMvc.perform(post("/api/v1/analysis/rsk07")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-07")))
+            .andExpect(jsonPath("$.result.calculationStatus", is("CALCULATED")))
+            .andExpect(jsonPath("$.result.units", is("PERCENTAGE")))
+            .andReturn();
+
+        long runId07 = new com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(res07.getResponse().getContentAsString())
+            .path("provenance").path("calculationRunId").asLong();
+
+        mockMvc.perform(get("/api/v1/analysis/rsk07/" + runId07))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.result.metricCode", is("RSK-07")));
     }
 }

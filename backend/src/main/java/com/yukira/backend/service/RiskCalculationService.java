@@ -79,6 +79,18 @@ public class RiskCalculationService {
             "POINTS", "NONE", "N_OBSERVATIONS_CANDIDATE",
             "Pct_DD_t = 100 * ((NAV_t / Running_Peak_t) - 1); Ulcer_Index = sqrt((1 / N) * sum(Pct_DD_t^2))",
             700
+        ),
+        "RSK-06", new RiskMetricMeta(
+            "RSK-06", "Historical Value at Risk (95% 3Y)", "RSK_06_3Y_HISTORICAL_VAR_95",
+            "PERCENTAGE", "NONE_1DAY_HORIZON", "QUANTILE_RANK_POSITION",
+            "VaR_0.95 = -Q_0.05(R_1, ..., R_N)",
+            700
+        ),
+        "RSK-07", new RiskMetricMeta(
+            "RSK-07", "Historical Expected Shortfall (95% 3Y)", "RSK_07_3Y_EXPECTED_SHORTFALL_95",
+            "PERCENTAGE", "NONE_1DAY_HORIZON", "TAIL_OBSERVATION_COUNT",
+            "ES_0.95 = - (1 / |T_tail|) * sum(R_t for R_t <= Q_0.05)",
+            700
         )
     );
 
@@ -163,6 +175,26 @@ public class RiskCalculationService {
         String methodologyTag
     ) {
         return executeRiskMetricCalculation("RSK-05", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk06Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        return executeRiskMetricCalculation("RSK-06", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk07Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag
+    ) {
+        return executeRiskMetricCalculation("RSK-07", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
     }
 
     @Transactional

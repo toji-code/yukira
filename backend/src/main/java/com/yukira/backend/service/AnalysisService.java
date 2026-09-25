@@ -179,6 +179,44 @@ public class AnalysisService {
         return buildRiskResponse(run, "RSK-05");
     }
 
+    @Transactional
+    public RiskAnalysisResponse executeRsk06Analysis(Rsk06CalculationRequest request) {
+        Objects.requireNonNull(request.schemeOptionId(), "schemeOptionId must not be null");
+        Objects.requireNonNull(request.endDate(), "endDate must not be null");
+        Objects.requireNonNull(request.knowledgeCutoffTime(), "knowledgeCutoffTime must not be null for PIT compliance");
+
+        String tag = request.methodologyTag() != null && !request.methodologyTag().isBlank()
+            ? request.methodologyTag() : "CANDIDATE_V1";
+
+        CalculationRun run = riskCalculationService.executeRsk06Calculation(
+            request.schemeOptionId(),
+            request.endDate(),
+            request.knowledgeCutoffTime(),
+            tag
+        );
+
+        return buildRiskResponse(run, "RSK-06");
+    }
+
+    @Transactional
+    public RiskAnalysisResponse executeRsk07Analysis(Rsk07CalculationRequest request) {
+        Objects.requireNonNull(request.schemeOptionId(), "schemeOptionId must not be null");
+        Objects.requireNonNull(request.endDate(), "endDate must not be null");
+        Objects.requireNonNull(request.knowledgeCutoffTime(), "knowledgeCutoffTime must not be null for PIT compliance");
+
+        String tag = request.methodologyTag() != null && !request.methodologyTag().isBlank()
+            ? request.methodologyTag() : "CANDIDATE_V1";
+
+        CalculationRun run = riskCalculationService.executeRsk07Calculation(
+            request.schemeOptionId(),
+            request.endDate(),
+            request.knowledgeCutoffTime(),
+            tag
+        );
+
+        return buildRiskResponse(run, "RSK-07");
+    }
+
     @Transactional(readOnly = true)
     public Optional<Object> getAnalysisByRunId(Long runId) {
         return calculationRunRepository.findById(runId).map(run -> {
@@ -200,6 +238,12 @@ public class AnalysisService {
             }
             if (mCode.contains("RSK_05") || "RSK-05".equals(resCode)) {
                 return buildRiskResponse(run, "RSK-05");
+            }
+            if (mCode.contains("RSK_06") || "RSK-06".equals(resCode)) {
+                return buildRiskResponse(run, "RSK-06");
+            }
+            if (mCode.contains("RSK_07") || "RSK-07".equals(resCode)) {
+                return buildRiskResponse(run, "RSK-07");
             }
             if (mCode.contains("RET_03") || "RET-03".equals(resCode)) {
                 return buildRet03Response(run);
@@ -862,6 +906,8 @@ public class AnalysisService {
             else if (mCode.contains("RSK_03")) metricCode = "RSK-03";
             else if (mCode.contains("RSK_04")) metricCode = "RSK-04";
             else if (mCode.contains("RSK_05")) metricCode = "RSK-05";
+            else if (mCode.contains("RSK_06")) metricCode = "RSK-06";
+            else if (mCode.contains("RSK_07")) metricCode = "RSK-07";
             else metricCode = "RSK-01";
         }
 
@@ -920,6 +966,24 @@ public class AnalysisService {
                 formulaDisclosure = "Pct_DD_t = 100 * ((NAV_t / Running_Peak_t) - 1); Ulcer_Index = sqrt((1 / N) * sum(Pct_DD_t^2))";
                 disclosureSummary = "Ulcer Index measures the depth and duration of drawdowns quadratically as an index score of underwater stress. Zero investment recommendation.";
                 if (numericValue != null) formattedValue = String.format("%.4f UI points", numericValue);
+            }
+            case "RSK-06" -> {
+                metricName = "Historical Value at Risk (95% 3Y)";
+                units = "PERCENTAGE";
+                annualizationConv = "NONE_1DAY_HORIZON";
+                denominatorConv = "QUANTILE_RANK_POSITION";
+                formulaDisclosure = "VaR_0.95 = -Q_0.05(R_1, ..., R_N)";
+                disclosureSummary = "Historical VaR measures the minimum daily loss expected on the worst 5% of trading days over 3 years. It is non-subadditive and ignores tail loss magnitude beyond the 95th percentile. Zero investment recommendation.";
+                if (numericValue != null) formattedValue = String.format("%.4f%%", numericValue.multiply(new BigDecimal("100")));
+            }
+            case "RSK-07" -> {
+                metricName = "Historical Expected Shortfall (95% 3Y)";
+                units = "PERCENTAGE";
+                annualizationConv = "NONE_1DAY_HORIZON";
+                denominatorConv = "TAIL_OBSERVATION_COUNT";
+                formulaDisclosure = "ES_0.95 = - (1 / |T_tail|) * sum(R_t for R_t <= Q_0.05)";
+                disclosureSummary = "Historical Expected Shortfall (CVaR) measures the average loss experienced on days when returns breach the 95% historical VaR threshold over 3 years. Zero investment recommendation.";
+                if (numericValue != null) formattedValue = String.format("%.4f%%", numericValue.multiply(new BigDecimal("100")));
             }
             default -> {
                 metricName = "3-Year Annualized Volatility";

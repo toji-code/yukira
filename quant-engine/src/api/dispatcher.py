@@ -377,29 +377,87 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
 
-            elif code == "RSK-06":  # Historical VaR 95%
-                val = var.historical_var(fund_returns, 0.95)
-                results.append(
-                    MetricOutputItem(
-                        metric_code=code,
-                        numeric_value=val,
-                        units="PERCENTAGE",
-                        status=CalculationStatus.CALCULATED,
-                        diagnostics={"confidence_level": 0.95, "methodology_status": "CANDIDATE"},
+            elif code == "RSK-06":  # Historical VaR 95% (3Y)
+                min_obs = int(params.get("min_observations", 2))
+                confidence_level = float(params.get("confidence_level", 0.95))
+                if len(nav_values) < min_obs or len(fund_returns) < 1:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-06: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "confidence_level": confidence_level,
+                            },
+                        )
                     )
-                )
+                else:
+                    val = var.historical_var(fund_returns, confidence_level)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=val,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "confidence_level": confidence_level,
+                                "observation_count": len(nav_values),
+                                "return_count": len(fund_returns),
+                                "min_observations_required": min_obs,
+                                "annualization_convention": "NONE_1DAY_HORIZON",
+                                "denominator_convention": "QUANTILE_RANK_POSITION",
+                            },
+                        )
+                    )
 
-            elif code == "RSK-07":  # Expected Shortfall (CVaR 95%)
-                val = expected_shortfall.historical_expected_shortfall(fund_returns, 0.95)
-                results.append(
-                    MetricOutputItem(
-                        metric_code=code,
-                        numeric_value=val,
-                        units="PERCENTAGE",
-                        status=CalculationStatus.CALCULATED,
-                        diagnostics={"confidence_level": 0.95, "methodology_status": "CANDIDATE"},
+            elif code == "RSK-07":  # Expected Shortfall (CVaR 95%, 3Y)
+                min_obs = int(params.get("min_observations", 2))
+                confidence_level = float(params.get("confidence_level", 0.95))
+                if len(nav_values) < min_obs or len(fund_returns) < 1:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient observations for RSK-07: {len(nav_values)} provided, minimum {min_obs} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "observation_count": len(nav_values),
+                                "min_observations_required": min_obs,
+                                "confidence_level": confidence_level,
+                            },
+                        )
                     )
-                )
+                else:
+                    val = expected_shortfall.historical_expected_shortfall(fund_returns, confidence_level)
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=val,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "confidence_level": confidence_level,
+                                "observation_count": len(nav_values),
+                                "return_count": len(fund_returns),
+                                "min_observations_required": min_obs,
+                                "annualization_convention": "NONE_1DAY_HORIZON",
+                                "denominator_convention": "TAIL_OBSERVATION_COUNT",
+                            },
+                        )
+                    )
 
             elif code == "REL-01":  # Beta (3Y / Excess-Return OLS)
                 if not bench_returns or len(bench_returns) < 2:
