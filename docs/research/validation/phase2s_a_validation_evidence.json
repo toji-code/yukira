@@ -1,0 +1,897 @@
+{
+  "phase": "2S-A",
+  "timestamp": "2026-09-26T12:50:37.264720+00:00",
+  "input_digest": "",
+  "governance_note": "Validation outcomes are empirical verification states only; zero governance transitions.",
+  "parity_scope_statement": "All six representative metrics demonstrate deterministic production-to-independent-reference parity on pre-specified deterministic reference vectors. These parity results verify implementation agreement for the tested reference vectors. They do not constitute empirical validation of the canonical HDFC Flexi Cap Fund production results.",
+  "evidence_hierarchy": {
+    "level_a": "Deterministic reference-vector parity: Production kernel == independent reference kernel on controlled mathematical vectors. Established by Phase 2S-A.",
+    "level_b": "Canonical production-data results: Actual HDFC Flexi Cap Fund / Phase 2R values from the production calculation run. Inspected for context where specified.",
+    "level_c": "Empirical validation: Evidence that methodology is reliable/appropriate beyond mere implementation parity. NOT established by Phase 2S-A."
+  },
+  "metrics": {
+    "RET-03": {
+      "metric_code": "RET-03",
+      "overall_outcome": "CONDITIONAL",
+      "records": [
+        {
+          "metric_code": "RET-03",
+          "test_type": "INDEPENDENT_PARITY",
+          "outcome": "PASS",
+          "production_value": 0.23095048308347033,
+          "reference_value": 0.23095048308347033,
+          "discrepancy": 0.0,
+          "tolerance": 1e-10,
+          "tolerance_rule": "Passed absolute tolerance 1.0e-10",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "scenario": "normal_vector"
+          },
+          "timestamp": "2026-09-26T12:50:37.230321+00:00"
+        },
+        {
+          "metric_code": "RET-03",
+          "test_type": "PIT_PROVENANCE",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": "2024-01-15",
+          "knowledge_cutoff": "2024-01-31T23:59:59+00:00",
+          "input_hash": "a37e0acb2a9e0d8bb34047ffb4d4dab0d31b4806b088a3c86654920d235b30c2",
+          "diagnostics": {
+            "clean": true,
+            "violations_count": 0,
+            "retained_observations": 4,
+            "total_observations": 4
+          },
+          "timestamp": "2026-09-26T12:50:37.230782+00:00"
+        },
+        {
+          "metric_code": "RET-03",
+          "test_type": "SENSITIVITY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "base_cagr": 0.23095048308347033,
+            "delta_1d_bps": 2.3334926810836265,
+            "delta_3d_bps": 6.986405767495096,
+            "cagr_plus_1d": 0.23071713381536196,
+            "cagr_minus_1d": 0.2311843033153076,
+            "cagr_plus_3d": 0.23025184250672082,
+            "cagr_minus_3d": 0.23165336236794598,
+            "sensitivity_status": "Bitemporally bounded calendar sensitivity"
+          },
+          "timestamp": "2026-09-26T12:50:37.230825+00:00"
+        },
+        {
+          "metric_code": "RET-03",
+          "test_type": "REGIME_STABILITY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "status": "Insufficient historical data for multi-regime backtesting"
+          },
+          "timestamp": "2026-09-26T12:50:37.230834+00:00"
+        },
+        {
+          "metric_code": "RET-03",
+          "test_type": "STATISTICAL_UNCERTAINTY",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RET-03",
+            "outcome": "N/A",
+            "methodology": "INAPPLICABLE_FOR_DISCRETE_ENDPOINT",
+            "point_estimate": null,
+            "standard_error": null,
+            "ci_lower_95": null,
+            "ci_upper_95": null,
+            "block_length": null,
+            "block_length_rationale": "",
+            "disclosures": [
+              "Point-to-point cumulative metric: CAGR estimand represents a fixed-period terminal wealth ratio.",
+              "The current circular block-bootstrap procedure is not applied to RET-03 because bootstrap resampling changes observation multiplicities and therefore does not preserve the fixed-period terminal wealth ratio underlying the CAGR estimand.",
+              "A separate uncertainty methodology would require explicit methodological justification and is outside the current 2S-A scope."
+            ]
+          },
+          "timestamp": "2026-09-26T12:50:37.230870+00:00"
+        },
+        {
+          "metric_code": "RET-03",
+          "test_type": "DEPENDENCY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RET-03",
+            "mathematical_inputs": [
+              "start_nav (P_0)",
+              "end_nav (P_T)",
+              "elapsed_calendar_days (D_cal)"
+            ],
+            "structural_relationships": [
+              "Non-linear power compounding: R_cagr = (P_T / P_0)^(365.25 / D_cal) - 1.",
+              "Functionally independent of intermediate return volatility or path sequences.",
+              "Direct mathematical input into annualized excess return models."
+            ],
+            "collinearity_notes": [
+              "Uncorrelated with maximum drawdown timing or duration.",
+              "High empirical rank correlation with simple period return (RET-02) over fixed windows."
+            ],
+            "governance_prohibitions_confirmed": true
+          },
+          "timestamp": "2026-09-26T12:50:37.230881+00:00"
+        }
+      ],
+      "epistemic_disclosures": [
+        "Point-to-point cumulative metric: CAGR estimand represents a fixed-period terminal wealth ratio.",
+        "The current circular block-bootstrap procedure is not applied to RET-03 because bootstrap resampling changes observation multiplicities and therefore does not preserve the fixed-period terminal wealth ratio underlying the CAGR estimand.",
+        "A separate uncertainty methodology would require explicit methodological justification and is outside the current 2S-A scope."
+      ]
+    },
+    "RSK-01": {
+      "metric_code": "RSK-01",
+      "overall_outcome": "CONDITIONAL",
+      "records": [
+        {
+          "metric_code": "RSK-01",
+          "test_type": "INDEPENDENT_PARITY",
+          "outcome": "PASS",
+          "production_value": 0.25099800796022265,
+          "reference_value": 0.25099800796022265,
+          "discrepancy": 0.0,
+          "tolerance": 1e-12,
+          "tolerance_rule": "Passed absolute tolerance 1.0e-12",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "scenario": "normal_vector"
+          },
+          "timestamp": "2026-09-26T12:50:37.231467+00:00"
+        },
+        {
+          "metric_code": "RSK-01",
+          "test_type": "PIT_PROVENANCE",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": "2024-01-15",
+          "knowledge_cutoff": "2024-01-31T23:59:59+00:00",
+          "input_hash": "a37e0acb2a9e0d8bb34047ffb4d4dab0d31b4806b088a3c86654920d235b30c2",
+          "diagnostics": {
+            "clean": true,
+            "violations_count": 0,
+            "retained_observations": 4,
+            "total_observations": 4
+          },
+          "timestamp": "2026-09-26T12:50:37.231640+00:00"
+        },
+        {
+          "metric_code": "RSK-01",
+          "test_type": "SENSITIVITY_ANALYSIS",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "reason": "Discrete endpoint sensitivity not applicable to continuous series estimator"
+          },
+          "timestamp": "2026-09-26T12:50:37.231657+00:00"
+        },
+        {
+          "metric_code": "RSK-01",
+          "test_type": "REGIME_STABILITY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "status": "Insufficient historical data for multi-regime backtesting"
+          },
+          "timestamp": "2026-09-26T12:50:37.231665+00:00"
+        },
+        {
+          "metric_code": "RSK-01",
+          "test_type": "STATISTICAL_UNCERTAINTY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RSK-01",
+            "outcome": "INSUFFICIENT",
+            "methodology": "INSUFFICIENT_OBSERVATIONS",
+            "point_estimate": null,
+            "standard_error": null,
+            "ci_lower_95": null,
+            "ci_upper_95": null,
+            "block_length": null,
+            "block_length_rationale": "",
+            "disclosures": [
+              "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+            ]
+          },
+          "timestamp": "2026-09-26T12:50:37.231697+00:00"
+        },
+        {
+          "metric_code": "RSK-01",
+          "test_type": "DEPENDENCY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RSK-01",
+            "mathematical_inputs": [
+              "daily_nav_observations (P_t)",
+              "periods_per_year (252)"
+            ],
+            "structural_relationships": [
+              "Unbiased sample standard deviation of logarithmic returns annualized by sqrt(252).",
+              "Serves as the explicit denominator in the annualized Sharpe ratio (RAT-01).",
+              "Symmetric measure that treats upside return variance identically to downside variance."
+            ],
+            "collinearity_notes": [
+              "High collinearity with Downside Semideviation (RSK-02) under near-symmetric return distributions.",
+              "Diverges significantly from Downside Deviation in negatively skewed or fat-tailed portfolios."
+            ],
+            "governance_prohibitions_confirmed": true
+          },
+          "timestamp": "2026-09-26T12:50:37.231710+00:00"
+        }
+      ],
+      "epistemic_disclosures": [
+        "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+      ]
+    },
+    "RSK-03": {
+      "metric_code": "RSK-03",
+      "overall_outcome": "CONDITIONAL",
+      "records": [
+        {
+          "metric_code": "RSK-03",
+          "test_type": "INDEPENDENT_PARITY",
+          "outcome": "PASS",
+          "production_value": -0.25,
+          "reference_value": -0.25,
+          "discrepancy": 0.0,
+          "tolerance": 1e-12,
+          "tolerance_rule": "Passed absolute tolerance 1.0e-12",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "scenario": "normal_vector"
+          },
+          "timestamp": "2026-09-26T12:50:37.231766+00:00"
+        },
+        {
+          "metric_code": "RSK-03",
+          "test_type": "PIT_PROVENANCE",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": "2024-01-15",
+          "knowledge_cutoff": "2024-01-31T23:59:59+00:00",
+          "input_hash": "a37e0acb2a9e0d8bb34047ffb4d4dab0d31b4806b088a3c86654920d235b30c2",
+          "diagnostics": {
+            "clean": true,
+            "violations_count": 0,
+            "retained_observations": 4,
+            "total_observations": 4
+          },
+          "timestamp": "2026-09-26T12:50:37.231879+00:00"
+        },
+        {
+          "metric_code": "RSK-03",
+          "test_type": "SENSITIVITY_ANALYSIS",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "reason": "Discrete endpoint sensitivity not applicable to continuous series estimator"
+          },
+          "timestamp": "2026-09-26T12:50:37.231893+00:00"
+        },
+        {
+          "metric_code": "RSK-03",
+          "test_type": "REGIME_STABILITY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "status": "Insufficient historical data for multi-regime backtesting"
+          },
+          "timestamp": "2026-09-26T12:50:37.231904+00:00"
+        },
+        {
+          "metric_code": "RSK-03",
+          "test_type": "STATISTICAL_UNCERTAINTY",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RSK-03",
+            "outcome": "N/A",
+            "methodology": "INAPPLICABLE_FOR_PATH_DEPENDENT",
+            "point_estimate": null,
+            "standard_error": null,
+            "ci_lower_95": null,
+            "ci_upper_95": null,
+            "block_length": null,
+            "block_length_rationale": "",
+            "disclosures": [
+              "Path-dependent metric: Maximum drawdown is defined over continuous chronological price trajectories.",
+              "The current circular block-bootstrap procedure is not applied to RSK-03 because naive return resampling can distort the path structure underlying maximum drawdown.",
+              "Specialized path-preserving uncertainty methods are outside the current 2S-A scope."
+            ]
+          },
+          "timestamp": "2026-09-26T12:50:37.231931+00:00"
+        },
+        {
+          "metric_code": "RSK-03",
+          "test_type": "DEPENDENCY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RSK-03",
+            "mathematical_inputs": [
+              "chronological_nav_series (P_t)"
+            ],
+            "structural_relationships": [
+              "Purely path-dependent cumulative peak-to-trough scan: min_t (P_t / max_{s <= t} P_s - 1).",
+              "Serves as the mathematical envelope bounding Calmar ratio and Ulcer Index (RSK-05).",
+              "Invariant to cash flow scaling or total portfolio size."
+            ],
+            "collinearity_notes": [
+              "Moderate empirical correlation with annualized volatility (RSK-01); volatility measures dispersion around mean, while drawdown measures cumulative loss streaks."
+            ],
+            "governance_prohibitions_confirmed": true
+          },
+          "timestamp": "2026-09-26T12:50:37.231944+00:00"
+        }
+      ],
+      "epistemic_disclosures": [
+        "Path-dependent metric: Maximum drawdown is defined over continuous chronological price trajectories.",
+        "The current circular block-bootstrap procedure is not applied to RSK-03 because naive return resampling can distort the path structure underlying maximum drawdown.",
+        "Specialized path-preserving uncertainty methods are outside the current 2S-A scope."
+      ]
+    },
+    "RSK-06": {
+      "metric_code": "RSK-06",
+      "overall_outcome": "CONDITIONAL",
+      "records": [
+        {
+          "metric_code": "RSK-06",
+          "test_type": "INDEPENDENT_PARITY",
+          "outcome": "PASS",
+          "production_value": 0.08999999999999998,
+          "reference_value": 0.08999999999999998,
+          "discrepancy": 0.0,
+          "tolerance": 1e-12,
+          "tolerance_rule": "Passed absolute tolerance 1.0e-12",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "scenario": "normal_vector"
+          },
+          "timestamp": "2026-09-26T12:50:37.262484+00:00"
+        },
+        {
+          "metric_code": "RSK-06",
+          "test_type": "PIT_PROVENANCE",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": "2024-01-15",
+          "knowledge_cutoff": "2024-01-31T23:59:59+00:00",
+          "input_hash": "a37e0acb2a9e0d8bb34047ffb4d4dab0d31b4806b088a3c86654920d235b30c2",
+          "diagnostics": {
+            "clean": true,
+            "violations_count": 0,
+            "retained_observations": 4,
+            "total_observations": 4
+          },
+          "timestamp": "2026-09-26T12:50:37.262605+00:00"
+        },
+        {
+          "metric_code": "RSK-06",
+          "test_type": "SENSITIVITY_ANALYSIS",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "reason": "Discrete endpoint sensitivity not applicable to continuous series estimator"
+          },
+          "timestamp": "2026-09-26T12:50:37.262617+00:00"
+        },
+        {
+          "metric_code": "RSK-06",
+          "test_type": "REGIME_STABILITY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "status": "Insufficient historical data for multi-regime backtesting"
+          },
+          "timestamp": "2026-09-26T12:50:37.262624+00:00"
+        },
+        {
+          "metric_code": "RSK-06",
+          "test_type": "STATISTICAL_UNCERTAINTY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RSK-06",
+            "outcome": "INSUFFICIENT",
+            "methodology": "INSUFFICIENT_OBSERVATIONS",
+            "point_estimate": null,
+            "standard_error": null,
+            "ci_lower_95": null,
+            "ci_upper_95": null,
+            "block_length": null,
+            "block_length_rationale": "",
+            "disclosures": [
+              "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+            ]
+          },
+          "timestamp": "2026-09-26T12:50:37.262649+00:00"
+        },
+        {
+          "metric_code": "RSK-06",
+          "test_type": "DEPENDENCY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RSK-06",
+            "mathematical_inputs": [
+              "daily_periodic_returns (r_t)",
+              "confidence_level (0.95)"
+            ],
+            "structural_relationships": [
+              "Non-parametric quantile estimator on empirical return distribution: -q_{0.05}.",
+              "Lower-bound threshold defining the integration boundary for Expected Shortfall (RSK-07).",
+              "Dimensionless daily percentage loss magnitude."
+            ],
+            "collinearity_notes": [
+              "Rank-correlated with standard deviation under Gaussian assumptions, but captures non-linear tail fatness and negative skewness."
+            ],
+            "governance_prohibitions_confirmed": true
+          },
+          "timestamp": "2026-09-26T12:50:37.262657+00:00"
+        }
+      ],
+      "epistemic_disclosures": [
+        "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+      ]
+    },
+    "RAT-01": {
+      "metric_code": "RAT-01",
+      "overall_outcome": "CONDITIONAL",
+      "records": [
+        {
+          "metric_code": "RAT-01",
+          "test_type": "INDEPENDENT_PARITY",
+          "outcome": "PASS",
+          "production_value": 9.83912191204073,
+          "reference_value": 9.83912191204073,
+          "discrepancy": 0.0,
+          "tolerance": 1e-08,
+          "tolerance_rule": "Passed absolute tolerance 1.0e-08",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "scenario": "normal_vector"
+          },
+          "timestamp": "2026-09-26T12:50:37.262886+00:00"
+        },
+        {
+          "metric_code": "RAT-01",
+          "test_type": "PIT_PROVENANCE",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": "2024-01-15",
+          "knowledge_cutoff": "2024-01-31T23:59:59+00:00",
+          "input_hash": "a37e0acb2a9e0d8bb34047ffb4d4dab0d31b4806b088a3c86654920d235b30c2",
+          "diagnostics": {
+            "clean": true,
+            "violations_count": 0,
+            "retained_observations": 4,
+            "total_observations": 4
+          },
+          "timestamp": "2026-09-26T12:50:37.262948+00:00"
+        },
+        {
+          "metric_code": "RAT-01",
+          "test_type": "SENSITIVITY_ANALYSIS",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "reason": "Discrete endpoint sensitivity not applicable to continuous series estimator"
+          },
+          "timestamp": "2026-09-26T12:50:37.262957+00:00"
+        },
+        {
+          "metric_code": "RAT-01",
+          "test_type": "REGIME_STABILITY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "status": "Insufficient historical data for multi-regime backtesting"
+          },
+          "timestamp": "2026-09-26T12:50:37.262968+00:00"
+        },
+        {
+          "metric_code": "RAT-01",
+          "test_type": "STATISTICAL_UNCERTAINTY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RAT-01",
+            "outcome": "INSUFFICIENT",
+            "methodology": "INSUFFICIENT_OBSERVATIONS",
+            "point_estimate": null,
+            "standard_error": null,
+            "ci_lower_95": null,
+            "ci_upper_95": null,
+            "block_length": null,
+            "block_length_rationale": "",
+            "disclosures": [
+              "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+            ]
+          },
+          "timestamp": "2026-09-26T12:50:37.262982+00:00"
+        },
+        {
+          "metric_code": "RAT-01",
+          "test_type": "DEPENDENCY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "RAT-01",
+            "mathematical_inputs": [
+              "portfolio_returns (r_{p,t})",
+              "fbil_risk_free_rates (r_{f,t})",
+              "annualized_volatility (RSK-01)"
+            ],
+            "structural_relationships": [
+              "Composite estimator: excess return mean divided by sample standard deviation times sqrt(252).",
+              "Inversely proportional to total risk: doubling volatility halves the Sharpe ratio for fixed excess return.",
+              "Directly dependent on FBIL 91-Day T-bill risk-free yield curve accrual accuracy."
+            ],
+            "collinearity_notes": [
+              "Under compressed or negative excess returns, higher volatility mathematically increases the Sharpe ratio toward zero (a well-known failure mode requiring prominent disclosure)."
+            ],
+            "governance_prohibitions_confirmed": true
+          },
+          "timestamp": "2026-09-26T12:50:37.262988+00:00"
+        }
+      ],
+      "epistemic_disclosures": [
+        "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+      ]
+    },
+    "REL-01": {
+      "metric_code": "REL-01",
+      "overall_outcome": "CONDITIONAL",
+      "records": [
+        {
+          "metric_code": "REL-01",
+          "test_type": "INDEPENDENT_PARITY",
+          "outcome": "PASS",
+          "production_value": 1.2000000000000002,
+          "reference_value": 1.2000000000000002,
+          "discrepancy": 0.0,
+          "tolerance": 1e-08,
+          "tolerance_rule": "Passed absolute tolerance 1.0e-08",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "scenario": "normal_vector"
+          },
+          "timestamp": "2026-09-26T12:50:37.263035+00:00"
+        },
+        {
+          "metric_code": "REL-01",
+          "test_type": "PIT_PROVENANCE",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": "2024-01-15",
+          "knowledge_cutoff": "2024-01-31T23:59:59+00:00",
+          "input_hash": "a37e0acb2a9e0d8bb34047ffb4d4dab0d31b4806b088a3c86654920d235b30c2",
+          "diagnostics": {
+            "clean": true,
+            "violations_count": 0,
+            "retained_observations": 4,
+            "total_observations": 4
+          },
+          "timestamp": "2026-09-26T12:50:37.263088+00:00"
+        },
+        {
+          "metric_code": "REL-01",
+          "test_type": "SENSITIVITY_ANALYSIS",
+          "outcome": "N/A",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "reason": "Discrete endpoint sensitivity not applicable to continuous series estimator"
+          },
+          "timestamp": "2026-09-26T12:50:37.263095+00:00"
+        },
+        {
+          "metric_code": "REL-01",
+          "test_type": "REGIME_STABILITY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "status": "Insufficient historical data for multi-regime backtesting"
+          },
+          "timestamp": "2026-09-26T12:50:37.263100+00:00"
+        },
+        {
+          "metric_code": "REL-01",
+          "test_type": "STATISTICAL_UNCERTAINTY",
+          "outcome": "INSUFFICIENT",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "REL-01",
+            "outcome": "INSUFFICIENT",
+            "methodology": "INSUFFICIENT_OBSERVATIONS",
+            "point_estimate": null,
+            "standard_error": null,
+            "ci_lower_95": null,
+            "ci_upper_95": null,
+            "block_length": null,
+            "block_length_rationale": "",
+            "disclosures": [
+              "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+            ]
+          },
+          "timestamp": "2026-09-26T12:50:37.263111+00:00"
+        },
+        {
+          "metric_code": "REL-01",
+          "test_type": "DEPENDENCY_ANALYSIS",
+          "outcome": "PASS",
+          "production_value": null,
+          "reference_value": null,
+          "discrepancy": null,
+          "tolerance": null,
+          "tolerance_rule": "",
+          "methodology_version": "CANDIDATE_V1",
+          "analysis_cutoff": null,
+          "knowledge_cutoff": null,
+          "input_hash": null,
+          "diagnostics": {
+            "metric_code": "REL-01",
+            "mathematical_inputs": [
+              "portfolio_excess_returns (r_p - r_f)",
+              "benchmark_excess_returns (r_b - r_f)"
+            ],
+            "structural_relationships": [
+              "Bivariate OLS slope coefficient: Cov(r_p - r_f, r_b - r_f) / Var(r_b - r_f).",
+              "Direct denominator in the Treynor ratio (RAT-02: excess return per unit of systematic risk).",
+              "Undefined when benchmark returns have zero variance."
+            ],
+            "collinearity_notes": [
+              "Related to correlation (COR-01) via beta = correlation * (std_p / std_b).",
+              "Captures linear systematic co-movement; uninformative on unhedged non-linear factor exposures."
+            ],
+            "governance_prohibitions_confirmed": true
+          },
+          "timestamp": "2026-09-26T12:50:37.263117+00:00"
+        }
+      ],
+      "epistemic_disclosures": [
+        "Fewer than 30 return observations provided; bootstrap is statistically underpowered."
+      ]
+    }
+  }
+}
