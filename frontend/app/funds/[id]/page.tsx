@@ -109,7 +109,7 @@ export default function FundDetailPage({ params }: PageProps) {
           action={
             <Link
               href="/funds"
-              className="inline-flex rounded-md bg-zinc-800 px-3.5 py-2 text-xs font-mono font-medium text-zinc-200 hover:bg-zinc-700"
+              className="inline-flex rounded-md bg-surface-elevated border border-border px-3.5 py-2 text-xs font-mono font-medium text-text-primary hover:bg-surface"
             >
               Back to Catalog
             </Link>
@@ -135,20 +135,20 @@ export default function FundDetailPage({ params }: PageProps) {
       {/* Epistemic Mandate Banner */}
       <section className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 backdrop-blur-sm" aria-label="Methodology Status">
         <div className="flex items-start gap-3.5">
-          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-400 font-mono">
+          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-600 dark:text-amber-400 font-mono">
             !
           </div>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 font-mono">
                 Methodology Governance & Operational Status
               </h2>
-              <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-200 border border-amber-500/30">
+              <span className="rounded bg-amber-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-800 dark:text-amber-200 border border-amber-500/30">
                 ZERO STAR RATINGS &bull; ZERO TIPS
               </span>
             </div>
-            <p className="text-xs text-zinc-200 font-sans leading-relaxed">
-              Analytical metrics displayed below reflect verified point-in-time observations. Metrics executing Phase 2N approved methodologies (M2N-01, M2N-02, M2N-05, M2N-06, M2N-07) adhere to formal standards, while other vertical slices operate as candidate specifications. YUKIRA does not generate commercial ratings or investment forecasts.
+            <p className="text-xs text-text-primary font-sans leading-relaxed">
+              Analytical metrics displayed below reflect verified point-in-time observations. Core analytical metrics adhere to formal quantitative governance standards, while research indicators operate as candidate specifications. YUKIRA does not generate commercial ratings or investment forecasts.
             </p>
           </div>
         </div>
@@ -156,7 +156,7 @@ export default function FundDetailPage({ params }: PageProps) {
 
       {/* Global Error Banner */}
       {triggerError && (
-        <div className="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 font-mono text-xs text-rose-300">
+        <div className="mb-6 rounded-lg border border-danger/30 bg-danger/10 p-4 font-mono text-xs text-danger">
           <strong className="block uppercase text-[11px] mb-1">Execution Failure:</strong>
           {triggerError}
         </div>
@@ -164,61 +164,61 @@ export default function FundDetailPage({ params }: PageProps) {
 
       {/* 1. FUND IDENTITY & SHARE CLASS SELECTOR */}
       <section className="mb-10" id="identity">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 1</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Fund Identity & Share Classes</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-accent font-semibold">Section 1</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Fund Identity & Share Classes</h2>
           </div>
           {isCanonicalPilot && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 text-xs font-mono font-semibold text-cyan-300">
-              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 border border-sky-500/30 px-3 py-1 text-xs font-mono font-semibold text-sky-700 dark:text-sky-300">
+              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
               Canonical Pilot Instrument
             </span>
           )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs mb-5">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Scheme Code</span>
-            <span className="text-cyan-400 font-bold text-sm mt-1 block">{scheme.code}</span>
-            <span className="text-zinc-500 text-[10px] mt-1 block">Canonical Identifier</span>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Scheme Code</span>
+            <span className="text-accent font-bold text-sm mt-1 block">{scheme.code}</span>
+            <span className="text-text-muted text-[10px] mt-1 block">Canonical Identifier</span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Inception Date</span>
-            <span className="text-zinc-100 font-bold text-sm mt-1 block">{scheme.inceptionDate || "—"}</span>
-            <span className="text-zinc-500 text-[10px] mt-1 block">AMFI Record</span>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Inception Date</span>
+            <span className="text-text-primary font-bold text-sm mt-1 block">{scheme.inceptionDate || "—"}</span>
+            <span className="text-text-muted text-[10px] mt-1 block">AMFI Record</span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Master Record Status</span>
-            <span className="text-emerald-400 font-bold text-sm mt-1 flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Master Record Status</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-sm mt-1 flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
               {scheme.status || "ACTIVE"}
             </span>
-            <span className="text-zinc-500 text-[10px] mt-1 block">PostgreSQL Verified</span>
+            <span className="text-text-muted text-[10px] mt-1 block">PostgreSQL Verified</span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Registered Options</span>
-            <span className="text-zinc-100 font-bold text-sm mt-1 block">{options.length} Share Classes</span>
-            <span className="text-zinc-500 text-[10px] mt-1 block">Direct / Regular Plans</span>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Registered Options</span>
+            <span className="text-text-primary font-bold text-sm mt-1 block">{options.length} Share Classes</span>
+            <span className="text-text-muted text-[10px] mt-1 block">Direct / Regular Plans</span>
           </div>
         </div>
 
         {/* Share Class Selector Table */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5">
+        <div className="rounded-xl border border-border bg-surface p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div>
-              <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-200">
+              <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-text-primary">
                 Registered Share Classes ({options.length})
               </h3>
-              <p className="text-xs text-zinc-400 font-sans">
+              <p className="text-xs text-text-secondary font-sans">
                 Select an option to target calculations and verify point-in-time coverage.
               </p>
             </div>
             {selectedOption && (
-              <span className="text-xs font-mono text-cyan-400 bg-cyan-950/40 border border-cyan-800/60 px-2.5 py-1 rounded">
+              <span className="text-xs font-mono text-accent bg-surface-elevated border border-border px-2.5 py-1 rounded">
                 Active: Option #{selectedOption.id} ({selectedOption.plan?.planType || "DIRECT"} {selectedOption.optionType})
               </span>
             )}
@@ -226,7 +226,7 @@ export default function FundDetailPage({ params }: PageProps) {
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
-              <thead className="border-b border-zinc-800 bg-zinc-950/60 text-zinc-400 uppercase text-[10px] tracking-wider">
+              <thead className="border-b border-border bg-surface-elevated text-text-muted uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="px-4 py-2.5">Select</th>
                   <th className="px-4 py-2.5">Option ID</th>
@@ -237,13 +237,13 @@ export default function FundDetailPage({ params }: PageProps) {
                   <th className="px-4 py-2.5">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60">
+              <tbody className="divide-y divide-border">
                 {options.map((opt) => (
                   <tr
                     key={opt.id}
                     onClick={() => setSelectedOptionId(opt.id)}
-                    className={`cursor-pointer transition hover:bg-zinc-800/40 ${
-                      selectedOptionId === opt.id ? "bg-cyan-500/10 border-l-2 border-cyan-400" : ""
+                    className={`cursor-pointer transition hover:bg-surface-elevated ${
+                      selectedOptionId === opt.id ? "bg-sky-500/10 border-l-2 border-accent" : ""
                     }`}
                   >
                     <td className="px-4 py-2.5">
@@ -252,27 +252,27 @@ export default function FundDetailPage({ params }: PageProps) {
                         name="selectedOption"
                         checked={selectedOptionId === opt.id}
                         onChange={() => setSelectedOptionId(opt.id)}
-                        className="text-cyan-500 focus:ring-cyan-500"
+                        className="text-accent focus:ring-accent"
                         aria-label={`Select Option #${opt.id}`}
                       />
                     </td>
-                    <td className="px-4 py-2.5 font-bold text-cyan-400">
+                    <td className="px-4 py-2.5 font-bold text-accent">
                       Option #{opt.id}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-200 font-semibold">
+                    <td className="px-4 py-2.5 text-text-primary font-semibold">
                       {opt.plan?.planType || "DIRECT"}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-300">
+                    <td className="px-4 py-2.5 text-text-secondary">
                       {opt.optionType || "GROWTH"}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-300 font-bold">
+                    <td className="px-4 py-2.5 text-text-primary font-bold">
                       {opt.amfiCode || "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px]">
+                    <td className="px-4 py-2.5 text-text-muted font-mono text-[11px]">
                       {opt.isin || "—"}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                         {opt.status || "ACTIVE"}
                       </span>
                     </td>
@@ -286,42 +286,42 @@ export default function FundDetailPage({ params }: PageProps) {
 
       {/* 2. DATA COVERAGE & POINT-IN-TIME STATUS */}
       <section className="mb-10" id="coverage">
-        <div className="pb-2 border-b border-zinc-800 mb-4">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Section 2</div>
-          <h2 className="text-lg font-bold text-zinc-100 font-sans">Data Coverage & Point-in-Time Status</h2>
+        <div className="pb-2 border-b border-border mb-4">
+          <div className="font-mono text-[11px] uppercase tracking-wider text-accent font-semibold">Section 2</div>
+          <h2 className="text-lg font-bold text-text-primary font-sans">Data Coverage & Point-in-Time Status</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Analysis Cutoff Window</span>
-            <span className="text-zinc-100 font-bold text-sm mt-1 block">2024-01-15</span>
-            <p className="mt-1 text-zinc-400 text-xs font-sans">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Analysis Cutoff Window</span>
+            <span className="text-text-primary font-bold text-sm mt-1 block">2024-01-15</span>
+            <p className="mt-1 text-text-secondary text-xs font-sans">
               Evaluations anchored to authentic historical market trading close.
             </p>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Knowledge Cutoff Time</span>
-            <span className="text-cyan-400 font-bold text-xs mt-1 block truncate" title="2024-01-31T23:59:59+05:30">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Knowledge Cutoff Time</span>
+            <span className="text-accent font-bold text-xs mt-1 block truncate" title="2024-01-31T23:59:59+05:30">
               2024-01-31 23:59:59 IST
             </span>
-            <p className="mt-1 text-zinc-400 text-xs font-sans">
+            <p className="mt-1 text-text-secondary text-xs font-sans">
               Strict exclusion of any revisions published after cutoff.
             </p>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Canonical Horizon</span>
-            <span className="text-emerald-400 font-bold text-sm mt-1 block">1,243 Trading Dates</span>
-            <p className="mt-1 text-zinc-400 text-xs font-sans">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Canonical Horizon</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-sm mt-1 block">1,243 Trading Dates</span>
+            <p className="mt-1 text-text-secondary text-xs font-sans">
               Continuous 5Y ledger spanning 2019 through 2024.
             </p>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <span className="text-zinc-500 text-[10px] uppercase block">Cryptographic Provenance</span>
-            <span className="text-zinc-200 font-bold text-sm mt-1 block">SHA-256 Verified</span>
-            <p className="mt-1 text-zinc-400 text-xs font-sans">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <span className="text-text-muted text-[10px] uppercase block">Cryptographic Provenance</span>
+            <span className="text-text-primary font-bold text-sm mt-1 block">SHA-256 Verified</span>
+            <p className="mt-1 text-text-secondary text-xs font-sans">
               AMFI official raw artifacts with immutable byte sizes.
             </p>
           </div>
@@ -332,13 +332,13 @@ export default function FundDetailPage({ params }: PageProps) {
 
       {/* DIMENSION 1: RETURN QUALITY */}
       <section className="mb-10" id="return-quality">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-cyan-400">Dimension 1</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Return Quality & Compound Horizon</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-accent font-semibold">Dimension 1</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Return Quality & Compound Horizon</h2>
           </div>
-          <span className="font-mono text-xs text-zinc-400">
-            2 Implemented &bull; 5 Candidate Specs
+          <span className="font-mono text-xs text-text-muted">
+            4 Horizon Metrics
           </span>
         </div>
 
@@ -365,7 +365,7 @@ export default function FundDetailPage({ params }: PageProps) {
 
           <MetricCard
             code="RET-03"
-            name="3-Year Compound Annual Growth Rate (CAGR)"
+            name="3-Year Compound Annual Growth Rate (3Y CAGR)"
             category="return"
             categoryLabel="Annualized Return"
             governanceStatus="approved"
@@ -385,44 +385,44 @@ export default function FundDetailPage({ params }: PageProps) {
 
           <MetricCard
             code="RET-01"
-            name="1-Year Compound Return (1Y CAGR)"
+            name="1-Year Compound Annual Growth Rate (1Y CAGR)"
             category="return"
             categoryLabel="12M Lookback"
             governanceStatus="unimplemented"
             period="12 Calendar Months"
             description="Annualized 1-year trailing return primitive."
-            disabledReason="Candidate specification — candidate kernel in quant-engine."
+            disabledReason="Under quantitative review — available in full analytical audit."
           />
 
           <MetricCard
             code="RET-04"
-            name="5-Year Compound Return (5Y CAGR)"
+            name="5-Year Compound Annual Growth Rate (5Y CAGR)"
             category="return"
             categoryLabel="60M Lookback"
             governanceStatus="unimplemented"
             period="60 Calendar Months"
             description="Full-cycle 5-year annualized return primitive."
-            disabledReason="Candidate specification — candidate kernel in quant-engine."
+            disabledReason="Under quantitative review — available in full analytical audit."
           />
         </div>
       </section>
 
       {/* DIMENSION 2: TOTAL & DOWNSIDE RISK */}
       <section className="mb-10" id="risk">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-amber-400">Dimension 2</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Total & Downside Risk</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-semibold">Dimension 2</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Total & Downside Risk</h2>
           </div>
-          <span className="font-mono text-xs text-zinc-400">
-            2 Implemented Slices
+          <span className="font-mono text-xs text-text-muted">
+            2 Risk Metrics
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <MetricCard
             code="RSK-01"
-            name="3-Year Annualized Volatility"
+            name="Annualized Volatility (3Y)"
             category="risk"
             categoryLabel="Total Dispersion"
             governanceStatus="approved"
@@ -442,7 +442,7 @@ export default function FundDetailPage({ params }: PageProps) {
 
           <MetricCard
             code="RSK-02"
-            name="Downside Semideviation"
+            name="Downside Semideviation (3Y)"
             category="risk"
             categoryLabel="Asymmetric Risk"
             governanceStatus="candidate"
@@ -464,20 +464,20 @@ export default function FundDetailPage({ params }: PageProps) {
 
       {/* DIMENSION 3: DRAWDOWN & PATH STRESS */}
       <section className="mb-10" id="drawdown">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-rose-400">Dimension 3</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Drawdown & Path Stress</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-rose-600 dark:text-rose-400 font-semibold">Dimension 3</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Drawdown & Path Stress</h2>
           </div>
-          <span className="font-mono text-xs text-zinc-400">
-            3 Implemented Slices
+          <span className="font-mono text-xs text-text-muted">
+            3 Drawdown Metrics
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard
             code="RSK-03"
-            name="3-Year Maximum Drawdown"
+            name="Maximum Drawdown (3Y)"
             category="drawdown"
             categoryLabel="Capital Decline"
             governanceStatus="candidate"
@@ -517,7 +517,7 @@ export default function FundDetailPage({ params }: PageProps) {
 
           <MetricCard
             code="RSK-05"
-            name="Ulcer Index"
+            name="Ulcer Index (3Y)"
             category="drawdown"
             categoryLabel="Stress Metric"
             governanceStatus="candidate"
@@ -539,13 +539,13 @@ export default function FundDetailPage({ params }: PageProps) {
 
       {/* DIMENSION 4: TAIL RISK */}
       <section className="mb-10" id="tail-risk">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-purple-400">Dimension 4</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Tail Risk & Extreme Losses</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-semibold">Dimension 4</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Tail Risk & Extreme Losses</h2>
           </div>
-          <span className="font-mono text-xs text-zinc-400">
-            2 Candidate Algorithms (Stage H Verified)
+          <span className="font-mono text-xs text-text-muted">
+            2 Tail Risk Metrics
           </span>
         </div>
 
@@ -565,7 +565,7 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Quantile Convention', value: 'Type 7 Linear Interpolation' },
               { label: 'Confidence Level', value: '95.0% One-Tailed' },
             ]}
-            disabledReason="Implemented in Python quant engine kernel (Stage H). Available in full analytical audit."
+            disabledReason="Implemented in Python quant engine kernel. Available in full analytical audit."
           />
 
           <MetricCard
@@ -583,20 +583,20 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Coherence', value: 'Sub-additive Coherent Measure' },
               { label: 'Tail Threshold', value: 'Empirical 5th Percentile' },
             ]}
-            disabledReason="Implemented in Python quant engine kernel (Stage H). Available in full analytical audit."
+            disabledReason="Implemented in Python quant engine kernel. Available in full analytical audit."
           />
         </div>
       </section>
 
-      {/* DIMENSION 5: RISK-ADJUSTED & MARKET SENSITIVITY (PHASE 2Q) */}
+      {/* DIMENSION 5: RISK-ADJUSTED & MARKET SENSITIVITY */}
       <section className="mb-10" id="risk-adjusted">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-emerald-400">Dimension 5</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Risk-Adjusted Ratios & Market Sensitivity</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-semibold">Dimension 5</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Risk-Adjusted Ratios & Market Sensitivity</h2>
           </div>
-          <span className="font-mono text-xs text-zinc-400">
-            4 Phase 2Q Verified Slices (Phase 2N Approved Methodology)
+          <span className="font-mono text-xs text-text-muted">
+            4 Risk-Adjusted & Sensitivity Metrics
           </span>
         </div>
 
@@ -616,7 +616,7 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Risk-Free Benchmark', value: 'FBIL 91D T-Bill' },
               { label: 'Compounding', value: 'Geometric Annualized' },
             ]}
-            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-01/M2N-02 methodology)."
+            disabledReason="Available in full analytical audit profile. Requires synchronized benchmark and risk-free series."
           />
 
           <MetricCard
@@ -634,12 +634,12 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Systematic Beta', value: '3Y Nifty 50 TRI Beta' },
               { label: 'Denominator Rule', value: 'Beta > 0 required' },
             ]}
-            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-05/M2N-06 methodology)."
+            disabledReason="Available in full analytical audit profile. Requires synchronized benchmark and risk-free series."
           />
 
           <MetricCard
-            code="REL-01"
-            name="Equity Beta (3Y)"
+            code="MKT-01"
+            name="Portfolio Beta (3Y)"
             category="risk_adjusted"
             categoryLabel="Systematic Sensitivity"
             governanceStatus="approved"
@@ -652,11 +652,11 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Benchmark', value: 'Official NIFTY 50 TRI' },
               { label: 'Regression', value: 'Ordinary Least Squares (OLS)' },
             ]}
-            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-06 methodology)."
+            disabledReason="Available in full analytical audit profile. Requires synchronized benchmark series."
           />
 
           <MetricCard
-            code="REL-04"
+            code="MKT-02"
             name="Downside Beta (3Y)"
             category="risk_adjusted"
             categoryLabel="Asymmetric Sensitivity"
@@ -670,20 +670,20 @@ export default function FundDetailPage({ params }: PageProps) {
               { label: 'Conditioning', value: 'r_benchmark < 0.0' },
               { label: 'Min Observations', value: '100 downside market days' },
             ]}
-            disabledReason="Phase 2Q verified slice (Approved Phase 2N M2N-07 methodology)."
+            disabledReason="Available in full analytical audit profile. Requires synchronized benchmark series."
           />
         </div>
       </section>
 
       {/* DIMENSION 6: PORTFOLIO STRUCTURE & GOVERNANCE */}
       <section className="mb-12" id="portfolio">
-        <div className="flex items-center justify-between pb-2 border-b border-zinc-800 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-border mb-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">Dimension 6</div>
-            <h2 className="text-lg font-bold text-zinc-100 font-sans">Portfolio Structure & Governance</h2>
+            <div className="font-mono text-[11px] uppercase tracking-wider text-text-muted font-semibold">Dimension 6</div>
+            <h2 className="text-lg font-bold text-text-primary font-sans">Portfolio Structure & Governance</h2>
           </div>
-          <span className="font-mono text-xs text-zinc-400">
-            Scheduled Phase 3 &bull; Pending SEBI Ingestion
+          <span className="font-mono text-xs text-text-muted">
+            Portfolio Disclosures &bull; Pending Regulatory Feed Ingestion
           </span>
         </div>
 
@@ -695,7 +695,7 @@ export default function FundDetailPage({ params }: PageProps) {
             categoryLabel="Holdings Concentration"
             governanceStatus="pending_ingestion"
             description="Aggregate portfolio weight assigned to the top 10 largest individual equity holdings."
-            disabledReason="Awaiting Phase 3 SEBI monthly portfolio disclosure sheet ingestion."
+            disabledReason="Awaiting monthly portfolio disclosure holdings ingestion."
           />
 
           <MetricCard
@@ -705,7 +705,7 @@ export default function FundDetailPage({ params }: PageProps) {
             categoryLabel="Diversification"
             governanceStatus="pending_ingestion"
             description="Inverse Herfindahl-Hirschman Index (1 / sum(w_i^2)) evaluating effective holdings."
-            disabledReason="Awaiting Phase 3 SEBI monthly portfolio disclosure sheet ingestion."
+            disabledReason="Awaiting monthly portfolio disclosure holdings ingestion."
           />
 
           <MetricCard
@@ -721,69 +721,69 @@ export default function FundDetailPage({ params }: PageProps) {
       </section>
 
       {/* 4. DATA PROVENANCE & LINEAGE AUDIT */}
-      <section className="mb-12 rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 font-mono text-xs" id="provenance">
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-          <div className="flex items-center gap-2 font-bold text-zinc-200 uppercase tracking-wider">
-            <span className="h-2 w-2 rounded-full bg-cyan-400" />
+      <section className="mb-12 rounded-xl border border-border bg-surface p-6 font-mono text-xs" id="provenance">
+        <div className="flex items-center justify-between pb-3 border-b border-border">
+          <div className="flex items-center gap-2 font-bold text-text-primary uppercase tracking-wider">
+            <span className="h-2 w-2 rounded-full bg-accent" />
             Official AMFI Data Lineage & Cryptographic Proof
           </div>
-          <span className="text-zinc-500 text-[11px]">Primary Source Verification</span>
+          <span className="text-text-muted text-[11px]">Primary Source Verification</span>
         </div>
 
-        <div className="mt-4 space-y-3 font-sans text-xs text-zinc-300">
+        <div className="mt-4 space-y-3 font-sans text-xs text-text-secondary">
           <p>
-            All numerical calculations originate strictly from authenticated primary source documents in the repository&apos;s bitemporal ledger. For scheme <strong className="text-white font-mono">{scheme.code}</strong> (AMFI <strong className="text-white font-mono">{selectedOption?.amfiCode || "118955"}</strong>), observations are cryptographically anchored to:
+            All numerical calculations originate strictly from authenticated primary source documents in the repository&apos;s bitemporal ledger. For scheme <strong className="text-text-primary font-mono">{scheme.code}</strong> (AMFI <strong className="text-text-primary font-mono">{selectedOption?.amfiCode || "118955"}</strong>), observations are cryptographically anchored to:
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 font-mono text-xs">
-            <div className="rounded-lg bg-zinc-950 p-3 border border-zinc-800/80">
-              <span className="text-zinc-500 text-[10px] uppercase block">Raw Source Artifact #1</span>
-              <span className="text-cyan-400 font-bold block mt-0.5">AMFI NAV History Payload</span>
-              <span className="text-zinc-400 text-[10px] block mt-1 break-all select-all font-mono">
+            <div className="rounded-lg bg-surface-elevated p-3 border border-border">
+              <span className="text-text-muted text-[10px] uppercase block">Raw Source Artifact #1</span>
+              <span className="text-accent font-bold block mt-0.5">AMFI NAV History Payload</span>
+              <span className="text-text-secondary text-[10px] block mt-1 break-all select-all font-mono">
                 SHA-256: 900508f8bf137cb8ba02adae70a0eb6a0be7318389e9b3943f0bee738f3be259
               </span>
-              <span className="text-zinc-500 text-[10px] block mt-1">Size: 11,185,549 bytes &bull; 11 Jan 2024 dates</span>
+              <span className="text-text-muted text-[10px] block mt-1">Size: 11,185,549 bytes &bull; 11 Jan 2024 dates</span>
             </div>
 
-            <div className="rounded-lg bg-zinc-950 p-3 border border-zinc-800/80">
-              <span className="text-zinc-500 text-[10px] uppercase block">Historical 5Y Horizon Artifacts</span>
-              <span className="text-emerald-400 font-bold block mt-0.5">Annual Source Artifacts #149..#155</span>
-              <span className="text-zinc-400 text-[10px] block mt-1">
+            <div className="rounded-lg bg-surface-elevated p-3 border border-border">
+              <span className="text-text-muted text-[10px] uppercase block">Historical 5Y Horizon Artifacts</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5">Annual Source Artifacts #149..#155</span>
+              <span className="text-text-secondary text-[10px] block mt-1">
                 2019 (#149), 2020 (#155), 2021 (#150), 2022 (#151), 2023 (#152)
               </span>
-              <span className="text-zinc-500 text-[10px] block mt-1">1,243 authentic market dates &bull; Zero synthetic series</span>
+              <span className="text-text-muted text-[10px] block mt-1">1,243 authentic market dates &bull; Zero synthetic series</span>
             </div>
           </div>
         </div>
       </section>
 
       {/* 5. DECISION SUPPORT: WHAT TO INVESTIGATE NEXT */}
-      <section className="mb-12 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-xs font-sans text-zinc-300">
-        <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">
+      <section className="mb-12 rounded-xl border border-border bg-surface p-6 text-xs font-sans text-text-secondary">
+        <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-accent mb-2">
           Decision Support Checkpoint: Questions Before Committing Capital
         </h3>
-        <p className="text-zinc-400 leading-relaxed mb-4">
+        <p className="text-text-muted leading-relaxed mb-4">
           Quantitative metrics describe past realized outcomes under historical market conditions. Before allocating capital, consider investigating:
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 font-mono text-xs">
-          <div className="rounded bg-zinc-950/60 p-3 border border-zinc-800">
-            <span className="text-zinc-200 font-bold block mb-1">1. Market Regime Resilience</span>
-            <span className="text-zinc-400 text-[11px] font-sans">
+          <div className="rounded bg-surface-elevated p-3 border border-border">
+            <span className="text-text-primary font-bold block mb-1">1. Market Regime Resilience</span>
+            <span className="text-text-secondary text-[11px] font-sans">
               Did outperformance occur during broad liquidity rallies or during market drawdowns?
             </span>
           </div>
 
-          <div className="rounded bg-zinc-950/60 p-3 border border-zinc-800">
-            <span className="text-zinc-200 font-bold block mb-1">2. Portfolio Concentration</span>
-            <span className="text-zinc-400 text-[11px] font-sans">
+          <div className="rounded bg-surface-elevated p-3 border border-border">
+            <span className="text-text-primary font-bold block mb-1">2. Portfolio Concentration</span>
+            <span className="text-text-secondary text-[11px] font-sans">
               Is return driven by fund-wide alpha or by heavy weight in 2-3 outperforming stocks?
             </span>
           </div>
 
-          <div className="rounded bg-zinc-950/60 p-3 border border-zinc-800">
-            <span className="text-zinc-200 font-bold block mb-1">3. Manager Tenure & Style Drift</span>
-            <span className="text-zinc-400 text-[11px] font-sans">
+          <div className="rounded bg-surface-elevated p-3 border border-border">
+            <span className="text-text-primary font-bold block mb-1">3. Manager Tenure & Style Drift</span>
+            <span className="text-text-secondary text-[11px] font-sans">
               Did current fund leadership generate the 5-year track record without style deviation?
             </span>
           </div>

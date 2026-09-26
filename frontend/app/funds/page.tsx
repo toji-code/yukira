@@ -72,7 +72,7 @@ export default function FundsCatalogPage() {
         <button
           onClick={refreshCatalog}
           disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-mono font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-xs font-mono font-medium text-text-primary transition hover:bg-surface-elevated hover:border-border-subtle disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <svg
             className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
@@ -92,17 +92,17 @@ export default function FundsCatalogPage() {
       }
     >
       {/* Epistemic Mandate Banner */}
-      <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 text-xs font-mono">
+      <div className="mb-6 rounded-xl border border-border bg-surface p-4 text-xs font-mono transition-colors">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 text-zinc-300 font-semibold uppercase tracking-wider text-[11px]">
-            <span className="h-2 w-2 rounded-full bg-cyan-400" />
+          <div className="flex items-center gap-2 text-text-primary font-semibold uppercase tracking-wider text-[11px]">
+            <span className="h-2 w-2 rounded-full bg-accent" />
             Verified Master Records Mandate
           </div>
-          <span className="text-[10px] text-zinc-400">
+          <span className="text-[10px] text-text-muted">
             Database: PostgreSQL 17 &bull; ddl-auto=validate
           </span>
         </div>
-        <p className="mt-1 text-zinc-400 text-xs font-sans leading-relaxed">
+        <p className="mt-1 text-text-secondary text-xs font-sans leading-relaxed">
           This catalog reflects authoritative master entities populated via official AMFI ingestion feeds. If no records are found or the backend is offline, YUKIRA refuses to generate fabricated placeholder funds.
         </p>
       </div>
@@ -115,11 +115,11 @@ export default function FundsCatalogPage() {
             placeholder="Search by scheme name, code, or AMC..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/80 px-4 py-2.5 pl-10 text-xs text-zinc-100 placeholder-zinc-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+            className="w-full rounded-lg border border-border bg-surface-elevated px-4 py-2.5 pl-10 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent font-mono transition-colors"
             aria-label="Search mutual funds"
           />
           <svg
-            className="absolute left-3 top-3 h-4 w-4 text-zinc-500"
+            className="absolute left-3 top-3 h-4 w-4 text-text-muted"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -129,7 +129,7 @@ export default function FundsCatalogPage() {
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-2.5 text-zinc-400 hover:text-zinc-200 text-xs font-mono"
+              className="absolute right-3 top-2.5 text-text-muted hover:text-text-primary text-xs font-mono"
               aria-label="Clear search"
             >
               &times;
@@ -137,10 +137,10 @@ export default function FundsCatalogPage() {
           )}
         </div>
 
-        <div className="font-mono text-xs text-zinc-400 flex items-center gap-3">
+        <div className="font-mono text-xs text-text-muted flex items-center gap-3">
           <span>
-            Showing <strong className="text-zinc-200">{filteredSchemes.length}</strong> of{" "}
-            <strong className="text-zinc-200">{schemes.length}</strong> schemes
+            Showing <strong className="text-text-primary">{filteredSchemes.length}</strong> of{" "}
+            <strong className="text-text-primary">{schemes.length}</strong> schemes
           </span>
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function FundsCatalogPage() {
           action={
             <button
               onClick={refreshCatalog}
-              className="inline-flex rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 font-mono"
+              className="inline-flex rounded-md bg-surface-elevated border border-border px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-surface font-mono"
             >
               Retry Connection
             </button>
@@ -180,7 +180,7 @@ export default function FundsCatalogPage() {
           action={
             <button
               onClick={() => setSearchQuery("")}
-              className="inline-flex rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-700 font-mono"
+              className="inline-flex rounded-md bg-surface-elevated border border-border px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-surface font-mono"
             >
               Clear Filter
             </button>
@@ -198,54 +198,54 @@ export default function FundsCatalogPage() {
                 key={scheme.id}
                 className={`rounded-xl border p-5 transition-all backdrop-blur-sm ${
                   isCanonicalPilot
-                    ? "border-cyan-500/40 bg-zinc-900/80 shadow-lg shadow-cyan-950/20"
-                    : "border-zinc-800/80 bg-zinc-900/50 hover:border-zinc-700"
+                    ? "border-sky-500/40 bg-surface shadow-md"
+                    : "border-border bg-surface hover:border-border-subtle hover:bg-surface-elevated"
                 }`}
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-2 flex-1">
                     <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                      <span className="text-zinc-400">ID #{scheme.id}</span>
-                      <span className="text-zinc-600">&bull;</span>
-                      <span className="text-cyan-400 font-semibold">{scheme.code}</span>
+                      <span className="text-text-muted">ID #{scheme.id}</span>
+                      <span className="text-text-muted">&bull;</span>
+                      <span className="text-accent font-semibold">{scheme.code}</span>
                       {scheme.amc && (
                         <>
-                          <span className="text-zinc-600">&bull;</span>
-                          <span className="text-zinc-300">{scheme.amc.name}</span>
+                          <span className="text-text-muted">&bull;</span>
+                          <span className="text-text-secondary">{scheme.amc.name}</span>
                         </>
                       )}
                       {isCanonicalPilot && (
-                        <span className="inline-flex items-center gap-1 rounded bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
-                          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        <span className="inline-flex items-center gap-1 rounded bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                           CANONICAL PILOT INSTRUMENT
                         </span>
                       )}
                     </div>
 
-                    <h3 className="text-lg font-bold text-zinc-100 font-sans tracking-tight">
+                    <h3 className="text-lg font-bold text-text-primary font-sans tracking-tight">
                       <Link
                         href={`/funds/${scheme.id}`}
-                        className="hover:text-cyan-300 transition-colors focus:outline-none focus-visible:underline"
+                        className="hover:text-accent transition-colors focus:outline-none focus-visible:underline"
                       >
                         {scheme.name}
                       </Link>
                     </h3>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-zinc-400">
+                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-text-secondary">
                       <div>
                         Inception Date:{" "}
-                        <span className="text-zinc-200">
+                        <span className="text-text-primary font-medium">
                           {scheme.inceptionDate || "—"}
                         </span>
                       </div>
                       <div>
                         Status:{" "}
-                        <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                           {scheme.status || "ACTIVE"}
                         </span>
                       </div>
                       {isCanonicalPilot && (
-                        <div className="text-emerald-400">
+                        <div className="text-emerald-600 dark:text-emerald-400">
                           5Y Horizon: 1,243 trading dates verified
                         </div>
                       )}
@@ -255,7 +255,7 @@ export default function FundsCatalogPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <Link
                       href={`/funds/${scheme.id}`}
-                      className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-xs font-mono font-semibold text-white shadow-sm shadow-cyan-600/20 transition hover:bg-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                      className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-mono font-semibold text-accent-foreground shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       <span>Investigate Fund</span>
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
