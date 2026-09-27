@@ -1360,7 +1360,7 @@ public class AnalysisService {
         )),
         Map.entry("REL-03", new MetricMetadata(
             "Jensen's Alpha (3Y)", "MARKET_SENSITIVITY_ALPHA", "PERCENTAGE", "3Y", "CANDIDATE",
-            "R_p - [R_f + Beta * (R_b - R_f)]",
+            "[Mean(R_p - R_f) - Beta * Mean(R_b - R_f)] * 252 [Daily Excess-Return OLS Intercept]",
             "Portfolio excess return generated above CAPM expectation for its level of systematic risk.",
             "Single-factor model ignores multi-factor style (size, value, momentum) exposures."
         ))

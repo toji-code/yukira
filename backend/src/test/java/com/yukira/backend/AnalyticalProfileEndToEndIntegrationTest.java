@@ -150,6 +150,10 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         AnalyticalProfileResponse.ProfileMetricItem rel04 = findMetric(relMetrics, "REL-04");
         assertEquals(0.9678148690, rel04.numericValue().doubleValue(), 0.05, "REL-04 canonical Downside Beta mismatch");
 
+        // REL-03 Jensen's Alpha: ~0.068398 (+6.84%)
+        AnalyticalProfileResponse.ProfileMetricItem rel03 = findMetric(relMetrics, "REL-03");
+        assertEquals(0.0683976393, rel03.numericValue().doubleValue(), 0.001, "REL-03 canonical Jensen's Alpha mismatch");
+
         // 6. Governance Status Verifications
         // Operational: RET-02
         AnalyticalProfileResponse.ProfileMetricItem ret02 = findMetric(retMetrics, "RET-02");
@@ -174,7 +178,6 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         AnalyticalProfileResponse.ProfileMetricItem rel02 = findMetric(relMetrics, "REL-02");
         assertEquals("CANDIDATE", rel02.governanceStatus());
 
-        AnalyticalProfileResponse.ProfileMetricItem rel03 = findMetric(relMetrics, "REL-03");
         assertEquals("CANDIDATE", rel03.governanceStatus());
 
         // 7. Database Persistence & Run-Level Verification

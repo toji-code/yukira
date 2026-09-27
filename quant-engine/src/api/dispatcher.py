@@ -616,9 +616,13 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                 else:
                     rf_rates = aligned_rf_returns_relative if aligned_rf_returns_relative is not None else aligned_rf_returns
                     b_val = beta.beta(aligned_fund_returns, bench_returns, risk_free_rates=rf_rates)
-                    f_ret = ret_mod.period_return(nav_values[0], nav_values[-1])
-                    b_ret = ret_mod.period_return(bench_values[0], bench_values[-1])
-                    val = alpha.jensens_alpha(f_ret, b_ret, rf_annual, b_val)
+                    val = alpha.jensens_alpha_ols(
+                        aligned_fund_returns,
+                        bench_returns,
+                        risk_free_rates=rf_rates,
+                        portfolio_beta=b_val,
+                        periods_per_year=periods_per_year,
+                    )
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
@@ -626,7 +630,12 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                             numeric_value=val,
                             units="PERCENTAGE",
                             status=CalculationStatus.CALCULATED,
-                            diagnostics={"risk_free_rate": rf_annual, "beta": b_val, "methodology_status": "CANDIDATE"},
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "beta": b_val,
+                                "periods_per_year": periods_per_year,
+                                "formula": "OLS intercept (alpha_daily * 252)",
+                            },
                         )
                     )
 
