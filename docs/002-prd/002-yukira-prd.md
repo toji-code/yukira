@@ -898,4 +898,124 @@ It is helping investors identify the information, risks, assumptions, and questi
 
 ---
 
+# 36. Authoritative Final Product Scope
+
+> **Document ID:** 002.1 (Addendum to PRD 002)
+>
+> **Status:** Authoritative
+>
+> **Supersedes:** Any conflicting scope statement in PRD 002 Sections 5, 6, 7, 26, and 33.
+
+The following list is the **authoritative Final Product Scope of YUKIRA**. It is not a phase manifest, not a release plan, and not a statement of what currently exists. Every item carries an explicit implementation state so that unimplemented scope is never presented as delivered.
+
+## 36.1 Implementation State Legend
+
+| State | Meaning |
+| :--- | :--- |
+| **IMPLEMENTED** | Working, verified capability available in the current codebase. |
+| **IN PROGRESS** | Actively under construction; partial capability exists but is not complete. |
+| **PLANNED** | Committed scope. **No** working capability exists. Must never be reported as delivered. |
+
+## 36.2 MF Discovery & Information
+
+| # | Capability | State |
+| :--- | :--- | :---: |
+| 1 | MF search | IMPLEMENTED |
+| 2 | Categories / filters | PLANNED |
+| 3 | Fund pages | IMPLEMENTED |
+| 4 | NAV / history | IMPLEMENTED |
+| 5 | Returns | IMPLEMENTED |
+| 6 | Risk information | IN PROGRESS |
+| 7 | Holdings / portfolio | PLANNED |
+| 8 | Fund manager information | PLANNED |
+| 9 | Expense ratio | PLANNED |
+| 10 | AUM | PLANNED |
+| 11 | SIP / lumpsum information | PLANNED |
+| 12 | Charts | PLANNED |
+| 13 | Fund comparison | PLANNED |
+
+## 36.3 Investor Account
+
+| # | Capability | State |
+| :--- | :--- | :---: |
+| 1 | Login / user accounts | PLANNED |
+| 2 | Watchlist / bookmarks | PLANNED |
+| 3 | Portfolio tracking | PLANNED |
+| 4 | External MF portfolio import/addition | PLANNED |
+| 5 | Track external holdings | PLANNED |
+| 6 | Individual-fund scoring | PLANNED |
+| 7 | Overall portfolio scoring | PLANNED |
+| 8 | Portfolio categorization | PLANNED |
+| 9 | Portfolio risk/quality analysis | PLANNED |
+
+## 36.4 YUKIRA Intelligence
+
+| # | Capability | State |
+| :--- | :--- | :---: |
+| 1 | Real quantitative analytics | IMPLEMENTED |
+| 2 | Evidence / provenance | IMPLEMENTED |
+| 3 | Data-quality analysis | IMPLEMENTED |
+| 4 | Benchmark-relative analysis | IN PROGRESS |
+| 5 | Goal-based discovery | PLANNED |
+| 6 | Goal-specific 0–100 analytical scoring | PLANNED |
+| 7 | AI interpretation | PLANNED |
+| 8 | Investigation / questions | PLANNED |
+| 9 | Portfolio-level intelligence | PLANNED |
+
+## 36.5 Platform
+
+| # | Capability | State |
+| :--- | :--- | :---: |
+| 1 | Full Indian MF universe | PLANNED |
+| 2 | Production data pipeline | IN PROGRESS |
+| 3 | Production deployment | PLANNED |
+| 4 | Cost-efficient scalable infrastructure | PLANNED |
+| 5 | Broker-grade fintech UI/UX | IN PROGRESS |
+| 6 | API for external platforms/brokers | PLANNED |
+| 7 | Paid API capability | PLANNED |
+| 8 | Investing / transaction infrastructure | PLANNED |
+
+## 36.6 Binding Product Constraints
+
+These constraints govern every capability listed above and are not optional.
+
+### C-1 — Analytical Platform, Not Advice
+
+YUKIRA is an **analytical and intelligence platform**. It must not present itself as an investment-advice or investment-recommendation service. It must not issue BUY, HOLD, REDUCE, or AVOID calls, and must not display opaque star ratings, proprietary composite grades, or advice-shaped outputs that imply a recommendation.
+
+This constraint is a product-positioning requirement in addition to the existing AI boundary in the Constitution and `AGENTS.md`.
+
+### C-2 — Goal-Based Discovery Must Be Evidence-Based
+
+Goal-based discovery **sorts and evaluates available mutual funds according to the investor's stated requirements using YUKIRA's analytical engine**. It must not be a marketing funnel, a sponsored placement, or an editorial ranking.
+
+The associated 0–100 score must be:
+- Derived from deterministic, auditable metric computation
+- Fully transparent regarding which metrics contributed and how
+- Reproducible from persisted inputs and a versioned methodology
+- Explicitly labeled `CANDIDATE` until that methodology is formally validated
+
+A score may not be presented as validated, approved, or investment-grade while its underlying methodology remains a candidate.
+
+### C-3 — Portfolio Analysis Must Cover External Holdings
+
+Portfolio analysis must support **externally held and externally imported mutual funds** — not only funds transacted inside YUKIRA. It must:
+
+- Score **individual funds** within the portfolio
+- Score the **portfolio collectively** as a whole
+- **Categorize** the portfolio
+- Analyze **portfolio-level risk and quality**
+
+Since external holdings are entered by the investor rather than transacted on-platform, their data-quality and provenance state must be reported explicitly and must never be silently upgraded to a verification level the data has not earned.
+
+### C-4 — Full Universe Is the Target State
+
+The final target is the **full Indian mutual-fund universe**, not only the current canonical pilot fund. Present-day pilot scope is an engineering verification device, not a product boundary. Any documentation, UI, or API that presents pilot-only coverage as the intended end state is incorrect.
+
+### C-5 — Status Honesty
+
+Documentation and UI must distinguish **IMPLEMENTED**, **IN PROGRESS**, and **PLANNED** at all times. Unimplemented scope must never be marked as completed, and implementation status must be kept accurate as the codebase advances. A capability that regresses or is removed moves back down the ladder immediately.
+
+---
+
 **End of Product Requirements Document**

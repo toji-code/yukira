@@ -6,6 +6,22 @@
 
 ---
 
+## 0. Authoritative Final Product Scope
+
+The authoritative product scope is defined in **[PRD 002 Addendum — Section 36](../002-prd/002-yukira-prd.md)** and mirrored in the repository [`README.md`](file:///README.md). That section is the single source of truth for what YUKIRA intends to build, and it is not a statement of what currently exists.
+
+Every scope item carries an explicit state — **IMPLEMENTED**, **IN PROGRESS**, or **PLANNED** — so that unimplemented scope is never reported as delivered. This document records what is true *today*; the PRD addendum records what is *committed*.
+
+Five binding constraints govern that scope and are restated in full in the addendum:
+
+1. **YUKIRA is an analytical/intelligence platform, not an investment-advice or recommendation service.**
+2. Goal-based discovery sorts and evaluates funds against investor requirements using the YUKIRA analytical engine; scoring must be evidence-based and transparent.
+3. Portfolio analysis must support externally held and imported mutual funds, scoring individual funds and the portfolio collectively, and must categorize and analyze portfolio risk/quality.
+4. The final target is the **full Indian mutual-fund universe**, not only the current pilot fund.
+5. Documentation and UI must always distinguish IMPLEMENTED, IN PROGRESS, and PLANNED.
+
+---
+
 ## 1. Git & Repository Status
 
 - **Current Branch:** `main`
@@ -148,11 +164,17 @@ All end-to-end integration and verification in Phase 2I/2J use exclusively the c
 
 To prevent misrepresentation or premature assumptions, the following features are explicitly **NOT** implemented:
 
-1. **Remaining 29 Metrics in Backend:** Only RET-02 is connected to the Spring Boot orchestrator. 29 metrics exist only as standalone Python candidate algorithms.
+1. **Remaining Candidate Metrics in Backend:** A meaningful subset of candidate metrics is now wired to the Spring Boot orchestrator (RET-02, RET-03, RSK-01, RSK-02 to RSK-07, RAT metrics, REL-01 to REL-06, and MKT-01/MKT-02). The remaining candidate metrics exist only as standalone Python algorithms and are not yet exposed through the backend execution path.
 2. **Methodology Validation:** Zero methodologies have been validated or approved for production investment advice.
 3. **Fund Scoring / Star Ratings:** No rating system exists. YUKIRA will never produce opaque 5-star badges.
 4. **Investment Recommendations:** No BUY, HOLD, REDUCE, or AVOID advice is generated.
-5. **Broad-Market Benchmarks:** Ingestion pipelines for official benchmark indices (NIFTY 50 TRI, BSE 500 TRI) are scheduled for later phases.
-6. **Risk-Free Rate Feeds:** Ingestion of FBIL 91-day Treasury Bill yields is not yet wired to the database.
-7. **Monthly Portfolio Disclosures:** Ingestion of SEBI monthly portfolio holding sheets is not yet implemented.
+5. **Broad-Market Benchmarks:** A NIFTY 500 TRI benchmark series is ingested and wired for the pilot verification scope. Broader official benchmark indices (NIFTY 50 TRI, BSE 500 TRI, and other category-appropriate indices) are not yet ingested.
+6. **Risk-Free Rate Feeds:** Ingestion of FBIL 91-day Treasury Bill yields is not yet wired to the database. Risk-free-aligned metrics that depend on M2N-02 remain limited.
+7. **Monthly Portfolio Disclosures:** Ingestion of SEBI monthly portfolio holding sheets is not yet implemented. All portfolio-structure metrics (PRT-01 to PRT-05) therefore remain non-operational.
 8. **Cloud Infrastructure:** Production Kubernetes, cloud VPCs, and automated CI/CD deployment pipelines are not yet provisioned.
+9. **Investor Accounts:** No login, user account, watchlist, or bookmarking capability exists. All current views are unauthenticated.
+10. **Portfolio Tracking & Import:** No capability exists to record, import, categorize, score, or analyze an investor's externally held mutual funds.
+11. **Scoring:** No 0-100 fund score, goal-specific score, or portfolio score is produced. No opaque star rating or composite grade exists anywhere in the system.
+12. **AI Interpretation:** The `ai-services/` layer remains an architectural stub. It is not connected to any calculation path or investor-facing view.
+13. **Charts & Comparison:** No charting capability and no multi-fund comparison view exist.
+14. **Transaction Infrastructure:** No investing, ordering, or transaction capability exists. This is explicitly out of scope for the analytical platform.
