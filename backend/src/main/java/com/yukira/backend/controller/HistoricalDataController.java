@@ -2,7 +2,6 @@ package com.yukira.backend.controller;
 
 import com.yukira.backend.dto.analysis.AnalyticalObservationSeriesDto;
 import com.yukira.backend.service.HistoricalAnalyticalDataService;
-import com.yukira.backend.service.TradingDateContinuityService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,17 +19,13 @@ import java.util.NoSuchElementException;
  */
 @RestController
 @RequestMapping("/api/v1/schemes/options")
+@SuppressWarnings("null")
 public class HistoricalDataController {
 
     private final HistoricalAnalyticalDataService historicalDataService;
-    private final TradingDateContinuityService continuityService;
 
-    public HistoricalDataController(
-        HistoricalAnalyticalDataService historicalDataService,
-        TradingDateContinuityService continuityService
-    ) {
+    public HistoricalDataController(HistoricalAnalyticalDataService historicalDataService) {
         this.historicalDataService = historicalDataService;
-        this.continuityService = continuityService;
     }
 
     @GetMapping("/{id}/historical-series")

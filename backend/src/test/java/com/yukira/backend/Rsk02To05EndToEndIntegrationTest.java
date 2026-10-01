@@ -8,13 +8,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,7 +62,7 @@ public class Rsk02To05EndToEndIntegrationTest {
         assertNotNull(response.result().formattedValue());
 
         // Window verification
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals(700, response.window().minObservationsRequired());
 
         // Methodology & Governance
@@ -75,7 +73,7 @@ public class Rsk02To05EndToEndIntegrationTest {
 
         // Provenance & DB
         assertNotNull(response.provenance().calculationRunId());
-        assertEquals(737, response.provenance().inputObservations().size());
+        assertEquals(739, response.provenance().inputObservations().size());
 
         CalculationRun persistedRun = calculationRunRepository.findById(response.provenance().calculationRunId()).orElseThrow();
         assertEquals("COMPLETED", persistedRun.getRunStatus());
@@ -87,7 +85,7 @@ public class Rsk02To05EndToEndIntegrationTest {
         assertEquals("CALCULATED", results.get(0).getCalculationStatus());
 
         List<CalculationRunInputObservation> links = inputObservationRepository.findByCalculationRunId(persistedRun.getId());
-        assertEquals(737, links.size());
+        assertEquals(739, links.size());
     }
 
     @Test
@@ -113,7 +111,7 @@ public class Rsk02To05EndToEndIntegrationTest {
         assertNotNull(response.result().numericValue());
         assertTrue(response.result().numericValue().doubleValue() <= 0.0, "Max drawdown must be non-positive");
 
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals("RSK_03_3Y_MAX_DRAWDOWN", response.methodology().methodologyCode());
         assertEquals("CANDIDATE_V1", response.methodology().methodologyVersion());
 
@@ -146,7 +144,7 @@ public class Rsk02To05EndToEndIntegrationTest {
         assertNotNull(response.result().numericValue());
         assertTrue(response.result().numericValue().doubleValue() >= 0.0, "Duration must be non-negative");
 
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals("RSK_04_MAX_DRAWDOWN_DURATION", response.methodology().methodologyCode());
 
         CalculationRun persistedRun = calculationRunRepository.findById(response.provenance().calculationRunId()).orElseThrow();
@@ -178,7 +176,7 @@ public class Rsk02To05EndToEndIntegrationTest {
         assertNotNull(response.result().numericValue());
         assertTrue(response.result().numericValue().doubleValue() >= 0.0, "Ulcer index must be non-negative");
 
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals("RSK_05_3Y_ULCER_INDEX", response.methodology().methodologyCode());
 
         CalculationRun persistedRun = calculationRunRepository.findById(response.provenance().calculationRunId()).orElseThrow();

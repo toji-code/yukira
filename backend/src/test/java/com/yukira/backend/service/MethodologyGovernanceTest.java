@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings({"null", "deprecation"})
 class MethodologyGovernanceTest {
 
     @Autowired
@@ -27,9 +28,6 @@ class MethodologyGovernanceTest {
 
     @Autowired
     private MethodologyVersionRepository methodologyVersionRepository;
-
-    @Autowired
-    private MethodologyChangeLogRepository methodologyChangeLogRepository;
 
     @Autowired
     private CalculationRunRepository calculationRunRepository;
@@ -75,20 +73,11 @@ class MethodologyGovernanceTest {
     @Test
     @DisplayName("Phase 2G Test 1: Metric identity - MetricDefinition uniquely identifies code, dimension, units, and PIT requirements")
     void testMetricIdentity() {
+        // No null guard: RET-02 is a Flyway-seeded registry row. A missing row is a registry
+        // failure and must fail the test, not be silently created by the test itself.
         MetricDefinition metric = metricDefinitionRepository.findByMetricCode("RET-02")
-            .orElseGet(() -> methodologyGovernanceService.registerMetricDefinition(new MetricDefinition(
-                "RET-02",
-                "Simple Period Return",
-                "RETURNS",
-                "PERFORMANCE",
-                "Computes discrete percentage price change between two temporal boundaries.",
-                "(NAV_end - NAV_start) / NAV_start",
-                "PERCENTAGE",
-                "DISCRETE_PERIOD",
-                false,
-                false,
-                true
-            )));
+            .orElseThrow(() -> new AssertionError(
+                "Metric registry is missing required row for RET-02"));
 
         assertNotNull(metric.getId());
         assertEquals("RET-02", metric.getMetricCode());

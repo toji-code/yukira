@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 
 @Service
+@SuppressWarnings("null")
 public class AmfiNavIngestionService {
 
     private final AmfiNavParser parser;

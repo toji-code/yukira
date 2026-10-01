@@ -6,8 +6,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.api.models import CalculationRequest, CalculationStatus, MetricOutputItem
 from src import (
+    active_return as active_return_mod,
     alpha,
     beta,
+    capture,
     downside_beta,
     expected_shortfall,
     information_ratio,
@@ -15,11 +17,13 @@ from src import (
     returns as ret_mod,
     risk,
     risk_free,
+    rolling,
     semideviation,
     statistics,
     tracking_error,
     treynor,
     ulcer_index,
+    upside_beta,
     var,
 )
 
@@ -205,6 +209,141 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                             },
                         )
                     )
+
+            elif code == "RET-05":  # 3Y Rolling Return Mean & Distribution
+                window_years = int(params.get("window_years", 3))
+                min_windows = int(params.get("min_windows", 450))
+                max_lookback_days = int(params.get("max_lookback_days", 4))
+                fund_windows = rolling.compute_rolling_cagrs(dates, nav_values, window_years, max_lookback_days)
+                cagrs = [w["cagr"] for w in fund_windows]
+                dist = rolling.rolling_return_distribution(cagrs)
+
+                if dist["count"] < min_windows:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type=f"{window_years}Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient rolling windows for RET-05: {dist['count']} provided, minimum {min_windows} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "window_years": window_years,
+                                "valid_window_count": dist["count"],
+                                "min_windows_required": min_windows,
+                                "mean": dist["mean"],
+                                "median": dist["median"],
+                                "min": dist["min"],
+                                "max": dist["max"],
+                                "p25": dist["p25"],
+                                "p75": dist["p75"],
+                                "std_dev": dist["std_dev"],
+                            },
+                        )
+                    )
+                else:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type=f"{window_years}Y",
+                            numeric_value=dist["mean"],
+                            units="PERCENTAGE",
+                            status=CalculationStatus.CALCULATED,
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "window_years": window_years,
+                                "valid_window_count": dist["count"],
+                                "min_windows_required": min_windows,
+                                "mean": dist["mean"],
+                                "median": dist["median"],
+                                "min": dist["min"],
+                                "max": dist["max"],
+                                "p25": dist["p25"],
+                                "p75": dist["p75"],
+                                "std_dev": dist["std_dev"],
+                                "annualization_convention": "365.25_JULIAN_CANDIDATE",
+                                "lookback_convention": "4_DAY_CALENDAR_WINDOW_CANDIDATE",
+                                "serial_autocorrelation_disclosure": "Adjacent daily rolling returns share ~99.8% identical data; statistical significance tests require Newey-West adjustment.",
+                            },
+                        )
+                    )
+
+            elif code == "RET-06":  # Rolling Outperformance % vs Benchmark
+                window_years = int(params.get("window_years", 3))
+                min_windows = int(params.get("min_windows", 450))
+                max_lookback_days = int(params.get("max_lookback_days", 4))
+
+                if not request.benchmark_series or len(request.benchmark_series) < 2:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type=f"{window_years}Y",
+                            numeric_value=None,
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message="Synchronous benchmark observations required for RET-06.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "window_years": window_years,
+                                "benchmark_present": False,
+                                "min_windows_required": min_windows,
+                            },
+                        )
+                    )
+                else:
+                    fund_windows = rolling.compute_rolling_cagrs(dates, nav_values, window_years, max_lookback_days)
+                    sorted_bench_obs = sorted(request.benchmark_series, key=lambda x: x.effective_date)
+                    b_dates = [b.effective_date for b in sorted_bench_obs]
+                    b_vals = [b.value for b in sorted_bench_obs]
+                    bench_windows = rolling.compute_rolling_cagrs(b_dates, b_vals, window_years, max_lookback_days)
+                    outperf = rolling.rolling_outperformance(fund_windows, bench_windows)
+
+                    if outperf["paired_windows"] < min_windows:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type=f"{window_years}Y",
+                                numeric_value=None,
+                                units="PERCENTAGE",
+                                status=CalculationStatus.INSUFFICIENT_DATA,
+                                error_message=f"Insufficient paired rolling windows for RET-06: {outperf['paired_windows']} paired, minimum {min_windows} required.",
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "window_years": window_years,
+                                    "paired_windows": outperf["paired_windows"],
+                                    "min_windows_required": min_windows,
+                                    "outperforming_windows": outperf["outperforming_windows"],
+                                    "underperforming_windows": outperf["underperforming_windows"],
+                                    "outperformance_percentage": outperf["outperformance_percentage"],
+                                    "mean_excess_return": outperf["mean_excess_return"],
+                                    "equality_rule": "STRICT_INEQUALITY_NO_TIES_COUNT_AS_OUTPERFORMANCE",
+                                    "benchmark_integrity_disclosure": "Synchronous calendar alignment applied without date fabrication.",
+                                },
+                            )
+                        )
+                    else:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type=f"{window_years}Y",
+                                numeric_value=outperf["outperformance_percentage"],
+                                units="PERCENTAGE",
+                                status=CalculationStatus.CALCULATED,
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "window_years": window_years,
+                                    "paired_windows": outperf["paired_windows"],
+                                    "min_windows_required": min_windows,
+                                    "outperforming_windows": outperf["outperforming_windows"],
+                                    "underperforming_windows": outperf["underperforming_windows"],
+                                    "outperformance_percentage": outperf["outperformance_percentage"],
+                                    "mean_excess_return": outperf["mean_excess_return"],
+                                    "equality_rule": "STRICT_INEQUALITY_NO_TIES_COUNT_AS_OUTPERFORMANCE",
+                                    "benchmark_integrity_disclosure": "Synchronous calendar alignment applied without date fabrication.",
+                                },
+                            )
+                        )
 
             elif code == "RSK-01":  # Annualized Volatility (3Y)
                 min_obs = int(params.get("min_observations", 2))
@@ -492,8 +631,13 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
 
-            elif code == "REL-01":  # Beta (3Y / Excess-Return OLS)
-                if not bench_returns or len(bench_returns) < 2:
+            # REL-01 (Phase 2R analytical profile code) and MKT-01 (frozen Phase 2H
+            # registry code) designate the SAME metric: Beta 3Y. Both codes are kept
+            # addressable so no registry identity is silently renumbered.
+            elif code in ("REL-01", "MKT-01"):  # Beta (3Y / Excess-Return OLS)
+                min_paired = max(700, int(params.get("min_paired_observations", 700)))
+                paired_count = len(bench_returns) if bench_returns else 0
+                if not bench_returns or paired_count < 2:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
@@ -501,6 +645,42 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                             units="RATIO",
                             status=CalculationStatus.INSUFFICIENT_DATA,
                             error_message="Aligned benchmark return series required for Beta.",
+                            diagnostics={"methodology_status": "CANDIDATE", "paired_count": paired_count, "min_paired_observations": min_paired},
+                        )
+                    )
+                elif paired_count < min_paired:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="RATIO",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Insufficient paired observations for Beta: {paired_count} provided, minimum {min_paired} required.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "paired_count": paired_count,
+                                "min_paired_observations": min_paired,
+                                "annualization": "NONE",
+                            },
+                        )
+                    )
+                elif not request.risk_free_series:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            numeric_value=None,
+                            units="RATIO",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Risk-free rate series required for {code} standard beta.",
+                            diagnostics={
+                                "methodology_status": "CANDIDATE",
+                                "paired_count": paired_count,
+                                "min_paired_observations": min_paired,
+                                "risk_free_required": True,
+                                "risk_free_aligned": False,
+                            },
                         )
                     )
                 elif request.risk_free_series and (aligned_rf_returns_relative is None and aligned_rf_returns is None):
@@ -511,17 +691,13 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                             units="RATIO",
                             status=CalculationStatus.INSUFFICIENT_DATA,
                             error_message=f"Risk-free rate alignment failed for Beta: {rf_alignment_error}",
-                            diagnostics={"methodology_status": "APPROVED", "risk_free_aligned": False, "error": rf_alignment_error},
+                            diagnostics={"methodology_status": "CANDIDATE", "risk_free_required": True, "risk_free_aligned": False, "error": rf_alignment_error},
                         )
                     )
                 else:
                     rf_rates = aligned_rf_returns_relative if aligned_rf_returns_relative is not None else aligned_rf_returns
-                    if rf_rates is not None:
-                        val = beta.beta(aligned_fund_returns, bench_returns, risk_free_rates=rf_rates)
-                        diag = {"methodology_status": "APPROVED", "risk_free_aligned": True, "risk_free_proxy": "FBIL_91D_TBILL", "annualization": "NONE"}
-                    else:
-                        val = beta.beta(aligned_fund_returns, bench_returns)
-                        diag = {"methodology_status": "APPROVED", "risk_free_aligned": False, "annualization": "NONE"}
+                    val = beta.beta(aligned_fund_returns, bench_returns, risk_free_rates=rf_rates)
+                    diag = {"methodology_status": "CANDIDATE", "risk_free_required": True, "risk_free_aligned": True, "risk_free_proxy": "FBIL_91D_TBILL", "annualization": "NONE", "paired_count": paired_count, "min_paired_observations": min_paired}
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
@@ -533,7 +709,9 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                         )
                     )
 
-            elif code == "REL-04":  # Downside Beta (3Y / Raw return conditioned on Rb < 0)
+            # REL-04 (Phase 2R analytical profile code) and MKT-02 (frozen Phase 2H
+            # registry code) designate the SAME metric: Downside Beta 3Y.
+            elif code in ("REL-04", "MKT-02"):  # Downside Beta (3Y / Raw return conditioned on Rb < 0)
                 if not bench_returns or len(bench_returns) < 2:
                     results.append(
                         MetricOutputItem(
@@ -574,11 +752,56 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                                 numeric_value=val,
                                 units="RATIO",
                                 status=CalculationStatus.CALCULATED,
-                                diagnostics={"methodology_status": "APPROVED", "downside_count": downside_count, "min_downside_observations": min_downside, "risk_free_required": False, "annualization": "NONE"},
+                                diagnostics={"methodology_status": "CANDIDATE", "downside_count": downside_count, "min_downside_observations": min_downside, "risk_free_required": False, "annualization": "NONE"},
                             )
                         )
 
-            elif code == "REL-02":  # Tracking Error (3Y)
+            elif code == "REL-05":  # Upside Beta (3Y / Raw return conditioned on Rb > 0)
+                if not bench_returns or len(bench_returns) < 2:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            units="RATIO",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message="Aligned benchmark return series required for Upside Beta.",
+                        )
+                    )
+                else:
+                    upside_count = sum(1 for b in bench_returns if b > 0.0)
+                    min_upside = int(params.get("min_upside_observations", 150))
+                    if upside_count < min_upside or min_upside < 150:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=None,
+                                units="RATIO",
+                                status=CalculationStatus.INSUFFICIENT_DATA,
+                                error_message=f"Insufficient upside observations: {upside_count} provided, minimum {max(150, min_upside)} required.",
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "upside_count": upside_count,
+                                    "min_upside_observations": max(150, min_upside),
+                                    "risk_free_required": False,
+                                    "annualization": "NONE",
+                                },
+                            )
+                        )
+                    else:
+                        val = upside_beta.upside_beta(aligned_fund_returns, bench_returns, min_upside_observations=min_upside)
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=val,
+                                units="RATIO",
+                                status=CalculationStatus.CALCULATED,
+                                diagnostics={"methodology_status": "CANDIDATE", "upside_count": upside_count, "min_upside_observations": min_upside, "risk_free_required": False, "annualization": "NONE"},
+                            )
+                        )
+
+            elif code == "REL-02":  # Tracking Error (3Y / Annualized Active Risk)
                 if not bench_returns or len(bench_returns) < 2:
                     results.append(
                         MetricOutputItem(
@@ -587,22 +810,56 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                             units="PERCENTAGE",
                             status=CalculationStatus.INSUFFICIENT_DATA,
                             error_message="Aligned benchmark return series required for Tracking Error.",
+                            diagnostics={"methodology_status": "CANDIDATE"},
                         )
                     )
                 else:
-                    val = tracking_error.tracking_error(aligned_fund_returns, bench_returns, periods_per_year)
-                    results.append(
-                        MetricOutputItem(
-                            metric_code=code,
-                            period_type="3Y",
-                            numeric_value=val,
-                            units="PERCENTAGE",
-                            status=CalculationStatus.CALCULATED,
-                            diagnostics={"periods_per_year": periods_per_year, "methodology_status": "CANDIDATE"},
+                    min_paired = int(params.get("min_paired_observations", 700))
+                    total_paired = len(bench_returns)
+                    if total_paired < min_paired:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=None,
+                                units="PERCENTAGE",
+                                status=CalculationStatus.INSUFFICIENT_DATA,
+                                error_message=f"Insufficient paired observations for REL-02: {total_paired} provided, minimum {min_paired} required.",
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "paired_count": total_paired,
+                                    "min_paired_observations": min_paired,
+                                    "periods_per_year": periods_per_year,
+                                    "annualization_convention": "SQRT_252",
+                                    "denominator_convention": "SAMPLE_VARIANCE_N_MINUS_1",
+                                },
+                            )
                         )
-                    )
+                    else:
+                        val = tracking_error.tracking_error(aligned_fund_returns, bench_returns, periods_per_year)
+                        active_diffs = [p - b for p, b in zip(aligned_fund_returns, bench_returns)]
+                        mean_active = sum(active_diffs) / len(active_diffs)
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=val,
+                                units="PERCENTAGE",
+                                status=CalculationStatus.CALCULATED,
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "paired_count": total_paired,
+                                    "min_paired_observations": min_paired,
+                                    "periods_per_year": periods_per_year,
+                                    "mean_daily_active_return": mean_active,
+                                    "annualized_mean_active_return": mean_active * periods_per_year,
+                                    "annualization_convention": "SQRT_252",
+                                    "denominator_convention": "SAMPLE_VARIANCE_N_MINUS_1",
+                                },
+                            )
+                        )
 
-            elif code == "REL-03":  # Jensen's Alpha (3Y)
+            elif code == "REL-03":  # Jensen's Alpha (3Y / Daily Excess-Return OLS Intercept)
                 if not bench_returns or len(bench_returns) < 2:
                     results.append(
                         MetricOutputItem(
@@ -638,6 +895,67 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                             },
                         )
                     )
+
+            elif code == "REL-06":  # Annualized Mean Active Return (3Y)
+                if not bench_returns or len(bench_returns) < 2:
+                    results.append(
+                        MetricOutputItem(
+                            metric_code=code,
+                            period_type="3Y",
+                            units="PERCENTAGE",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message="Aligned benchmark return series required for Annualized Mean Active Return.",
+                            diagnostics={"methodology_status": "CANDIDATE"},
+                        )
+                    )
+                else:
+                    min_paired = int(params.get("min_paired_observations", 700))
+                    total_paired = len(bench_returns)
+                    if total_paired < min_paired:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=None,
+                                units="PERCENTAGE",
+                                status=CalculationStatus.INSUFFICIENT_DATA,
+                                error_message=f"Insufficient paired observations for REL-06: {total_paired} provided, minimum {min_paired} required.",
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "paired_count": total_paired,
+                                    "min_paired_observations": min_paired,
+                                    "formula": "Mean of synchronous daily active returns (R_p - R_b) multiplied by periods_per_year",
+                                    "annualization": "LINEAR_MULTIPLIER_252_ON_MEAN",
+                                    "risk_free_required": False,
+                                },
+                            )
+                        )
+                    else:
+                        val = active_return_mod.annualized_mean_active_return(
+                            aligned_fund_returns, bench_returns, periods_per_year
+                        )
+                        mean_active = active_return_mod.mean_active_return(
+                            aligned_fund_returns, bench_returns
+                        )
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=val,
+                                units="PERCENTAGE",
+                                status=CalculationStatus.CALCULATED,
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "paired_count": total_paired,
+                                    "min_paired_observations": min_paired,
+                                    "mean_daily_active_return": mean_active,
+                                    "periods_per_year": periods_per_year,
+                                    "formula": "Mean of synchronous daily active returns (R_p - R_b) multiplied by periods_per_year",
+                                    "annualization": "LINEAR_MULTIPLIER_252_ON_MEAN",
+                                    "risk_free_required": False,
+                                },
+                            )
+                        )
 
             elif code == "RAT-01":  # Sharpe Ratio (3Y)
                 if request.risk_free_series and aligned_rf_returns is None:
@@ -732,27 +1050,231 @@ def dispatch_calculation(request: CalculationRequest) -> List[MetricOutputItem]:
                     )
                 )
 
-            elif code == "RAT-04":  # Information Ratio
+            elif code == "RAT-04":  # Information Ratio (3Y / Annualized active return over tracking error)
                 if not bench_returns or len(bench_returns) < 2:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
+                            period_type="3Y",
                             units="RATIO",
                             status=CalculationStatus.INSUFFICIENT_DATA,
                             error_message="Aligned benchmark returns required for Information Ratio.",
+                            diagnostics={"methodology_status": "CANDIDATE"},
                         )
                     )
                 else:
-                    val = information_ratio.information_ratio(aligned_fund_returns, bench_returns, periods_per_year)
+                    min_paired = int(params.get("min_paired_observations", 700))
+                    total_paired = len(bench_returns)
+                    if total_paired < min_paired:
+                        results.append(
+                            MetricOutputItem(
+                                metric_code=code,
+                                period_type="3Y",
+                                numeric_value=None,
+                                units="RATIO",
+                                status=CalculationStatus.INSUFFICIENT_DATA,
+                                error_message=f"Insufficient paired observations for RAT-04: {total_paired} provided, minimum {min_paired} required.",
+                                diagnostics={
+                                    "methodology_status": "CANDIDATE",
+                                    "paired_count": total_paired,
+                                    "min_paired_observations": min_paired,
+                                    "periods_per_year": periods_per_year,
+                                    "annualization_convention": "SQRT_252_ON_DAILY_MEAN_OVER_TE",
+                                    "denominator_convention": "SAMPLE_TRACKING_ERROR_N_MINUS_1",
+                                },
+                            )
+                        )
+                    else:
+                        active_diffs = [p - b for p, b in zip(aligned_fund_returns, bench_returns)]
+                        mean_active = sum(active_diffs) / len(active_diffs)
+                        var_active = sum((d - mean_active) ** 2 for d in active_diffs) / (len(active_diffs) - 1)
+                        te_daily = math.sqrt(var_active)
+
+                        if math.isclose(te_daily, 0.0, abs_tol=1e-15):
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=None,
+                                    units="RATIO",
+                                    status=CalculationStatus.ERROR,
+                                    error_message="Zero tracking error: active returns have zero sample variance against benchmark; Information Ratio denominator is zero.",
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "paired_count": total_paired,
+                                        "min_paired_observations": min_paired,
+                                        "zero_tracking_error": True,
+                                        "mean_daily_active_return": mean_active,
+                                    },
+                                )
+                            )
+                        else:
+                            val = information_ratio.information_ratio(aligned_fund_returns, bench_returns, periods_per_year)
+                            te_annual = te_daily * math.sqrt(periods_per_year)
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=val,
+                                    units="RATIO",
+                                    status=CalculationStatus.CALCULATED,
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "paired_count": total_paired,
+                                        "min_paired_observations": min_paired,
+                                        "periods_per_year": periods_per_year,
+                                        "mean_daily_active_return": mean_active,
+                                        "annualized_mean_active_return": mean_active * periods_per_year,
+                                        "annualized_tracking_error": te_annual,
+                                        "annualization_convention": "SQRT_252_ON_DAILY_MEAN_OVER_TE",
+                                        "denominator_convention": "SAMPLE_TRACKING_ERROR_N_MINUS_1",
+                                    },
+                                )
+                            )
+
+            elif code in ("MKT-03", "MKT-04", "MKT-05"):
+                if not bench_returns or len(bench_returns) < 2 or not aligned_fund_returns:
                     results.append(
                         MetricOutputItem(
                             metric_code=code,
-                            numeric_value=val,
-                            units="RATIO",
-                            status=CalculationStatus.CALCULATED,
-                            diagnostics={"periods_per_year": periods_per_year, "methodology_status": "CANDIDATE"},
+                            period_type="3Y",
+                            units="PERCENTAGE" if code in ("MKT-03", "MKT-04") else "PERCENTAGE_POINTS",
+                            status=CalculationStatus.INSUFFICIENT_DATA,
+                            error_message=f"Synchronous aligned benchmark return series required for {code}.",
+                            diagnostics={"methodology_status": "CANDIDATE"},
                         )
                     )
+                else:
+                    min_up = int(params.get("min_upside_observations", 150))
+                    min_down = int(params.get("min_downside_observations", 100))
+                    cap_metrics = capture.compute_capture_metrics(
+                        portfolio_returns=aligned_fund_returns,
+                        benchmark_returns=bench_returns,
+                        min_up_days=min_up,
+                        min_down_days=min_down,
+                    )
+                    if code == "MKT-03":  # Upside Capture Ratio (3Y)
+                        if cap_metrics["upside_status"] != "CALCULATED":
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=None,
+                                    units="PERCENTAGE",
+                                    status=CalculationStatus.INSUFFICIENT_DATA if cap_metrics["upside_status"] == "INSUFFICIENT_DATA" else CalculationStatus.ERROR,
+                                    error_message=cap_metrics["upside_error"],
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "up_days_count": cap_metrics["up_days_count"],
+                                        "min_up_days_required": min_up,
+                                        "total_paired_days": cap_metrics["total_paired_days"],
+                                        "fund_up_cumulative": cap_metrics["fund_up_cumulative"],
+                                        "bench_up_cumulative": cap_metrics["bench_up_cumulative"],
+                                        "annualization_convention": "UNANNUALIZED_SUBSET_PRODUCT_CANDIDATE",
+                                        "denominator_convention": "CUMULATIVE_BENCHMARK_UPSIDE_GT_ZERO",
+                                    },
+                                )
+                            )
+                        else:
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=cap_metrics["upside_capture"],
+                                    units="PERCENTAGE",
+                                    status=CalculationStatus.CALCULATED,
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "up_days_count": cap_metrics["up_days_count"],
+                                        "min_up_days_required": min_up,
+                                        "total_paired_days": cap_metrics["total_paired_days"],
+                                        "fund_up_cumulative": cap_metrics["fund_up_cumulative"],
+                                        "bench_up_cumulative": cap_metrics["bench_up_cumulative"],
+                                        "annualization_convention": "UNANNUALIZED_SUBSET_PRODUCT_CANDIDATE",
+                                        "denominator_convention": "CUMULATIVE_BENCHMARK_UPSIDE_GT_ZERO",
+                                    },
+                                )
+                            )
+
+                    elif code == "MKT-04":  # Downside Capture Ratio (3Y)
+                        if cap_metrics["downside_status"] != "CALCULATED":
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=None,
+                                    units="PERCENTAGE",
+                                    status=CalculationStatus.INSUFFICIENT_DATA if cap_metrics["downside_status"] == "INSUFFICIENT_DATA" else CalculationStatus.ERROR,
+                                    error_message=cap_metrics["downside_error"],
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "down_days_count": cap_metrics["down_days_count"],
+                                        "min_down_days_required": min_down,
+                                        "total_paired_days": cap_metrics["total_paired_days"],
+                                        "fund_down_cumulative": cap_metrics["fund_down_cumulative"],
+                                        "bench_down_cumulative": cap_metrics["bench_down_cumulative"],
+                                        "inverse_capture_gain": cap_metrics["inverse_capture_gain"],
+                                        "annualization_convention": "UNANNUALIZED_SUBSET_PRODUCT_CANDIDATE",
+                                        "denominator_convention": "CUMULATIVE_BENCHMARK_DOWNSIDE_LT_ZERO",
+                                    },
+                                )
+                            )
+                        else:
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=cap_metrics["downside_capture"],
+                                    units="PERCENTAGE",
+                                    status=CalculationStatus.CALCULATED,
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "down_days_count": cap_metrics["down_days_count"],
+                                        "min_down_days_required": min_down,
+                                        "total_paired_days": cap_metrics["total_paired_days"],
+                                        "fund_down_cumulative": cap_metrics["fund_down_cumulative"],
+                                        "bench_down_cumulative": cap_metrics["bench_down_cumulative"],
+                                        "inverse_capture_gain": cap_metrics["inverse_capture_gain"],
+                                        "annualization_convention": "UNANNUALIZED_SUBSET_PRODUCT_CANDIDATE",
+                                        "denominator_convention": "CUMULATIVE_BENCHMARK_DOWNSIDE_LT_ZERO",
+                                    },
+                                )
+                            )
+
+                    elif code == "MKT-05":  # Capture Spread (3Y)
+                        if cap_metrics["spread_status"] != "CALCULATED":
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=None,
+                                    units="PERCENTAGE_POINTS",
+                                    status=CalculationStatus.INSUFFICIENT_DATA,
+                                    error_message=cap_metrics["spread_error"],
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "upside_capture": cap_metrics["upside_capture"],
+                                        "downside_capture": cap_metrics["downside_capture"],
+                                        "annualization_convention": "NONE_DIFFERENCE_BETWEEN_PERCENTAGES",
+                                    },
+                                )
+                            )
+                        else:
+                            results.append(
+                                MetricOutputItem(
+                                    metric_code=code,
+                                    period_type="3Y",
+                                    numeric_value=cap_metrics["capture_spread"],
+                                    units="PERCENTAGE_POINTS",
+                                    status=CalculationStatus.CALCULATED,
+                                    diagnostics={
+                                        "methodology_status": "CANDIDATE",
+                                        "upside_capture": cap_metrics["upside_capture"],
+                                        "downside_capture": cap_metrics["downside_capture"],
+                                        "annualization_convention": "NONE_DIFFERENCE_BETWEEN_PERCENTAGES",
+                                    },
+                                )
+                            )
 
             else:
                 results.append(

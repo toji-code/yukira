@@ -11,6 +11,7 @@ Verifies end-to-end analytical vertical slice across:
 from __future__ import annotations
 
 import datetime
+import math
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -68,11 +69,16 @@ def test_sharpe_ratio_with_aligned_fbil_series():
 
 
 def test_treynor_and_beta_with_aligned_fbil_series():
-    # 6 fund & benchmark dates -> 5 return intervals
-    dates = ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"]
-    navs = [100.0, 100.5, 99.8, 101.2, 102.0, 103.5]
-    bench = [1000.0, 1004.0, 995.0, 1010.0, 1018.0, 1030.0]
-    rf_yields = [0.0695, 0.0698, 0.0700, 0.0692, 0.0694, 0.0696]
+    # Extended to 710 observation dates (709 return intervals) so that REL-01 satisfies
+    # the M2N-06 >= 700 synchronous paired-day floor while preserving exact
+    # numerical equivalence against the pure kernels.
+    start = datetime.date(2024, 1, 1)
+    n = 710
+    dates = [(start + datetime.timedelta(days=i)).isoformat() for i in range(n)]
+    navs = [100.0 + 0.5 * math.sin(i / 7.0) + 0.002 * i for i in range(n)]
+    bench = [1000.0 + 5.0 * math.sin(i / 7.0 + 0.4) + 0.02 * i for i in range(n)]
+    rf_yields = [0.0695 + 0.0005 * math.sin(i / 30.0) for i in range(n)]
+    as_of = dates[-1]
 
     nav_series = [
         ObservationItem(effective_date=d, value=v, availability_time=f"{d}T18:00:00+05:30")
@@ -89,8 +95,8 @@ def test_treynor_and_beta_with_aligned_fbil_series():
 
     req = CalculationRequest(
         request_id="REQ-TREYNOR-BETA-01",
-        as_of_date="2024-01-08",
-        knowledge_cutoff_time="2024-01-08T23:59:59+05:30",
+        as_of_date=as_of,
+        knowledge_cutoff_time=f"{as_of}T23:59:59+05:30",
         metric_codes=["REL-01", "RAT-02"],
         nav_series=nav_series,
         benchmark_series=bench_series,
@@ -108,18 +114,31 @@ def test_treynor_and_beta_with_aligned_fbil_series():
     assert beta_res.period_type == "3Y"
     assert beta_res.diagnostics["risk_free_aligned"] is True
     assert beta_res.diagnostics["risk_free_proxy"] == "FBIL_91D_TBILL"
+    assert beta_res.diagnostics["paired_count"] == n - 1
 
     assert treynor_res.status == CalculationStatus.CALCULATED
     assert treynor_res.period_type == "3Y"
     assert treynor_res.diagnostics["risk_free_aligned"] is True
     assert treynor_res.diagnostics["annualization_convention"] == "252_MULTIPLIER_APPROVED"
 
-    # Verify exact numerical equivalence
-    p_returns = [(navs[i] - navs[i - 1]) / navs[i - 1] for i in range(1, len(navs))]
-    b_returns = [(bench[i] - bench[i - 1]) / bench[i - 1] for i in range(1, len(bench))]
-    # Weekend accrual on 2024-01-05 -> 2024-01-08 is 3 days
-    delta_days = [1, 1, 1, 1, 3]
-    rf_returns = [rf_yields[i] * delta_days[i] / 365.0 for i in range(5)]
+    # Verify exact numerical equivalence by reusing the approved kernels.
+    p_returns = [(navs[i] - navs[i - 1]) / navs[i - 1] for i in range(1, n)]
+    b_returns = [(bench[i] - bench[i - 1]) / bench[i - 1] for i in range(1, n)]
+    rf_obs = [
+        RiskFreeObservation(
+            effective_date=datetime.date.fromisoformat(d),
+            quoted_yield=y,
+            availability_time=datetime.datetime.fromisoformat(f"{d}T18:00:00+05:30"),
+        )
+        for d, y in zip(dates, rf_yields)
+    ]
+    rf_returns = align_risk_free_series(
+        observation_dates=dates,
+        risk_free_observations=rf_obs,
+        analysis_cutoff=as_of,
+        knowledge_cutoff=f"{as_of}T23:59:59+05:30",
+        max_lookback_days=4,
+    )
 
     expected_beta = beta_mod.beta(p_returns, b_returns, risk_free_rates=rf_returns)
     expected_treynor = treynor_mod.treynor_ratio(p_returns, rf_returns, expected_beta, periods_per_year=252.0)
@@ -241,13 +260,15 @@ def test_full_fastapi_endpoint_risk_adjusted_suite():
     nav_series = []
     benchmark_series = []
     risk_free_series = []
-    for i in range(105):
+    # 720 observations -> 719 paired returns: satisfies the M2N-06 >= 700 floor for REL-01
+    # and the >= 100 down-day floor for REL-04 on this monotonically declining series.
+    for i in range(720):
         d_str = (start_date + datetime.timedelta(days=i)).isoformat()
         nav_series.append({"effective_date": d_str, "value": 100.0 - 0.05 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
         benchmark_series.append({"effective_date": d_str, "value": 1000.0 - 0.5 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
         risk_free_series.append({"effective_date": d_str, "value": 0.0695, "availability_time": f"{d_str}T18:00:00+05:30"})
 
-    as_of = (start_date + datetime.timedelta(days=104)).isoformat()
+    as_of = (start_date + datetime.timedelta(days=719)).isoformat()
     payload = {
         "request_id": "REQ-FASTAPI-FULL-SUITE",
         "as_of_date": as_of,

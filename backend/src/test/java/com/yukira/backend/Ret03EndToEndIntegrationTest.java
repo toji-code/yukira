@@ -5,7 +5,6 @@ import com.yukira.backend.dto.analysis.Ret03AnalysisResponse;
 import com.yukira.backend.dto.analysis.Ret03CalculationRequest;
 import com.yukira.backend.repository.*;
 import com.yukira.backend.service.AnalysisService;
-import com.yukira.backend.service.PeriodReturnCalculationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +22,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings("null")
 public class Ret03EndToEndIntegrationTest {
 
     @Autowired
     private AnalysisService analysisService;
-
-    @Autowired
-    private PeriodReturnCalculationService calculationService;
 
     @Autowired
     private SchemeOptionRepository schemeOptionRepository;
@@ -42,12 +39,6 @@ public class Ret03EndToEndIntegrationTest {
 
     @Autowired
     private CalculationRunInputObservationRepository inputObservationRepository;
-
-    @Autowired
-    private MethodologyVersionRepository methodologyVersionRepository;
-
-    @Autowired
-    private NavObservationRepository navObservationRepository;
 
     @Test
     @DisplayName("RET-03 Step 5 & 6: Real end-to-end execution against canonical pilot with persistence and provenance verification")

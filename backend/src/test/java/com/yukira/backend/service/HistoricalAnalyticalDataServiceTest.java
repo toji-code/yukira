@@ -3,7 +3,6 @@ package com.yukira.backend.service;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.dto.analysis.AnalyticalObservationSeriesDto;
 import com.yukira.backend.ingestion.amfi.AmfiNavIngestionService;
-import com.yukira.backend.ingestion.amfi.AmfiNavParser;
 import com.yukira.backend.ingestion.amfi.AmfiSourceClient;
 import com.yukira.backend.ingestion.amfi.IngestionSummary;
 import com.yukira.backend.repository.*;
@@ -30,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @Transactional
+@SuppressWarnings({"null", "deprecation"})
 public class HistoricalAnalyticalDataServiceTest {
 
     @Autowired
@@ -45,9 +45,6 @@ public class HistoricalAnalyticalDataServiceTest {
     private AmfiNavIngestionService ingestionService;
 
     @Autowired
-    private AmfiNavParser amfiNavParser;
-
-    @Autowired
     private AmcRepository amcRepository;
 
     @Autowired
@@ -61,15 +58,6 @@ public class HistoricalAnalyticalDataServiceTest {
 
     @Autowired
     private NavObservationRepository navObservationRepository;
-
-    @Autowired
-    private SourceArtifactRepository sourceArtifactRepository;
-
-    @Autowired
-    private MarketCalendarRepository marketCalendarRepository;
-
-    @Autowired
-    private ValidationIssueRepository validationIssueRepository;
 
     private SchemeOption canonicalOption;
 

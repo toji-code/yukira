@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import com.yukira.backend.dto.analysis.ComparisonRequest;
+import com.yukira.backend.dto.analysis.ComparisonResponse;
 
 @RestController
 @RequestMapping("/api/v1/analysis")
@@ -64,7 +66,7 @@ public class AnalysisController {
 
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) ||
             "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
 
         return ResponseEntity.ok(response);
@@ -119,7 +121,7 @@ public class AnalysisController {
 
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) ||
             "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
 
         return ResponseEntity.ok(response);
@@ -167,7 +169,7 @@ public class AnalysisController {
 
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) ||
             "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
 
         return ResponseEntity.ok(response);
@@ -200,7 +202,7 @@ public class AnalysisController {
 
         RiskAnalysisResponse response = analysisService.executeRsk02Analysis(request);
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
         return ResponseEntity.ok(response);
     }
@@ -232,7 +234,7 @@ public class AnalysisController {
 
         RiskAnalysisResponse response = analysisService.executeRsk03Analysis(request);
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
         return ResponseEntity.ok(response);
     }
@@ -264,7 +266,7 @@ public class AnalysisController {
 
         RiskAnalysisResponse response = analysisService.executeRsk04Analysis(request);
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
         return ResponseEntity.ok(response);
     }
@@ -296,7 +298,7 @@ public class AnalysisController {
 
         RiskAnalysisResponse response = analysisService.executeRsk05Analysis(request);
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
         return ResponseEntity.ok(response);
     }
@@ -328,7 +330,7 @@ public class AnalysisController {
 
         RiskAnalysisResponse response = analysisService.executeRsk06Analysis(request);
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
         return ResponseEntity.ok(response);
     }
@@ -360,7 +362,7 @@ public class AnalysisController {
 
         RiskAnalysisResponse response = analysisService.executeRsk07Analysis(request);
         if ("INSUFFICIENT_DATA".equals(response.result().calculationStatus()) || "FAILED".equals(response.provenance().runStatus())) {
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+            return ResponseEntity.status(org.springframework.http.HttpStatus.valueOf(422)).body(response);
         }
         return ResponseEntity.ok(response);
     }
@@ -404,6 +406,340 @@ public class AnalysisController {
         }
 
         AnalyticalProfileResponse response = analysisService.executeProfileAnalysis(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/compare")
+    public ResponseEntity<?> executeComparison(@RequestBody ComparisonRequest request) {
+        if (request.schemeOptionIds() == null || request.schemeOptionIds().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PARAMETER",
+                "message", "At least two schemeOptionIds are required for comparison."
+            ));
+        }
+        if (request.schemeOptionIds().size() < 2) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INSUFFICIENT_SCHEMES",
+                "message", "Minimum 2 schemes required for comparison."
+            ));
+        }
+        if (request.schemeOptionIds().size() > 4) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "TOO_MANY_SCHEMES",
+                "message", "Maximum 4 schemes allowed for comparison."
+            ));
+        }
+        if (request.asOfDate() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_DATES",
+                "message", "asOfDate is required for comparison."
+            ));
+        }
+        if (request.knowledgeCutoffTime() == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_CUTOFF",
+                "message", "knowledgeCutoffTime is required to enforce point-in-time constraints."
+            ));
+        }
+
+        for (Long id : request.schemeOptionIds()) {
+            if (!schemeOptionRepository.existsById(id)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "error", "SCHEME_OPTION_NOT_FOUND",
+                    "message", String.format("SchemeOption #%d does not exist in the canonical registry.", id)
+                ));
+            }
+        }
+
+        ComparisonResponse response = analysisService.executeComparison(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Executes real 6-dimensional Data Quality & Anomaly Center audit for a fund.
+     */
+    @GetMapping("/quality/{schemeOptionId}")
+    public ResponseEntity<?> getDataQualityAudit(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String knowledgeCutoffTime
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        java.time.OffsetDateTime cutoff = knowledgeCutoffTime != null
+            ? java.time.OffsetDateTime.parse(knowledgeCutoffTime)
+            : java.time.OffsetDateTime.now();
+
+        DataQualityAuditResponse response = analysisService.executeDataQualityAudit(schemeOptionId, cutoff);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Executes real Rolling Return and Outperformance Consistency Analysis (RET-05 / RET-06).
+     * Deterministic Julian 365.25 annualization, synchronous pairing vs NIFTY 500 TRI, strict PIT enforcement.
+     */
+    @GetMapping("/rolling/{schemeOptionId}")
+    public ResponseEntity<?> getRollingConsistency(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime,
+        @RequestParam(required = false) Long benchmarkId
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        java.time.LocalDate date = asOfDate != null
+            ? java.time.LocalDate.parse(asOfDate)
+            : java.time.LocalDate.of(2024, 1, 15);
+
+        java.time.OffsetDateTime cutoff = knowledgeCutoffTime != null
+            ? java.time.OffsetDateTime.parse(knowledgeCutoffTime)
+            : java.time.OffsetDateTime.now();
+
+        RollingConsistencyResponse response = analysisService.executeRollingConsistencyAnalysis(
+            schemeOptionId, date, cutoff, benchmarkId
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Executes real Capture Ratios & Asymmetry Analysis (MKT-03 / MKT-04 / MKT-05).
+     * Synchronously aligned pairing vs NIFTY 500 TRI, strict PIT enforcement.
+     */
+    @GetMapping("/capture/{schemeOptionId}")
+    public ResponseEntity<?> getCaptureRatios(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime,
+        @RequestParam(required = false) Long benchmarkId
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        java.time.LocalDate date = asOfDate != null
+            ? java.time.LocalDate.parse(asOfDate)
+            : java.time.LocalDate.of(2024, 1, 15);
+
+        java.time.OffsetDateTime cutoff = knowledgeCutoffTime != null
+            ? java.time.OffsetDateTime.parse(knowledgeCutoffTime)
+            : java.time.OffsetDateTime.now();
+
+        CaptureRatioResponse response = analysisService.executeCaptureRatioAnalysis(
+            schemeOptionId, date, cutoff, benchmarkId
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Executes real Market-Relative Tracking Consistency & Information Ratio Analysis (Â§MKT-01 / Â§MKT-02).
+     * Synchronously aligned pairing vs NIFTY 500 TRI, strict PIT enforcement, minimum N >= 700 threshold.
+     */
+    @GetMapping({"/tracking-consistency/{schemeOptionId}", "/tracking/{schemeOptionId}"})
+    public ResponseEntity<?> getTrackingConsistency(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime,
+        @RequestParam(required = false) Long benchmarkId
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        java.time.LocalDate date = asOfDate != null
+            ? java.time.LocalDate.parse(asOfDate)
+            : java.time.LocalDate.of(2024, 1, 15);
+
+        java.time.OffsetDateTime cutoff = knowledgeCutoffTime != null
+            ? java.time.OffsetDateTime.parse(knowledgeCutoffTime)
+            : java.time.OffsetDateTime.now();
+
+        TrackingConsistencyResponse response = analysisService.executeTrackingConsistencyAnalysis(
+            schemeOptionId, date, cutoff, benchmarkId
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Executes Benchmark Relationship & Explanatory Power Analysis
+     * (REL-02 Benchmark Correlation / REL-03 R-Squared).
+     */
+    @GetMapping({"/benchmark-relationship/{schemeOptionId}", "/relationship/{schemeOptionId}"})
+    public ResponseEntity<?> getBenchmarkRelationship(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime,
+        @RequestParam(required = false) Long benchmarkId
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        if (asOfDate == null || knowledgeCutoffTime == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_PARAMETERS",
+                "message", "asOfDate and knowledgeCutoffTime are required for point-in-time benchmark relationship analysis."
+            ));
+        }
+
+        java.time.LocalDate date;
+        java.time.OffsetDateTime cutoff;
+        try {
+            date = java.time.LocalDate.parse(asOfDate);
+            cutoff = java.time.OffsetDateTime.parse(knowledgeCutoffTime);
+        } catch (java.time.format.DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INVALID_DATE_OR_CUTOFF",
+                "message", "asOfDate must be ISO yyyy-MM-dd and knowledgeCutoffTime must be an ISO offset timestamp."
+            ));
+        }
+
+        if (date.isAfter(cutoff.toLocalDate())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INVALID_PIT_SEQUENCE",
+                "message", "asOfDate must not be after knowledgeCutoffTime."
+            ));
+        }
+
+        if (benchmarkId != null && !analysisService.benchmarkExists(benchmarkId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "BENCHMARK_NOT_FOUND",
+                "message", String.format("Benchmark #%d does not exist in the canonical registry.", benchmarkId)
+            ));
+        }
+
+        BenchmarkRelationshipResponse response = analysisService.executeBenchmarkRelationshipAnalysis(
+            schemeOptionId, date, cutoff, benchmarkId
+        );
+        return ResponseEntity.ok(response);
+    }
+    /**
+     * Aggregates existing benchmark-relative outputs for the Fund Profile Benchmark Relationship panel.
+     */
+    @GetMapping({"/benchmark-relationship-panel/{schemeOptionId}", "/relationship-panel/{schemeOptionId}"})
+    public ResponseEntity<?> getBenchmarkRelationshipPanel(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime,
+        @RequestParam(required = false) Long benchmarkId
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        if (asOfDate == null || knowledgeCutoffTime == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_PARAMETERS",
+                "message", "asOfDate and knowledgeCutoffTime are required for point-in-time benchmark relationship panel analysis."
+            ));
+        }
+
+        java.time.LocalDate date;
+        java.time.OffsetDateTime cutoff;
+        try {
+            date = java.time.LocalDate.parse(asOfDate);
+            cutoff = java.time.OffsetDateTime.parse(knowledgeCutoffTime);
+        } catch (java.time.format.DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INVALID_DATE_OR_CUTOFF",
+                "message", "asOfDate must be ISO yyyy-MM-dd and knowledgeCutoffTime must be an ISO offset timestamp."
+            ));
+        }
+
+        if (date.isAfter(cutoff.toLocalDate())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INVALID_PIT_SEQUENCE",
+                "message", "asOfDate must not be after knowledgeCutoffTime."
+            ));
+        }
+
+        if (benchmarkId != null && !analysisService.benchmarkExists(benchmarkId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "BENCHMARK_NOT_FOUND",
+                "message", String.format("Benchmark #%d does not exist in the canonical registry.", benchmarkId)
+            ));
+        }
+
+        BenchmarkRelationshipPanelResponse response = analysisService.executeBenchmarkRelationshipPanelAnalysis(
+            schemeOptionId, date, cutoff, benchmarkId
+        );
+        return ResponseEntity.ok(response);
+    }
+    /**
+     * Executes Benchmark Beta Dynamics & Systematic Covariance Analysis
+     * (Â§REL-01 Standard Beta / Â§REL-04 Downside Beta / Â§REL-05 Upside Beta).
+     * Synchronously aligned pairing vs NIFTY 500 TRI, strict PIT enforcement.
+     */
+    @GetMapping({"/beta/{schemeOptionId}", "/beta-dynamics/{schemeOptionId}"})
+    public ResponseEntity<?> getBetaDynamics(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime,
+        @RequestParam(required = false) Long benchmarkId
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+
+        if (asOfDate == null || knowledgeCutoffTime == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "MISSING_PIT_PARAMETERS",
+                "message", "asOfDate and knowledgeCutoffTime are required for point-in-time beta analysis."
+            ));
+        }
+
+        java.time.LocalDate date;
+        java.time.OffsetDateTime cutoff;
+        try {
+            date = java.time.LocalDate.parse(asOfDate);
+            cutoff = java.time.OffsetDateTime.parse(knowledgeCutoffTime);
+        } catch (java.time.format.DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INVALID_DATE_OR_CUTOFF",
+                "message", "asOfDate must be ISO yyyy-MM-dd and knowledgeCutoffTime must be an ISO offset timestamp."
+            ));
+        }
+
+        if (date.isAfter(cutoff.toLocalDate())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "INVALID_PIT_SEQUENCE",
+                "message", "asOfDate must not be after knowledgeCutoffTime."
+            ));
+        }
+
+        if (benchmarkId != null && !analysisService.benchmarkExists(benchmarkId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "BENCHMARK_NOT_FOUND",
+                "message", String.format("Benchmark #%d does not exist in the canonical registry.", benchmarkId)
+            ));
+        }
+
+        BetaDynamicsResponse response = analysisService.executeBetaCalculation(
+            schemeOptionId, date, cutoff, benchmarkId
+        );
         return ResponseEntity.ok(response);
     }
 }

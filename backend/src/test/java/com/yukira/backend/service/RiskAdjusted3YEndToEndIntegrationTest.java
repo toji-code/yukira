@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * End-to-End Integration Test for 3-Year Risk-Adjusted Metrics (Phase 2Q Complete):
  *   - RAT-01: 3-Year Sharpe Ratio (FBIL 91D T-Bill daily compounding, ACT/365, sqrt(252))
  *   - RAT-02 / RAT-05: 3-Year Treynor Ratio (Annualized mean excess return * 252 / Beta)
- *   - REL-01: 3-Year Beta (Excess-return OLS with intercept)
- *   - REL-04: 3-Year Downside Beta (Conditioned on Rb < 0, raw returns, >=100 down days)
+ *   - MKT-01: 3-Year Beta (Excess-return OLS with intercept)
+ *   - MKT-02: 3-Year Downside Beta (Conditioned on Rb < 0, raw returns, >=100 down days)
  *
  * Uses the Canonical Pilot Instrument (HDFC Flexi Cap Direct Growth, AMFI 118955)
  * and real authoritative market series:
@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   - Numerical reproducibility and independent mathematical agreement
  */
 @SpringBootTest
+@SuppressWarnings({"null", "deprecation"})
 class RiskAdjusted3YEndToEndIntegrationTest {
 
     @Autowired
@@ -47,16 +48,13 @@ class RiskAdjusted3YEndToEndIntegrationTest {
     private MetricResultRepository metricResultRepository;
 
     @Autowired
-    private CalculationRunRepository calculationRunRepository;
-
-    @Autowired
     private CalculationRunInputObservationRepository calculationRunInputObservationRepository;
 
     @Autowired
     private BenchmarkRepository benchmarkRepository;
 
     @Test
-    @DisplayName("Execute End-to-End 3-Year Risk-Adjusted Calculation Run (RAT-01, RAT-02, REL-01, REL-04) on Live Pilot")
+    @DisplayName("Execute End-to-End 3-Year Risk-Adjusted Calculation Run (RAT-01, RAT-02, MKT-01, MKT-02) on Live Pilot")
     void testCompletePhase2QRiskAdjustedExecution() {
         // 1. Bootstrap canonical pilot master, NAV history, benchmark history, and risk-free history
         SchemeOption option = pilotBootstrapService.ensureCanonicalPilotMaster();
@@ -74,7 +72,7 @@ class RiskAdjusted3YEndToEndIntegrationTest {
         // 2. Define strict PIT cutoffs
         LocalDate asOfDate = LocalDate.of(2024, 1, 15);
         OffsetDateTime knowledgeCutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
-        List<String> metricCodes = List.of("RAT-01", "RAT-02", "REL-01", "REL-04");
+        List<String> metricCodes = List.of("RAT-01", "RAT-02", "MKT-01", "MKT-02");
 
         // 3. Execute Calculation Run #1
         CalculationRun run1 = calculationOrchestratorService.executeCalculationRun(
@@ -110,8 +108,8 @@ class RiskAdjusted3YEndToEndIntegrationTest {
 
         MetricResult sharpe = results1.stream().filter(r -> "RAT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
         MetricResult treynor = results1.stream().filter(r -> "RAT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
-        MetricResult beta = results1.stream().filter(r -> "REL-01".equals(r.getMetricCode())).findFirst().orElseThrow();
-        MetricResult downsideBeta = results1.stream().filter(r -> "REL-04".equals(r.getMetricCode())).findFirst().orElseThrow();
+        MetricResult beta = results1.stream().filter(r -> "MKT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
+        MetricResult downsideBeta = results1.stream().filter(r -> "MKT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
 
         assertEquals("CALCULATED", sharpe.getCalculationStatus());
         assertEquals("CALCULATED", treynor.getCalculationStatus());
@@ -150,9 +148,9 @@ class RiskAdjusted3YEndToEndIntegrationTest {
 
         List<MetricResult> results2 = metricResultRepository.findByCalculationRunId(run2.getId());
         MetricResult sharpe2 = results2.stream().filter(r -> "RAT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
-        MetricResult beta2 = results2.stream().filter(r -> "REL-01".equals(r.getMetricCode())).findFirst().orElseThrow();
+        MetricResult beta2 = results2.stream().filter(r -> "MKT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
         MetricResult treynor2 = results2.stream().filter(r -> "RAT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
-        MetricResult downsideBeta2 = results2.stream().filter(r -> "REL-04".equals(r.getMetricCode())).findFirst().orElseThrow();
+        MetricResult downsideBeta2 = results2.stream().filter(r -> "MKT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
 
         assertEquals(sharpe.getNumericValue(), sharpe2.getNumericValue(), "Sharpe ratio must be strictly reproducible");
         assertEquals(beta.getNumericValue(), beta2.getNumericValue(), "Beta must be strictly reproducible");

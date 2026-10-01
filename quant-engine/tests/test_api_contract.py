@@ -103,8 +103,19 @@ def test_calculate_relative_metrics_with_benchmark():
     assert response.status_code == 200
     data = response.json()
     results_map = {r["metric_code"]: r for r in data["results"]}
-    assert results_map["REL-01"]["status"] == "CALCULATED"
-    assert results_map["REL-02"]["status"] == "CALCULATED"
+    # M2N-06 requires >= 700 synchronous paired trading days for REL-01.
+    # 2 paired returns are deterministically insufficient (never a fabricated value).
+    assert results_map["REL-01"]["status"] == "INSUFFICIENT_DATA"
+    assert results_map["REL-01"]["numeric_value"] is None
+    assert results_map["REL-01"]["diagnostics"]["paired_count"] == 2
+    assert results_map["REL-01"]["diagnostics"]["min_paired_observations"] == 700
+    # REL-02 is Tracking Error (Phase 2R / Phase 2S scope-lock registry identity).
+    # Its frozen registry floor is 700 paired trading days, so 2 pairs are insufficient.
+    assert results_map["REL-02"]["status"] == "INSUFFICIENT_DATA"
+    assert results_map["REL-02"]["numeric_value"] is None
+    assert results_map["REL-02"]["units"] == "PERCENTAGE"
+    assert results_map["REL-02"]["diagnostics"]["paired_count"] == 2
+    assert results_map["REL-02"]["diagnostics"]["min_paired_observations"] == 700
 
 
 def test_calculate_insufficient_data():
@@ -146,13 +157,15 @@ def test_calculate_with_risk_free_series():
     nav_series = []
     benchmark_series = []
     risk_free_series = []
-    for i in range(105):
+    # 720 observations -> 719 paired returns, satisfying the M2N-06 >= 700 floor for REL-01
+    # and the >= 100 down-day floor for REL-04 on this monotonically declining series.
+    for i in range(720):
         d_str = (start_date + datetime.timedelta(days=i)).isoformat()
         nav_series.append({"effective_date": d_str, "value": 100.0 - 0.05 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
         benchmark_series.append({"effective_date": d_str, "value": 1000.0 - 0.5 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
         risk_free_series.append({"effective_date": d_str, "value": 0.070, "availability_time": f"{d_str}T18:00:00+05:30"})
 
-    as_of = (start_date + datetime.timedelta(days=104)).isoformat()
+    as_of = (start_date + datetime.timedelta(days=719)).isoformat()
     payload = {
         "request_id": "REQ-RF-001",
         "as_of_date": as_of,

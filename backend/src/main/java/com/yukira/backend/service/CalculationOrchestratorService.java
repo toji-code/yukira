@@ -21,6 +21,11 @@ import java.util.*;
 @Service
 public class CalculationOrchestratorService {
 
+    private static final Map<String, String> CANONICAL_TO_ENGINE_METRIC_CODE = Map.of(
+        "MKT-01", "REL-01",
+        "MKT-02", "REL-04"
+    );
+
     private final NavObservationRepository navObservationRepository;
     private final BenchmarkObservationRepository benchmarkObservationRepository;
     private final RiskFreeObservationRepository riskFreeObservationRepository;
@@ -197,6 +202,18 @@ public class CalculationOrchestratorService {
 
         try {
             // 5. Build request and call Quant Engine
+            List<String> engineMetricCodes = metricCodes.stream()
+                .map(code -> CANONICAL_TO_ENGINE_METRIC_CODE.getOrDefault(code, code))
+                .distinct()
+                .toList();
+            Map<String, List<String>> engineToRequestedMetricCodes = new HashMap<>();
+            for (String requestedCode : metricCodes) {
+                String engineCode = CANONICAL_TO_ENGINE_METRIC_CODE.getOrDefault(requestedCode, requestedCode);
+                engineToRequestedMetricCodes
+                    .computeIfAbsent(engineCode, ignored -> new ArrayList<>())
+                    .add(requestedCode);
+            }
+
             CalculationRequestDto requestDto = new CalculationRequestDto(
                 requestId,
                 String.valueOf(schemeOptionId),
@@ -204,7 +221,7 @@ public class CalculationOrchestratorService {
                 asOfDate.toString(),
                 knowledgeCutoffTime.toString(),
                 methodologyTag,
-                metricCodes,
+                engineMetricCodes,
                 navSeries,
                 benchmarkSeries,
                 riskFreeSeries,
@@ -215,21 +232,33 @@ public class CalculationOrchestratorService {
 
             // 6. Persist metric_result records
             if (response.results() != null) {
+                Set<String> persistedMetricKeys = new HashSet<>();
                 for (MetricOutputItemDto item : response.results()) {
-                    MetricResult result = new MetricResult(
-                        run,
+                    List<String> requestedCodes = engineToRequestedMetricCodes.getOrDefault(
                         item.metricCode(),
-                        item.periodType() != null ? item.periodType() : "1Y",
-                        item.numericValue(),
-                        item.units() != null ? item.units() : "UNKNOWN",
-                        item.status() != null ? item.status() : "CALCULATED"
+                        List.of(item.metricCode())
                     );
-                    result.setStringValue(item.stringValue());
-                    result.setErrorMessage(item.errorMessage());
-                    if (item.diagnostics() != null) {
-                        result.setDiagnostics(objectMapper.writeValueAsString(item.diagnostics()));
+                    for (String metricCode : requestedCodes) {
+                        String periodType = item.periodType() != null ? item.periodType() : "1Y";
+                        String metricKey = metricCode + "|" + periodType;
+                        if (!persistedMetricKeys.add(metricKey)) {
+                            continue;
+                        }
+                        MetricResult result = new MetricResult(
+                            run,
+                            metricCode,
+                            periodType,
+                            item.numericValue(),
+                            item.units() != null ? item.units() : "UNKNOWN",
+                            item.status() != null ? item.status() : "CALCULATED"
+                        );
+                        result.setStringValue(item.stringValue());
+                        result.setErrorMessage(item.errorMessage());
+                        if (item.diagnostics() != null) {
+                            result.setDiagnostics(objectMapper.writeValueAsString(item.diagnostics()));
+                        }
+                        metricResultRepository.save(result);
                     }
-                    metricResultRepository.save(result);
                 }
             }
 

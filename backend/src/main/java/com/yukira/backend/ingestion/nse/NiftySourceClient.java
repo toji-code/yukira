@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -103,7 +102,7 @@ public class NiftySourceClient {
             payloadMap.put("cinfo", OBJECT_MAPPER.writeValueAsString(cinfoMap));
             byte[] postBody = OBJECT_MAPPER.writeValueAsBytes(payloadMap);
 
-            URL url = new URL(DEFAULT_POST_URL);
+            URL url = new java.net.URI(DEFAULT_POST_URL).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setConnectTimeout(15000);

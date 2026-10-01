@@ -1,9 +1,7 @@
 package com.yukira.backend.ingestion.fbil;
 
 import com.yukira.backend.domain.entity.RiskFreeObservation;
-import com.yukira.backend.domain.entity.SourceArtifact;
 import com.yukira.backend.repository.RiskFreeObservationRepository;
-import com.yukira.backend.repository.SourceArtifactRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @DisplayName("FBIL 3-Year Historical Ingestion and PIT Resolution Test")
+@SuppressWarnings("null")
 class FbilHistoricalIngestionTest {
 
     @Autowired
@@ -28,9 +27,6 @@ class FbilHistoricalIngestionTest {
 
     @Autowired
     private RiskFreeObservationRepository riskFreeObservationRepository;
-
-    @Autowired
-    private SourceArtifactRepository sourceArtifactRepository;
 
     @Test
     @DisplayName("Ingests official 3-year FBIL artifact, verifies idempotency, PIT selection, and >700 observations")

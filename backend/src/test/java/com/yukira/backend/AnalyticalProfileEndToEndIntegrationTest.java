@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -23,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings("null")
 public class AnalyticalProfileEndToEndIntegrationTest {
 
     @Autowired
@@ -40,11 +40,8 @@ public class AnalyticalProfileEndToEndIntegrationTest {
     @Autowired
     private MetricResultRepository metricResultRepository;
 
-    @Autowired
-    private CalculationRunInputObservationRepository inputObservationRepository;
-
     @Test
-    @DisplayName("Phase 2R: Execute unified 3-Year Institutional Risk-Return Profile (16 metrics) against canonical pilot")
+    @DisplayName("Phase 2R: Execute unified 3-Year Institutional Risk-Return Profile against canonical pilot")
     void testCanonicalPilot3YProfileEndToEnd() {
         // 1. Identify canonical pilot: HDFC Flexi Cap Fund Direct Growth (AMFI 118955, ISIN INF179K01UT0)
         SchemeOption pilot = schemeOptionRepository.findByAmfiCode("118955")
@@ -69,7 +66,7 @@ public class AnalyticalProfileEndToEndIntegrationTest {
             asOfDate,
             knowledgeCutoff,
             "APPROVED_M2N",
-            null, // defaults to CANONICAL_3Y_PROFILE_METRIC_CODES (16 metrics)
+            null, // defaults to CANONICAL_3Y_PROFILE_METRIC_CODES
             Map.of("periods_per_year", 252.0, "min_downside_observations", 100)
         );
 
@@ -93,7 +90,7 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         assertNotNull(response.provenance().calculationRunId());
 
 
-        // Check 4 sections: 3 + 7 + 2 + 4 = 16 metrics
+        // Check 4 sections: 3 + 7 + 3 + 7 = 20 metrics
         List<AnalyticalProfileResponse.ProfileMetricItem> retMetrics = response.returnMetrics();
         List<AnalyticalProfileResponse.ProfileMetricItem> rskMetrics = response.riskMetrics();
         List<AnalyticalProfileResponse.ProfileMetricItem> ratMetrics = response.riskAdjustedMetrics();
@@ -101,11 +98,11 @@ public class AnalyticalProfileEndToEndIntegrationTest {
 
         assertEquals(3, retMetrics.size(), "Return section must have RET-02, RET-03, RET-07");
         assertEquals(7, rskMetrics.size(), "Risk section must have RSK-01 through RSK-07");
-        assertEquals(2, ratMetrics.size(), "Risk-adjusted section must have RAT-01, RAT-02");
-        assertEquals(4, relMetrics.size(), "Market sensitivity section must have REL-01, REL-04, REL-02, REL-03");
+        assertEquals(3, ratMetrics.size(), "Risk-adjusted section must have RAT-01, RAT-02, RAT-04");
+        assertEquals(7, relMetrics.size(), "Market sensitivity section must have MKT-01..05, REL-02, REL-03");
 
         int totalMetrics = retMetrics.size() + rskMetrics.size() + ratMetrics.size() + relMetrics.size();
-        assertEquals(16, totalMetrics, "Total unified profile must contain exactly 16 metrics");
+        assertEquals(20, totalMetrics, "Total unified profile must contain exactly 20 metrics");
 
         // Verify all 16 metrics are CALCULATED
         for (AnalyticalProfileResponse.ProfileMetricItem item : retMetrics) {
@@ -126,9 +123,9 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         }
 
         // 5. Canonical Value Verifications (Section 7 of prompt)
-        // RSK-01 Volatility: 0.14691293710229647
+        // RSK-01 Volatility: fixed PIT resolver includes valid same-availability revised observations.
         AnalyticalProfileResponse.ProfileMetricItem rsk01 = findMetric(rskMetrics, "RSK-01");
-        assertEquals(0.146912937102, rsk01.numericValue().doubleValue(), 0.0001, "RSK-01 canonical volatility mismatch");
+        assertEquals(0.150571584544, rsk01.numericValue().doubleValue(), 0.0001, "RSK-01 canonical volatility mismatch");
 
         // RSK-02 Downside Semideviation: ~0.1013013296
         AnalyticalProfileResponse.ProfileMetricItem rsk02 = findMetric(rskMetrics, "RSK-02");
@@ -142,42 +139,46 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         AnalyticalProfileResponse.ProfileMetricItem rat02 = findMetric(ratMetrics, "RAT-02");
         assertEquals(0.2145410507, rat02.numericValue().doubleValue(), 0.05, "RAT-02 canonical Treynor mismatch");
 
-        // REL-01 Beta: ~0.9590602545
-        AnalyticalProfileResponse.ProfileMetricItem rel01 = findMetric(relMetrics, "REL-01");
-        assertEquals(0.9590602545, rel01.numericValue().doubleValue(), 0.05, "REL-01 canonical Beta mismatch");
+        // RAT-04 Information Ratio
+        AnalyticalProfileResponse.ProfileMetricItem rat04 = findMetric(ratMetrics, "RAT-04");
+        assertEquals("CANDIDATE", rat04.governanceStatus());
 
-        // REL-04 Downside Beta: ~0.9678148690
-        AnalyticalProfileResponse.ProfileMetricItem rel04 = findMetric(relMetrics, "REL-04");
-        assertEquals(0.9678148690, rel04.numericValue().doubleValue(), 0.05, "REL-04 canonical Downside Beta mismatch");
+        // MKT-01 Beta: ~0.9590602545
+        AnalyticalProfileResponse.ProfileMetricItem mkt01 = findMetric(relMetrics, "MKT-01");
+        assertEquals(0.9590602545, mkt01.numericValue().doubleValue(), 0.05, "MKT-01 canonical Beta mismatch");
 
-        // REL-03 Jensen's Alpha: ~0.068398 (+6.84%)
+        // MKT-02 Downside Beta: ~0.9678148690
+        AnalyticalProfileResponse.ProfileMetricItem mkt02 = findMetric(relMetrics, "MKT-02");
+        assertEquals(0.9678148690, mkt02.numericValue().doubleValue(), 0.05, "MKT-02 canonical Downside Beta mismatch");
+
+        // REL-02 Tracking Error and REL-03 Jensen's Alpha remain distinct frozen registry identities
+        AnalyticalProfileResponse.ProfileMetricItem rel02 = findMetric(relMetrics, "REL-02");
         AnalyticalProfileResponse.ProfileMetricItem rel03 = findMetric(relMetrics, "REL-03");
-        assertEquals(0.0683976393, rel03.numericValue().doubleValue(), 0.001, "REL-03 canonical Jensen's Alpha mismatch");
+        assertEquals("CANDIDATE", rel02.governanceStatus());
+        assertEquals("CANDIDATE", rel03.governanceStatus());
 
         // 6. Governance Status Verifications
         // Operational: RET-02
         AnalyticalProfileResponse.ProfileMetricItem ret02 = findMetric(retMetrics, "RET-02");
         assertTrue(ret02.governanceStatus().contains("OPERATIONAL") || "APPROVED".equals(ret02.governanceStatus()));
 
-        // Approved: RET-03, RAT-01, RAT-02, REL-01, REL-04
+        // Approved: RET-03, RAT-01, RAT-02
         AnalyticalProfileResponse.ProfileMetricItem ret03 = findMetric(retMetrics, "RET-03");
         assertEquals("APPROVED", ret03.governanceStatus());
 
         assertEquals("APPROVED", rat01.governanceStatus());
         assertEquals("APPROVED", rat02.governanceStatus());
-        assertEquals("APPROVED", rel01.governanceStatus());
-        assertEquals("APPROVED", rel04.governanceStatus());
 
-        // Candidates: RSK-01..07, RET-07, REL-02, REL-03
+        // Candidates: RSK-01..07, RET-07, RAT-04, MKT-01..05, REL-02, REL-03
         assertEquals("CANDIDATE", rsk01.governanceStatus());
         assertEquals("CANDIDATE", rsk02.governanceStatus());
+        assertEquals("CANDIDATE", mkt01.governanceStatus());
+        assertEquals("CANDIDATE", mkt02.governanceStatus());
 
         AnalyticalProfileResponse.ProfileMetricItem ret07 = findMetric(retMetrics, "RET-07");
         assertEquals("CANDIDATE", ret07.governanceStatus());
 
-        AnalyticalProfileResponse.ProfileMetricItem rel02 = findMetric(relMetrics, "REL-02");
         assertEquals("CANDIDATE", rel02.governanceStatus());
-
         assertEquals("CANDIDATE", rel03.governanceStatus());
 
         // 7. Database Persistence & Run-Level Verification
@@ -188,14 +189,14 @@ public class AnalyticalProfileEndToEndIntegrationTest {
 
 
         List<MetricResult> persistedMetrics = metricResultRepository.findByCalculationRunId(runId);
-        assertEquals(16, persistedMetrics.size(), "Database must contain exactly 16 MetricResult records for this run");
+        assertEquals(20, persistedMetrics.size(), "Database must contain exactly 20 MetricResult records for this run");
 
         // 8. Retrieval via getAnalysisByRunId returning unified AnalyticalProfileResponse
         Optional<Object> retrieved = analysisService.getAnalysisByRunId(runId);
         assertTrue(retrieved.isPresent());
         assertInstanceOf(AnalyticalProfileResponse.class, retrieved.get());
         AnalyticalProfileResponse profile = (AnalyticalProfileResponse) retrieved.get();
-        assertEquals(16, profile.returnMetrics().size() + profile.riskMetrics().size() + profile.riskAdjustedMetrics().size() + profile.marketSensitivityMetrics().size());
+        assertEquals(20, profile.returnMetrics().size() + profile.riskMetrics().size() + profile.riskAdjustedMetrics().size() + profile.marketSensitivityMetrics().size());
         assertEquals(response.provenance().inputSnapshotSha256(), profile.provenance().inputSnapshotSha256());
     }
 

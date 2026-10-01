@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
  * They are NEVER converted into portfolio scores or automated investment decisions.
  */
 @Service
+@SuppressWarnings("null")
 public class TradingDateContinuityService {
 
     private final MarketCalendarRepository marketCalendarRepository;
@@ -232,7 +233,7 @@ public class TradingDateContinuityService {
                     revisionRowsCount += (dateObs.size() - 1);
                 }
                 if (isCalendarHoliday) {
-                    String holName = calEntry.getHolidayName() != null ? calEntry.getHolidayName() : "Exchange Holiday";
+                    String holName = (calEntry != null && calEntry.getHolidayName() != null) ? calEntry.getHolidayName() : "Exchange Holiday";
                     details.add(new DailyContinuityItem(
                         cur, dow, ContinuityStatus.EXCHANGE_HOLIDAY, false, null, null, holName
                     ));

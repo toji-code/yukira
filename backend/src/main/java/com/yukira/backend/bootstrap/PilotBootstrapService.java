@@ -30,6 +30,7 @@ import java.util.List;
  * Contains ZERO destructive operations (no DELETE FROM, no TRUNCATE).
  */
 @Service
+@SuppressWarnings("null")
 public class PilotBootstrapService {
 
     private static final Logger log = LoggerFactory.getLogger(PilotBootstrapService.class);

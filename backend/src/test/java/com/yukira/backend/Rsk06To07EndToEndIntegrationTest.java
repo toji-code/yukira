@@ -62,7 +62,7 @@ public class Rsk06To07EndToEndIntegrationTest {
         assertNotNull(response.result().formattedValue());
 
         // Window verification
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals(700, response.window().minObservationsRequired());
 
         // Methodology & Governance
@@ -73,7 +73,7 @@ public class Rsk06To07EndToEndIntegrationTest {
 
         // Provenance & DB verification
         assertNotNull(response.provenance().calculationRunId());
-        assertEquals(737, response.provenance().inputObservations().size());
+        assertEquals(739, response.provenance().inputObservations().size());
 
         CalculationRun persistedRun = calculationRunRepository.findById(response.provenance().calculationRunId()).orElseThrow();
         assertEquals("COMPLETED", persistedRun.getRunStatus());
@@ -85,7 +85,7 @@ public class Rsk06To07EndToEndIntegrationTest {
         assertEquals("CALCULATED", results.get(0).getCalculationStatus());
 
         List<CalculationRunInputObservation> links = inputObservationRepository.findByCalculationRunId(persistedRun.getId());
-        assertEquals(737, links.size());
+        assertEquals(739, links.size());
     }
 
     @Test
@@ -117,7 +117,7 @@ public class Rsk06To07EndToEndIntegrationTest {
         assertTrue(response.result().numericValue().compareTo(varResponse.result().numericValue()) >= 0,
             "Expected Shortfall (" + response.result().numericValue() + ") must be >= VaR (" + varResponse.result().numericValue() + ")");
 
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals("RSK_07_3Y_EXPECTED_SHORTFALL_95", response.methodology().methodologyCode());
         assertEquals("CANDIDATE_V1", response.methodology().methodologyVersion());
 

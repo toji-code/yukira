@@ -15,6 +15,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 
 @Service
+@SuppressWarnings("null")
 public class PitObservationResolutionService {
 
     private final NavObservationRepository navObservationRepository;
@@ -149,6 +150,11 @@ public class PitObservationResolutionService {
             .anyMatch(c -> c.getNavValue().compareTo(latestCandidates.get(0).getNavValue()) != 0);
 
         if (hasConflictingValues) {
+            Optional<NavObservation> latestRevision = resolveValidLatestRevisionChain(latestCandidates);
+            if (latestRevision.isPresent()) {
+                return PitResolutionResult.resolved(latestRevision.get(), eligibleRevisions);
+            }
+
             // Step 7: For conflicting values, return explicit PIT authority ambiguity — do not silently resolve
             ValidationIssue issue = new ValidationIssue(
                 "SCHEME_OPTION",
@@ -176,6 +182,38 @@ public class PitObservationResolutionService {
 
         NavObservation authoritative = Collections.max(latestCandidates, tieBreaker);
         return PitResolutionResult.resolved(authoritative, eligibleRevisions);
+    }
+
+    private Optional<NavObservation> resolveValidLatestRevisionChain(List<NavObservation> latestCandidates) {
+        List<NavObservation> latestRevisionMarkers = latestCandidates.stream()
+            .filter(obs -> Boolean.TRUE.equals(obs.getLatestRevision()))
+            .toList();
+
+        if (latestRevisionMarkers.size() != 1) {
+            return Optional.empty();
+        }
+
+        NavObservation selected = latestRevisionMarkers.get(0);
+        boolean validSupersessionChain = latestCandidates.stream()
+            .filter(obs -> obs != selected)
+            .allMatch(obs ->
+                Boolean.FALSE.equals(obs.getLatestRevision())
+                    && "SUPERSEDED".equals(obs.getRevisionStatus())
+                    && obs.getRevisionSeq() != null
+                    && selected.getRevisionSeq() != null
+                    && obs.getRevisionSeq() < selected.getRevisionSeq()
+            );
+
+        if (!validSupersessionChain) {
+            return Optional.empty();
+        }
+
+        String selectedRevisionStatus = selected.getRevisionStatus();
+        if (!"REVISED".equals(selectedRevisionStatus) && !"ORIGINAL".equals(selectedRevisionStatus)) {
+            return Optional.empty();
+        }
+
+        return Optional.of(selected);
     }
 
     /**

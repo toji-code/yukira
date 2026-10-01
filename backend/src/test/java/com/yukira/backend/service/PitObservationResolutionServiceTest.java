@@ -219,6 +219,33 @@ class PitObservationResolutionServiceTest {
     }
 
     @Test
+    @DisplayName("PIT Test 6B: Same availability conflicting NAV values resolve when revision metadata proves a valid supersession chain")
+    void testValidSupersessionChainAtSameAvailabilitySelectsLatestRevision() {
+        LocalDate date = LocalDate.of(2022, 1, 3);
+        OffsetDateTime availabilityTime = OffsetDateTime.of(2022, 1, 4, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        NavObservation rev1 = new NavObservation(schemeOption, date, new BigDecimal("100.00000000"), 1, availabilityTime);
+        rev1.setLatestRevision(false);
+        rev1.setRevisionStatus("SUPERSEDED");
+        navObservationRepository.save(rev1);
+
+        NavObservation rev2 = new NavObservation(schemeOption, date, new BigDecimal("101.00000000"), 2, availabilityTime);
+        rev2.setLatestRevision(true);
+        rev2.setRevisionStatus("REVISED");
+        navObservationRepository.save(rev2);
+
+        OffsetDateTime cutoff = OffsetDateTime.of(2022, 1, 5, 12, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        PitObservationResolutionService.PitResolutionResult res = pitService
+            .resolveAuthoritativeObservation(schemeOption.getId(), date, cutoff);
+
+        assertTrue(res.authoritativeObservation().isPresent());
+        assertFalse(res.isAmbiguous());
+        assertEquals(2, res.authoritativeObservation().get().getRevisionSeq());
+        assertEquals(0, new BigDecimal("101.00000000").compareTo(res.authoritativeObservation().get().getNavValue()));
+    }
+
+    @Test
     @DisplayName("PIT Test 7: Multiple eligible revisions at latest availability instant with IDENTICAL NAV values -> revision_seq DESC breaks tie deterministically")
     void testIdenticalValuesAtLatestAvailabilityInstantResolvesDeterministically() {
         LocalDate date = LocalDate.of(2024, 1, 17);

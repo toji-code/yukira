@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings("null")
 class AnalysisControllerTest {
 
     @Autowired
@@ -220,7 +221,7 @@ class AnalysisControllerTest {
         mockMvc.perform(post("/api/v1/analysis/ret02")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(jsonPayload))
-            .andExpect(status().isUnprocessableEntity())
+            .andExpect(status().is(422))
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.result.numericValue").doesNotExist())
             .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)))
@@ -287,7 +288,7 @@ class AnalysisControllerTest {
         mockMvc.perform(post("/api/v1/analysis/ret02")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(jsonPayload))
-            .andExpect(status().isUnprocessableEntity())
+            .andExpect(status().is(422))
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.pit.pitFilteringApplied", is(true)));
     }
@@ -378,7 +379,7 @@ class AnalysisControllerTest {
         mockMvc.perform(post("/api/v1/analysis/ret03")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(jsonPayload))
-            .andExpect(status().isUnprocessableEntity())
+            .andExpect(status().is(422))
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
     }
@@ -475,7 +476,7 @@ class AnalysisControllerTest {
         mockMvc.perform(post("/api/v1/analysis/ret03")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(jsonPayload))
-            .andExpect(status().isUnprocessableEntity())
+            .andExpect(status().is(422))
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
     }
@@ -490,14 +491,12 @@ class AnalysisControllerTest {
         // Seed 720 daily observations so minObservations >= 700 is satisfied
         LocalDate current = start;
         BigDecimal nav = new BigDecimal("100.00000000");
-        int count = 0;
         while (!current.isAfter(end)) {
             NavObservation obs = new NavObservation(schemeOption, current, nav, 1, cutoff);
             obs.setSourceArtifact(sourceArtifact);
             navObservationRepository.save(obs);
             nav = nav.add(new BigDecimal("0.10000000"));
             current = current.plusDays(1);
-            count++;
         }
 
         String jsonPayload = String.format("""
@@ -551,7 +550,7 @@ class AnalysisControllerTest {
         mockMvc.perform(post("/api/v1/analysis/rsk01")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(jsonPayload))
-            .andExpect(status().isUnprocessableEntity())
+            .andExpect(status().is(422))
             .andExpect(jsonPath("$.result.metricCode", is("RSK-01")))
             .andExpect(jsonPath("$.result.calculationStatus", is("INSUFFICIENT_DATA")))
             .andExpect(jsonPath("$.limitations.insufficientEvidence", is(true)));
@@ -728,5 +727,151 @@ class AnalysisControllerTest {
         mockMvc.perform(get("/api/v1/analysis/rsk07/" + runId07))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.result.metricCode", is("RSK-07")));
+    }
+
+    @Test
+    @DisplayName("Data Quality Audit API: Exposes real 6-dimensional taxonomy and ledger continuity")
+    void testDataQualityAuditEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/quality/" + schemeOption.getId()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.summary.overallStatus", is("AUTHORITATIVE_DATA_QUALITY_VERIFIED")))
+            .andExpect(jsonPath("$.dimensions", hasSize(6)))
+            .andExpect(jsonPath("$.detectedAnomalies", hasSize(greaterThanOrEqualTo(2))))
+            .andExpect(jsonPath("$.sourceArtifactStatus.verificationStatus", is("VERIFIED_CRYPTOGRAPHIC_SHA256")));
+    }
+
+    @Test
+    @DisplayName("Rolling Consistency API: Exposes real RET-05 and RET-06 distributions and outperformance")
+    void testRollingConsistencyEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/rolling/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.primary3Y.periodType", is("3Y")))
+            .andExpect(jsonPath("$.primary3Y.windowYears", is(3)))
+            .andExpect(jsonPath("$.primary3Y.minWindowsRequired", is(450)))
+            .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.limitation", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("Capture Ratio API: Exposes real MKT-03, MKT-04, and MKT-05 asymmetric participation metrics")
+    void testCaptureRatioEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/capture/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.context.benchmarkName", notNullValue()))
+            .andExpect(jsonPath("$.metrics.minUpDaysRequired", is(150)))
+            .andExpect(jsonPath("$.metrics.minDownDaysRequired", is(100)))
+            .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.limitation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.benchmarkLineage", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("Tracking Consistency API: Exposes real MKT-01 and MKT-02 tracking error and information ratio")
+    void testTrackingConsistencyEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/tracking-consistency/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.context.benchmarkName", notNullValue()))
+            .andExpect(jsonPath("$.metrics.minPairedObservationsRequired", is(700)))
+            .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.limitation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.benchmarkLineage", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("Beta Dynamics API: Exposes real REL-01, REL-04, and REL-05 beta metrics")
+    void testBetaDynamicsEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/beta/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.metrics.standardBetaStatus", notNullValue()))
+            .andExpect(jsonPath("$.metrics.downsideBetaStatus", notNullValue()))
+            .andExpect(jsonPath("$.metrics.upsideBetaStatus", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.limitation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.benchmarkLineage", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("Beta Dynamics API: Rejects missing PIT parameters")
+    void testBetaDynamicsRejectsMissingPitParameters() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/beta/" + schemeOption.getId()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("MISSING_PIT_PARAMETERS")));
+    }
+
+    @Test
+    @DisplayName("Beta Dynamics API: Rejects invalid cutoff/date syntax")
+    void testBetaDynamicsRejectsInvalidCutoffSyntax() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/beta/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "not-a-cutoff"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("INVALID_DATE_OR_CUTOFF")));
+    }
+
+    @Test
+    @DisplayName("Beta Dynamics API: Rejects analysis dates after knowledge cutoff")
+    void testBetaDynamicsRejectsInvalidPitSequence() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/beta/" + schemeOption.getId())
+                .param("asOfDate", "2024-02-01")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("INVALID_PIT_SEQUENCE")));
+    }
+
+    @Test
+    @DisplayName("Beta Dynamics API: Rejects invalid benchmark IDs")
+    void testBetaDynamicsRejectsInvalidBenchmarkId() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/beta/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30")
+                .param("benchmarkId", "999999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error", is("BENCHMARK_NOT_FOUND")));
+    }
+    @Test
+    @DisplayName("Benchmark Relationship Panel API: Aggregates existing benchmark-relative slices")
+    void testBenchmarkRelationshipPanelEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/benchmark-relationship-panel/" + schemeOption.getId())
+                .param("asOfDate", "2024-01-15")
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.context.benchmarkName", notNullValue()))
+            .andExpect(jsonPath("$.metrics.activeReturn.metricCode", is("RET-07")))
+            .andExpect(jsonPath("$.metrics.trackingError.metricCode", is("REL-02")))
+            .andExpect(jsonPath("$.metrics.informationRatio.metricCode", is("RAT-04")))
+            .andExpect(jsonPath("$.metrics.correlation.metricCode").doesNotExist())
+            .andExpect(jsonPath("$.metrics.beta.metricCode", is("MKT-01")))
+            .andExpect(jsonPath("$.metrics.rSquared.metricCode").doesNotExist())
+            .andExpect(jsonPath("$.metrics.minPairedObservationsRequired", is(700)))
+            .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.limitation", notNullValue()))
+            .andExpect(jsonPath("$.epistemic.calculationEvidence", hasSize(3)));
+    }
+
+    @Test
+    @DisplayName("Benchmark Relationship Panel API: Rejects missing PIT parameters")
+    void testBenchmarkRelationshipPanelRejectsMissingPitParameters() throws Exception {
+        mockMvc.perform(get("/api/v1/analysis/benchmark-relationship-panel/" + schemeOption.getId()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("MISSING_PIT_PARAMETERS")));
     }
 }

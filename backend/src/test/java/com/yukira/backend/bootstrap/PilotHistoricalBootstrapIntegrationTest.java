@@ -2,7 +2,6 @@ package com.yukira.backend.bootstrap;
 
 import com.yukira.backend.domain.entity.SchemeOption;
 import com.yukira.backend.dto.analysis.AnalyticalObservationSeriesDto;
-import com.yukira.backend.repository.NavObservationRepository;
 import com.yukira.backend.repository.SchemeOptionRepository;
 import com.yukira.backend.service.HistoricalAnalyticalDataService;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,13 +21,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @Tag("external-integration")
+@SuppressWarnings("null")
 public class PilotHistoricalBootstrapIntegrationTest {
 
     @Autowired
     private PilotBootstrapService pilotBootstrapService;
-
-    @Autowired
-    private NavObservationRepository navObservationRepository;
 
     @Autowired
     private SchemeOptionRepository schemeOptionRepository;

@@ -25,10 +25,9 @@ Five binding constraints govern that scope and are restated in full in the adden
 ## 1. Git & Repository Status
 
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `18fac5f90b84a5d2d4bd82548d46f7b2ed0e4c62` (Short: `18fac5f`)
-- **Commit Message:** `fix: enforce approved downside beta observation threshold`
-- **Remote Synchronization:** Local `main` is synchronized with `origin/main` (`ahead 0, behind 0`).
-- **Working Tree State:** Clean
+- **Commit Baseline Described Below:** `c6d78cd` (`docs: establish authoritative Final Product Scope with implementation states`). The benchmark-relative analytical slice is committed on top of this baseline.
+- **Remote Synchronization:** Local `main` was synchronized with `origin/main` (`ahead 0, behind 0`) at baseline `c6d78cd`. Commits made after that baseline are intentionally not yet pushed.
+- **Working Tree State:** **Not clean — by design.** The committed analytical slice covers the quantitative kernel, backend API and migrations only. Two slices are intentionally left uncommitted: the in-progress investor authentication (Auth0) slice, pending resolution of its runtime `401 Unauthorized` on `/api/proxy/investor/watchlist`, and the frontend presentation layer, which is under active redesign.
 - **Latest Completed Phase:** **Phase 2Q** (Risk-Adjusted / Market-Sensitivity Analytical Vertical)
 - **Active Current Phase:** Phase 2R (Readiness Assessment / Scope Definition)
 

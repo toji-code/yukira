@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(classes = com.yukira.backend.BackendApplication.class)
 @Transactional
 @DisplayName("NSE NIFTY 500 TRI 3-Year Historical Ingestion and PIT Resolution Test")
 class NiftyHistoricalIngestionTest {

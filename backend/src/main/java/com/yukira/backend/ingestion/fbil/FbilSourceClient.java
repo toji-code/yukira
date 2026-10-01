@@ -10,7 +10,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -86,7 +85,7 @@ public class FbilSourceClient {
     private byte[] executeHttpGet(String urlString) {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(urlString);
+            URL url = new java.net.URI(urlString).toURL();
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(30000);

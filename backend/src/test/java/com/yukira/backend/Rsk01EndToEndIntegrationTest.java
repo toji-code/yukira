@@ -5,14 +5,12 @@ import com.yukira.backend.dto.analysis.Rsk01AnalysisResponse;
 import com.yukira.backend.dto.analysis.Rsk01CalculationRequest;
 import com.yukira.backend.repository.*;
 import com.yukira.backend.service.AnalysisService;
-import com.yukira.backend.service.RiskCalculationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -23,13 +21,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings("null")
 public class Rsk01EndToEndIntegrationTest {
 
     @Autowired
     private AnalysisService analysisService;
-
-    @Autowired
-    private RiskCalculationService riskCalculationService;
 
     @Autowired
     private SchemeOptionRepository schemeOptionRepository;
@@ -42,12 +38,6 @@ public class Rsk01EndToEndIntegrationTest {
 
     @Autowired
     private CalculationRunInputObservationRepository inputObservationRepository;
-
-    @Autowired
-    private MethodologyVersionRepository methodologyVersionRepository;
-
-    @Autowired
-    private NavObservationRepository navObservationRepository;
 
     @Test
     @DisplayName("RSK-01 Real end-to-end execution against canonical pilot with 741 observations, persistence and provenance verification")
@@ -99,7 +89,7 @@ public class Rsk01EndToEndIntegrationTest {
         assertEquals(LocalDate.of(2024, 1, 15), response.window().requestedEndDate());
         assertEquals(LocalDate.of(2021, 1, 15), response.window().actualStartDate());
         assertEquals(LocalDate.of(2024, 1, 15), response.window().actualEndDate());
-        assertEquals(737, response.window().observationCount());
+        assertEquals(739, response.window().observationCount());
         assertEquals(700, response.window().minObservationsRequired());
         assertEquals(36, response.window().windowMonths());
 
@@ -120,14 +110,14 @@ public class Rsk01EndToEndIntegrationTest {
         assertTrue(response.limitations().candidateAnnualizationApplied());
         assertTrue(response.limitations().candidateDenominatorApplied());
         assertFalse(response.limitations().insufficientEvidence());
-        assertEquals(737, response.limitations().observationCount());
+        assertEquals(739, response.limitations().observationCount());
         assertEquals(700, response.limitations().minObservationsRequired());
 
         // Provenance & Linkages verification
         assertNotNull(response.provenance().calculationRunId());
         assertEquals("COMPLETED", response.provenance().runStatus());
         assertNotNull(response.provenance().inputSnapshotSha256());
-        assertEquals(737, response.provenance().inputObservations().size());
+        assertEquals(739, response.provenance().inputObservations().size());
 
         // 5. Database Persistence & Immutability Verification
         CalculationRun persistedRun = calculationRunRepository.findById(response.provenance().calculationRunId())
@@ -143,11 +133,11 @@ public class Rsk01EndToEndIntegrationTest {
         assertEquals(1, metricResults.size());
         MetricResult persistedMetric = metricResults.get(0);
         assertEquals("3Y", persistedMetric.getPeriodType());
-        assertEquals(0.146912937102, persistedMetric.getNumericValue().doubleValue(), 0.0001);
+        assertEquals(0.150571584544, persistedMetric.getNumericValue().doubleValue(), 0.0001);
         assertEquals("CALCULATED", persistedMetric.getCalculationStatus());
 
         List<CalculationRunInputObservation> inputObsLinks = inputObservationRepository.findByCalculationRunId(persistedRun.getId());
-        assertEquals(737, inputObsLinks.size(), "All 737 input observations must have immutable database links");
+        assertEquals(739, inputObsLinks.size(), "All 739 input observations must have immutable database links");
 
         // 6. Direct retrieval via getAnalysisByRunId
         Optional<Object> retrieved = analysisService.getAnalysisByRunId(persistedRun.getId());

@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @Transactional
+@SuppressWarnings("null")
 public class January2024ProvenanceDiscrepancyTest {
 
     @Autowired

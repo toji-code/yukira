@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Service
+@SuppressWarnings("null")
 public class NiftyBenchmarkIngestionService {
 
     public static final String NIFTY_500_TRI_CODE = "NIFTY_500_TRI";

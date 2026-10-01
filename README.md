@@ -46,7 +46,7 @@ YUKIRA is intended to become the verification and checkpoint investors use befor
 | **Fund Manager Information** | PLANNED |
 | **Expense Ratio** | PLANNED |
 | **AUM** | PLANNED |
-| **SIP / Lumpsum Information** | PLANNED |
+| **SIP / Lumpsum Information** | IN PROGRESS — route & share-class surface ships; AMC scheme terms (minimum amounts, frequencies, charges) not yet ingested |
 | **Charts** | PLANNED |
 | **Fund Comparison** | PLANNED |
 
@@ -124,7 +124,7 @@ YUKIRA is intended to become the verification and checkpoint investors use befor
 - **Raw-Source Provenance and Hashing:** Ingestion artifacts are tracked with cryptographic SHA-256 digests, HTTP retrieval timestamps, and exact byte counts.
 - **Point-in-Time (PIT) / Bitemporal Data Structures:** Lookback window resolution preventing look-ahead bias by strictly filtering observations available as-of a user-defined knowledge cutoff.
 - **Deterministic Calculation Infrastructure:** Parameterized calculation execution with input observation snapshot SHA-256 digests and quant engine git commit tracking.
-- **Implemented Candidate Methodologies:** RET-02 (Simple Period Return), RET-03 (3Y CAGR), RSK-01 (Annualized Volatility), and benchmark-relative metrics (REL-01 Beta, REL-02 Correlation, REL-03 R-Squared, REL-04 Downside Beta, REL-05 Upside Beta, REL-06 Annualized Mean Active Return, MKT-01 Tracking Error, MKT-02 Information Ratio).
+- **Implemented Candidate Methodologies:** RET-02 (Simple Period Return), RET-03 (3Y CAGR), RSK-01 (Annualized Volatility), and benchmark-relative metrics (REL-01 Beta, REL-02 Tracking Error, REL-03 Jensen's Alpha, REL-04 Downside Beta, REL-05 Upside Beta, REL-06 Annualized Mean Active Return, MKT-01 Beta (alias of REL-01), MKT-02 Downside Beta (alias of REL-04)).
 - **Methodology Governance:** Formal methodology registry enforcing candidate vs. validated vs. approved lifecycle states.
 - **Automated Test Suites:** Complete multi-tier test automation including 451 Python quant engine tests, 122+ Spring Boot backend integration/unit tests, and 46 frontend unit tests.
 - **Initial Investor-Facing Frontend Routes:** Working pages for Home (`/`), Fund Discovery (`/funds`), Fund Detail (`/funds/[id]`), and Quantitative Analysis Run Audit (`/analysis/[id]`).
@@ -227,8 +227,8 @@ Phase 2B froze the MVP candidate inventory at **30 analytical metrics** across *
 1. **Return Quality (6 metrics):** RET-01 (1Y CAGR), RET-03 (3Y CAGR), RET-04 (5Y CAGR), RET-05 (3Y Rolling Return Mean), RET-06 (Rolling Outperformance %), RET-07 (3Y Active Return).
 2. **Risk & Tail (7 metrics):** RSK-01 (Annualized Volatility), RSK-02 (Downside Semideviation), RSK-03 (Maximum Drawdown 3Y), RSK-04 (Maximum Drawdown Duration), RSK-05 (Ulcer Index), RSK-06 (Historical VaR 95%), RSK-07 (Expected Shortfall 95%).
 3. **Risk-Adjusted (4 metrics):** RAT-01 (Sharpe Ratio 3Y), RAT-02 (Sortino Ratio 3Y), RAT-03 (Treynor Ratio 3Y), RAT-04 (Information Ratio 3Y).
-4. **Market Sensitivity (5 metrics):** MKT-01 (Tracking Error 3Y), MKT-02 (Information Ratio), MKT-03 (Upside Capture), MKT-04 (Downside Capture), MKT-05 (Capture Spread).
-5. **Benchmark / Alpha (6 metrics):** REL-01 (Beta 3Y), REL-02 (Correlation), REL-03 (R-Squared), REL-04 (Downside Beta), REL-05 (Upside Beta), REL-06 (Annualized Mean Active Return).
+4. **Market Sensitivity (5 metrics):** MKT-01 (Beta — alias of REL-01), MKT-02 (Downside Beta — alias of REL-04), MKT-03 (Upside Capture), MKT-04 (Downside Capture), MKT-05 (Capture Spread).
+5. **Benchmark / Alpha (6 metrics):** REL-01 (Beta 3Y), REL-02 (Tracking Error), REL-03 (Jensen's Alpha), REL-04 (Downside Beta), REL-05 (Upside Beta), REL-06 (Annualized Mean Active Return).
 6. **Portfolio Structure (5 metrics):** PRT-01 (Top-10 Concentration), PRT-02 (Effective Number of Holdings), PRT-03 (Active Share), PRT-04 (Monthly Weight Turnover), PRT-05 (Cash & Equivalent Allocation %).
 7. **Governance / Expense (1 metric):** GOV-01 (Direct Plan TER).
 

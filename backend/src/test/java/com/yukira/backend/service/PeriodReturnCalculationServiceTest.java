@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings({"null", "deprecation"})
 class PeriodReturnCalculationServiceTest {
 
     @Autowired
@@ -41,9 +42,6 @@ class PeriodReturnCalculationServiceTest {
 
     @Autowired
     private BenchmarkRepository benchmarkRepository;
-
-    @Autowired
-    private CalculationRunRepository calculationRunRepository;
 
     @Autowired
     private MetricResultRepository metricResultRepository;

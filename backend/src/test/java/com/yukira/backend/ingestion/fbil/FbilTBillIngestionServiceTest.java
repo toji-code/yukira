@@ -2,11 +2,8 @@ package com.yukira.backend.ingestion.fbil;
 
 import com.yukira.backend.domain.entity.RiskFreeObservation;
 import com.yukira.backend.domain.entity.ValidationIssue;
-import com.yukira.backend.repository.DataSourceRepository;
 import com.yukira.backend.repository.RiskFreeObservationRepository;
-import com.yukira.backend.repository.SourceArtifactRepository;
 import com.yukira.backend.repository.ValidationIssueRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @DisplayName("FBIL 91-Day T-Bill Ingestion Service Tests")
+@SuppressWarnings("null")
 class FbilTBillIngestionServiceTest {
 
     @Autowired
@@ -33,9 +31,6 @@ class FbilTBillIngestionServiceTest {
 
     @Autowired
     private RiskFreeObservationRepository riskFreeObservationRepository;
-
-    @Autowired
-    private SourceArtifactRepository sourceArtifactRepository;
 
     @Autowired
     private ValidationIssueRepository validationIssueRepository;

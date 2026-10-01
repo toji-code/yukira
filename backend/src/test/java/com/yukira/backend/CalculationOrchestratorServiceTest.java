@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 
 @SpringBootTest
 @Transactional
+@SuppressWarnings("null")
 class CalculationOrchestratorServiceTest {
 
     @Autowired
@@ -90,19 +91,19 @@ class CalculationOrchestratorServiceTest {
         OffsetDateTime tCutoff = OffsetDateTime.of(2026, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
         // Seed 3 historical NAV points
-        NavObservation nav1 = navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
-        NavObservation nav2 = navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 6, 1), new BigDecimal("110.00"), 1, tCutoff.minusDays(220)));
-        NavObservation nav3 = navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 6, 1), new BigDecimal("110.00"), 1, tCutoff.minusDays(220)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
 
         // Seed 3 historical Benchmark points
-        BenchmarkObservation bm1 = benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
-        BenchmarkObservation bm2 = benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 6, 1), new BigDecimal("1050.00"), 1, tCutoff.minusDays(220)));
-        BenchmarkObservation bm3 = benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 6, 1), new BigDecimal("1050.00"), 1, tCutoff.minusDays(220)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
 
         // Seed 3 historical Risk-Free points
-        RiskFreeObservation rf1 = riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        RiskFreeObservation rf2 = riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 6, 1), new BigDecimal("0.06850000"), 1, tCutoff.minusDays(220)));
-        RiskFreeObservation rf3 = riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 6, 1), new BigDecimal("0.06850000"), 1, tCutoff.minusDays(220)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         // Mock Quant Engine response
         CalculationResponseDto mockResponse = new CalculationResponseDto(
@@ -200,6 +201,54 @@ class CalculationOrchestratorServiceTest {
         if (ref.getNavObservation() != null) return ref.getNavObservation();
         if (ref.getBenchmarkObservation() != null) return ref.getBenchmarkObservation();
         return null;
+    }
+
+    @Test
+    @DisplayName("Canonical metric aliases are deduplicated for quant request while preserving requested API aliases")
+    void testMetricAliasDeduplicatesEngineRequestAndPersistsUniqueAliases() {
+        LocalDate asOfDate = LocalDate.of(2026, 1, 15);
+        OffsetDateTime tCutoff = OffsetDateTime.of(2026, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
+
+        CalculationResponseDto mockResponse = new CalculationResponseDto(
+            "REQ-ALIAS",
+            asOfDate.toString(),
+            tCutoff.toString(),
+            "0.1.0-alpha",
+            "mock-git-sha-alias",
+            8.0,
+            List.of(new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null)),
+            "SUCCESS",
+            null
+        );
+
+        Mockito.when(quantEngineClient.executeCalculation(any())).thenReturn(mockResponse);
+
+        CalculationRun run = calculationOrchestratorService.executeCalculationRun(
+            schemeOption.getId(),
+            benchmark.getId(),
+            asOfDate,
+            tCutoff,
+            List.of("MKT-01", "REL-01", "MKT-01"),
+            "CANDIDATE-V1",
+            Map.of("start_date", "2024-12-01")
+        );
+
+        ArgumentCaptor<CalculationRequestDto> captor = ArgumentCaptor.forClass(CalculationRequestDto.class);
+        Mockito.verify(quantEngineClient).executeCalculation(captor.capture());
+        assertEquals(List.of("REL-01"), captor.getValue().metricCodes());
+
+        List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+        assertEquals(2, results.size(), "Must persist only one row per requested API alias");
+        assertTrue(results.stream().anyMatch(r -> r.getMetricCode().equals("MKT-01")));
+        assertTrue(results.stream().anyMatch(r -> r.getMetricCode().equals("REL-01")));
+        assertEquals(2, results.stream().map(r -> r.getMetricCode() + "|" + r.getPeriodType()).distinct().count());
     }
 
     @Test
