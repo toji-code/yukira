@@ -6,12 +6,18 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { StateView } from "@/components/epistemic/StateView";
 import { fetchAllSchemes } from "@/lib/api/schemes";
 import { Scheme } from "@/types/domain";
+import { FundCard } from "@/components/primitives/FundCard";
+import { useWatchlist } from "@/lib/hooks/useWatchlist";
+
+type SortOption = "name_asc" | "name_desc" | "inception_asc" | "inception_desc";
 
 export default function FundsCatalogPage() {
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("name_asc");
+  const { watchlistedIds, toggleWatchlist } = useWatchlist();
 
   const refreshCatalog = () => {
     setLoading(true);
@@ -49,16 +55,35 @@ export default function FundsCatalogPage() {
     };
   }, []);
 
-  const filteredSchemes = useMemo(() => {
+  const filteredAndSortedSchemes = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return schemes;
-    return schemes.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        (s.amc && s.amc.name && s.amc.name.toLowerCase().includes(q))
-    );
-  }, [schemes, searchQuery]);
+    let result = schemes;
+
+    if (q) {
+      result = result.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.code.toLowerCase().includes(q) ||
+          (s.amc && s.amc.name && s.amc.name.toLowerCase().includes(q))
+      );
+    }
+
+    return [...result].sort((a, b) => {
+      if (sortBy === "name_asc") return a.name.localeCompare(b.name);
+      if (sortBy === "name_desc") return b.name.localeCompare(a.name);
+      if (sortBy === "inception_asc") {
+        const da = a.inceptionDate ? new Date(a.inceptionDate).getTime() : 0;
+        const db = b.inceptionDate ? new Date(b.inceptionDate).getTime() : 0;
+        return da - db;
+      }
+      if (sortBy === "inception_desc") {
+        const da = a.inceptionDate ? new Date(a.inceptionDate).getTime() : 0;
+        const db = b.inceptionDate ? new Date(b.inceptionDate).getTime() : 0;
+        return db - da;
+      }
+      return 0;
+    });
+  }, [schemes, searchQuery, sortBy]);
 
   return (
     <PageContainer
@@ -69,80 +94,98 @@ export default function FundsCatalogPage() {
         { label: "Funds", href: "/funds" },
       ]}
       action={
-        <button
-          onClick={refreshCatalog}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-xs font-mono font-medium text-text-primary transition hover:bg-surface-elevated hover:border-border-subtle disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <svg
-            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/compare" className="btn btn-secondary">
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            <span>Compare Funds</span>
+          </Link>
+          <button onClick={refreshCatalog} disabled={loading} className="btn btn-secondary">
+            <svg
+              className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
       }
     >
-      {/* Epistemic Mandate Banner */}
-      <div className="mb-6 rounded-xl border border-border bg-surface p-4 text-xs font-mono transition-colors">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 text-text-primary font-semibold uppercase tracking-wider text-[11px]">
-            <span className="h-2 w-2 rounded-full bg-accent" />
-            Verified Master Records Mandate
-          </div>
-          <span className="text-[10px] text-text-muted">
-            Database: PostgreSQL 17 &bull; ddl-auto=validate
-          </span>
+      {/* Verified master records mandate */}
+      <div className="panel mb-5">
+        <div className="panel-header">
+          <p className="eyebrow">Verified Master Records Mandate</p>
+          <span className="mono-meta">PostgreSQL 17 · ddl-auto=validate</span>
         </div>
-        <p className="mt-1 text-text-secondary text-xs font-sans leading-relaxed">
-          This catalog reflects authoritative master entities populated via official AMFI ingestion feeds. If no records are found or the backend is offline, YUKIRA refuses to generate fabricated placeholder funds.
+        <p className="max-w-[86ch] px-4 py-3 text-[12.5px] leading-[1.6] text-text-secondary">
+          This catalog reflects authoritative master entities populated via official AMFI ingestion
+          feeds. If no records are found or the backend is offline, YUKIRA refuses to generate
+          fabricated placeholder funds.
         </p>
       </div>
 
-      {/* Search Bar & Result Counts */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-md flex-1">
-          <input
-            type="text"
-            placeholder="Search by scheme name, code, or AMC..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface-elevated px-4 py-2.5 pl-10 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent font-mono transition-colors"
-            aria-label="Search mutual funds"
-          />
-          <svg
-            className="absolute left-3 top-3 h-4 w-4 text-text-muted"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-2.5 text-text-muted hover:text-text-primary text-xs font-mono"
-              aria-label="Clear search"
+      {/* Search / sort / result count */}
+      <div className="panel mb-5">
+        <div className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
+          <div>
+            <label htmlFor="fund-search" className="field-label">
+              Search
+            </label>
+            <input
+              id="fund-search"
+              type="text"
+              placeholder="Scheme name, code, or AMC…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="field field-mono"
+              aria-label="Search mutual funds"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="fund-sort" className="field-label">
+              Sort
+            </label>
+            <select
+              id="fund-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="field field-mono"
+              aria-label="Sort schemes"
             >
-              &times;
-            </button>
-          )}
+              <option value="name_asc">Name (A–Z)</option>
+              <option value="name_desc">Name (Z–A)</option>
+              <option value="inception_desc">Newest First</option>
+              <option value="inception_asc">Oldest First</option>
+            </select>
+          </div>
+
+          <div className="pb-2 lg:text-right">
+            <span className="eyebrow block">Result Set</span>
+            <span className="data-value-sm mt-1 inline-block">
+              {filteredAndSortedSchemes.length} of {schemes.length}
+            </span>
+            <span className="mono-meta ml-2">schemes</span>
+          </div>
         </div>
 
-        <div className="font-mono text-xs text-text-muted flex items-center gap-3">
-          <span>
-            Showing <strong className="text-text-primary">{filteredSchemes.length}</strong> of{" "}
-            <strong className="text-text-primary">{schemes.length}</strong> schemes
-          </span>
-        </div>
+        {searchQuery && (
+          <div className="border-t border-border px-4 py-2">
+            <button onClick={() => setSearchQuery("")} className="btn btn-ghost btn-sm">
+              Clear search filter
+            </button>
+          </div>
+        )}
       </div>
 
       {/* State View Rendering */}
@@ -158,10 +201,7 @@ export default function FundsCatalogPage() {
           title="Fund Catalog Unavailable"
           message={`Connection to the backend service failed: ${error}. Verify that the Spring Boot backend is active.`}
           action={
-            <button
-              onClick={refreshCatalog}
-              className="inline-flex rounded-md bg-surface-elevated border border-border px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-surface font-mono"
-            >
+            <button onClick={refreshCatalog} className="btn btn-secondary btn-sm">
               Retry Connection
             </button>
           }
@@ -172,101 +212,27 @@ export default function FundsCatalogPage() {
           title="No Scheme Records Found"
           message="The master scheme repository currently contains zero scheme records. Ensure database migrations and AMFI data ingestion have been executed."
         />
-      ) : filteredSchemes.length === 0 ? (
+      ) : filteredAndSortedSchemes.length === 0 ? (
         <StateView
           kind="empty"
           title="No Matching Schemes Found"
           message={`No registered scheme records matched your search query "${searchQuery}".`}
           action={
-            <button
-              onClick={() => setSearchQuery("")}
-              className="inline-flex rounded-md bg-surface-elevated border border-border px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-surface font-mono"
-            >
+            <button onClick={() => setSearchQuery("")} className="btn btn-secondary btn-sm">
               Clear Filter
             </button>
           }
         />
       ) : (
-        <div className="space-y-4">
-          {filteredSchemes.map((scheme) => {
-            const isCanonicalPilot =
-              scheme.code === "HDFC_FLEXI" ||
-              scheme.name.toLowerCase().includes("hdfc flexi cap");
-
-            return (
-              <article
-                key={scheme.id}
-                className={`rounded-xl border p-5 transition-all backdrop-blur-sm ${
-                  isCanonicalPilot
-                    ? "border-sky-500/40 bg-surface shadow-md"
-                    : "border-border bg-surface hover:border-border-subtle hover:bg-surface-elevated"
-                }`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                      <span className="text-text-muted">ID #{scheme.id}</span>
-                      <span className="text-text-muted">&bull;</span>
-                      <span className="text-accent font-semibold">{scheme.code}</span>
-                      {scheme.amc && (
-                        <>
-                          <span className="text-text-muted">&bull;</span>
-                          <span className="text-text-secondary">{scheme.amc.name}</span>
-                        </>
-                      )}
-                      {isCanonicalPilot && (
-                        <span className="inline-flex items-center gap-1 rounded bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">
-                          <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                          CANONICAL PILOT INSTRUMENT
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="text-lg font-bold text-text-primary font-sans tracking-tight">
-                      <Link
-                        href={`/funds/${scheme.id}`}
-                        className="hover:text-accent transition-colors focus:outline-none focus-visible:underline"
-                      >
-                        {scheme.name}
-                      </Link>
-                    </h3>
-
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-text-secondary">
-                      <div>
-                        Inception Date:{" "}
-                        <span className="text-text-primary font-medium">
-                          {scheme.inceptionDate || "—"}
-                        </span>
-                      </div>
-                      <div>
-                        Status:{" "}
-                        <span className="inline-flex rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                          {scheme.status || "ACTIVE"}
-                        </span>
-                      </div>
-                      {isCanonicalPilot && (
-                        <div className="text-emerald-600 dark:text-emerald-400">
-                          5Y Horizon: 1,243 trading dates verified
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Link
-                      href={`/funds/${scheme.id}`}
-                      className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-mono font-semibold text-accent-foreground shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      <span>Investigate Fund</span>
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {filteredAndSortedSchemes.map((scheme) => (
+            <FundCard
+              key={scheme.id}
+              scheme={scheme}
+              isWatchlisted={watchlistedIds.includes(scheme.id)}
+              onToggleWatchlist={toggleWatchlist}
+            />
+          ))}
         </div>
       )}
     </PageContainer>

@@ -6,3 +6,16 @@ __pycache__/
 
 # Editor
 .vscode/
+
+# JVM crash / replay artifacts
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+
+# Agent worktrees (shared safeguard; also in .git/info/exclude locally)
+.kilo/worktrees/
+
+# Historical phase documents (untracked but preserved locally)
+phase2f_real_data_integration_plan.md
+phase2g_methodology_governance.md
+phase2h_quantitative_methodology.md

@@ -1,65 +1,134 @@
 import React from 'react';
+import Link from 'next/link';
+
+type ContainerVariant = 'app' | 'wide' | 'prose';
+
+export interface SectionRef {
+  /** Zero-padded ordinal rendered as a mono eyebrow, e.g. "01". */
+  ordinal: string;
+  title: string;
+  description?: string;
+}
 
 interface PageContainerProps {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+  /** Mono uppercase eyebrow above the title. */
+  eyebrow?: string;
   action?: React.ReactNode;
   breadcrumbs?: Array<{ label: string; href?: string }>;
+  /** `wide` for analytical routes, `prose` for governance narrative. */
+  width?: ContainerVariant;
 }
+
+const CONTAINER_CLASS: Record<ContainerVariant, string> = {
+  app: 'container-app',
+  wide: 'container-wide',
+  prose: 'container-prose',
+};
 
 export function PageContainer({
   children,
   title,
   subtitle,
+  eyebrow,
   action,
   breadcrumbs,
+  width = 'app',
 }: PageContainerProps) {
   return (
-    <main className="flex-1 py-8" role="main">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav aria-label="Breadcrumb" className="mb-4">
-            <ol className="flex items-center space-x-2 text-xs text-text-muted font-mono">
-              {breadcrumbs.map((crumb, idx) => (
-                <li key={idx} className="flex items-center space-x-2">
-                  {idx > 0 && <span>/</span>}
-                  {crumb.href ? (
-                    <a
-                      href={crumb.href}
-                      className="hover:text-text-primary transition-colors focus:outline-none focus-visible:underline"
-                    >
-                      {crumb.label}
-                    </a>
-                  ) : (
-                    <span className="text-text-secondary font-medium">{crumb.label}</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-        )}
+    <div className={`${CONTAINER_CLASS[width]} py-6 md:py-8`}>
+      {breadcrumbs && breadcrumbs.length > 0 && (
+        <nav aria-label="Breadcrumb" className="mb-4">
+          <ol className="flex flex-wrap items-center gap-2">
+            {breadcrumbs.map((crumb, idx) => (
+              <li key={`${crumb.label}-${idx}`} className="flex items-center gap-2">
+                {idx > 0 && <span className="text-text-disabled" aria-hidden>/</span>}
+                {crumb.href ? (
+                  <Link href={crumb.href} className="text-link">
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className="mono-meta">{crumb.label}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
 
-        {(title || action) && (
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6">
-            <div>
-              {title && (
-                <h1 className="text-2xl font-bold tracking-tight text-text-primary">
-                  {title}
-                </h1>
-              )}
-              {subtitle && (
-                <p className="mt-1 text-sm text-text-secondary">
-                  {subtitle}
-                </p>
-              )}
-            </div>
-            {action && <div className="flex items-center gap-3">{action}</div>}
+      {(title || action || eyebrow) && (
+        <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+            {title && (
+              <h1 className="mt-1.5 text-[clamp(1.5rem,2.6vw,2rem)] font-semibold leading-[1.15] tracking-[-0.02em] text-text-primary">
+                {title}
+              </h1>
+            )}
+            {subtitle && (
+              <p className="mt-2 max-w-[68ch] text-[13px] leading-[1.55] text-text-secondary">
+                {subtitle}
+              </p>
+            )}
           </div>
-        )}
+          {action && <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>}
+        </div>
+      )}
 
-        {children}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Numbered section heading with a persistent mono ordinal and an optional
+ * one-line description that stays visible above the panel, so disclosure depth
+ * is self-explanatory.
+ */
+export function SectionHeading({
+  ordinal,
+  title,
+  description,
+  action,
+}: SectionRef & { action?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+      <div className="flex items-baseline gap-3">
+        {ordinal && <span className="tab-ordinal">{ordinal}</span>}
+        <h2 className="text-h2 text-text-primary">
+          {title}
+        </h2>
       </div>
-    </main>
+      <div className="flex flex-1 items-baseline justify-between gap-4 sm:pl-4">
+        {description && (
+          <p className="min-w-0 flex-1 text-[13px] leading-[1.4] text-text-tertiary">
+            {description}
+          </p>
+        )}
+        {action}
+      </div>
+    </div>
+  );
+}
+
+/** Metric tile row. Tile count responds to width, not to a breakpoint ladder. */
+export function MetricGrid({
+  children,
+  min = 300,
+  className = '',
+}: {
+  children: React.ReactNode;
+  min?: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`grid gap-4 ${className}`.trim()}
+      style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${min}px), 1fr))` }}
+    >
+      {children}
+    </div>
   );
 }

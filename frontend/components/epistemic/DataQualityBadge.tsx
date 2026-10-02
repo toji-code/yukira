@@ -19,7 +19,14 @@ import {
 
 interface DataQualityBadgeProps {
   type: 'assessment' | 'revision' | 'temporal' | 'presence' | 'verification' | 'integrity';
-  status: QualityAssessment | RevisionStatus | TemporalStatus | PresenceStatus | VerificationStatus | IntegrityCondition | string;
+  status:
+    | QualityAssessment
+    | RevisionStatus
+    | TemporalStatus
+    | PresenceStatus
+    | VerificationStatus
+    | IntegrityCondition
+    | string;
   size?: 'sm' | 'md';
 }
 
@@ -48,20 +55,19 @@ export function DataQualityBadge({ type, status, size = 'sm' }: DataQualityBadge
     default:
       style = {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: 'state-unavailable',
         tooltip: 'General status',
       };
   }
 
-  const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
-
   return (
     <span
-      className={`inline-flex items-center font-mono font-medium rounded border ${sizeClasses} ${style.className}`}
+      className={`status-badge ${style.className} ${size === 'md' ? 'h-6 px-2 text-[11px]' : ''}`}
       title={style.tooltip}
       role="status"
       aria-label={`${type}: ${style.label}`}
     >
+      <span className="status-dot" aria-hidden />
       {style.label}
     </span>
   );

@@ -195,11 +195,12 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
   });
 
   it("verifies 6-dimensional data quality styling and states", () => {
+    // Styling is encoded with semantic state tokens; hue means state, not category.
     const qualityStyle = getQualityAssessmentStyle("VALID");
-    assert.ok(qualityStyle.className.includes("emerald"));
+    assert.ok(qualityStyle.className.includes("state-approved"));
 
     const verificationStyle = getVerificationStatusStyle("VERIFIED");
-    assert.ok(verificationStyle.className.includes("emerald"));
+    assert.ok(verificationStyle.className.includes("state-approved"));
 
     const revisionStyle = getRevisionStatusStyle("ORIGINAL");
     assert.equal(revisionStyle.label, "Original");
@@ -209,7 +210,7 @@ describe("Phase 2F Pass 3: RET-02 Frontend & Analysis API Tests", () => {
 
     const staleStyle = getTemporalStatusStyle("STALE");
     assert.equal(staleStyle.label, "Stale");
-    assert.ok(staleStyle.className.includes("amber"));
+    assert.ok(staleStyle.className.includes("state-candidate"));
 
     const presenceStyle = getPresenceStatusStyle("AVAILABLE");
     assert.equal(presenceStyle.label, "Available");

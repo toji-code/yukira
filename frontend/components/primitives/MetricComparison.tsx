@@ -23,7 +23,7 @@ export function MetricComparison({
   benchmarkLabel = 'Benchmark',
 }: MetricComparisonProps) {
   function formatVal(v: number | null | undefined): string {
-    if (v === null || v === undefined) return '—';
+    if (v === null || v === undefined) return 'Not available';
     if (units === 'PERCENTAGE') return formatPercent(v);
     if (units === 'BPS') return formatBasisPoints(v);
     return formatNumber(v);
@@ -35,62 +35,48 @@ export function MetricComparison({
       : null;
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h4>
-          <span className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-1 rounded">
-            {metricCode}
-          </span>
+    <div className="panel">
+      <div className="panel-header">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h4 className="truncate text-[15px] font-semibold text-text-primary">{title}</h4>
+          <span className="mono-meta shrink-0">{metricCode}</span>
         </div>
-        <span className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded">
-          {period}
-        </span>
+        <span className="mono-meta shrink-0">{period}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center py-2 bg-zinc-50 dark:bg-zinc-950/50 rounded-md border border-zinc-100 dark:border-zinc-800/80">
-        <div>
-          <span className="text-[10px] uppercase text-zinc-500 font-mono block mb-1">
-            {schemeLabel}
-          </span>
-          <span className="text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
+      <dl className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="px-3 py-3">
+          <dt className="eyebrow">{schemeLabel}</dt>
+          <dd className="data-value-md mt-1.5">
             {formatVal(schemeValue)}
-          </span>
+          </dd>
         </div>
 
-        <div>
-          <span className="text-[10px] uppercase text-zinc-500 font-mono block mb-1">
-            {benchmarkLabel}
-          </span>
-          <span className="text-base font-bold font-mono text-zinc-900 dark:text-zinc-100">
+        <div className="px-3 py-3">
+          <dt className="eyebrow">{benchmarkLabel}</dt>
+          <dd className="data-value-md mt-1.5 text-secondary">
             {formatVal(benchmarkValue)}
-          </span>
+          </dd>
         </div>
 
-        <div>
-          <span className="text-[10px] uppercase text-zinc-500 font-mono block mb-1">
-            Difference
-          </span>
-          <span
-            className={`text-base font-bold font-mono ${
-              delta === null
-                ? 'text-zinc-400 dark:text-zinc-600'
-                : delta >= 0
-                ? 'text-zinc-900 dark:text-zinc-100'
-                : 'text-zinc-700 dark:text-zinc-300'
+        <div className="px-3 py-3">
+          <dt className="eyebrow">Difference</dt>
+          <dd
+            className={`data-value-md mt-1.5 ${
+              delta === null ? 'data-unavailable' : delta < 0 ? 'text-risk' : 'text-text-primary'
             }`}
           >
             {delta !== null
               ? units === 'PERCENTAGE'
                 ? formatBasisPoints(delta)
                 : formatVal(delta)
-              : '—'}
-          </span>
+              : 'Not available'}
+          </dd>
         </div>
-      </div>
+      </dl>
 
-      <div className="mt-2 text-right">
-        <span className="text-[10px] text-zinc-400 font-mono">Comparative evidence only</span>
+      <div className="mt-auto flex items-center justify-between border-t border-border px-3 py-2">
+        <span className="mono-meta">Comparative evidence only</span>
       </div>
     </div>
   );

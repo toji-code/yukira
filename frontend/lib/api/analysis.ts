@@ -3,7 +3,13 @@ import {
   AnalysisResponse,
   AnalyticalProfileResponse,
   CalculationRequest,
+  DataQualityAuditResponse,
   ProfileCalculationRequest,
+  RollingConsistencyResponse,
+  CaptureRatioResponse,
+  TrackingConsistencyResponse,
+  BetaDynamicsResponse,
+  BenchmarkRelationshipResponse,
 } from '@/types/analysis';
 
 export async function fetchAnalysis<T = AnalysisResponse>(runId: number): Promise<T> {
@@ -29,4 +35,84 @@ export async function executeProfileAnalysis(
     method: 'POST',
     body: JSON.stringify(request),
   });
+}
+
+export async function fetchDataQualityAudit(
+  schemeOptionId: number,
+  knowledgeCutoffTime?: string
+): Promise<DataQualityAuditResponse> {
+  const query = knowledgeCutoffTime
+    ? `?knowledgeCutoffTime=${encodeURIComponent(knowledgeCutoffTime)}`
+    : '';
+  return apiFetch<DataQualityAuditResponse>(`/api/v1/analysis/quality/${schemeOptionId}${query}`);
+}
+
+export async function fetchRollingConsistency(
+  schemeOptionId: number,
+  asOfDate?: string,
+  knowledgeCutoffTime?: string,
+  benchmarkId?: number
+): Promise<RollingConsistencyResponse> {
+  const params = new URLSearchParams();
+  if (asOfDate) params.append('asOfDate', asOfDate);
+  if (knowledgeCutoffTime) params.append('knowledgeCutoffTime', knowledgeCutoffTime);
+  if (benchmarkId) params.append('benchmarkId', benchmarkId.toString());
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<RollingConsistencyResponse>(`/api/v1/analysis/rolling/${schemeOptionId}${queryString}`);
+}
+
+export async function fetchCaptureRatios(
+  schemeOptionId: number,
+  asOfDate?: string,
+  knowledgeCutoffTime?: string,
+  benchmarkId?: number
+): Promise<CaptureRatioResponse> {
+  const params = new URLSearchParams();
+  if (asOfDate) params.append('asOfDate', asOfDate);
+  if (knowledgeCutoffTime) params.append('knowledgeCutoffTime', knowledgeCutoffTime);
+  if (benchmarkId) params.append('benchmarkId', benchmarkId.toString());
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<CaptureRatioResponse>(`/api/v1/analysis/capture/${schemeOptionId}${queryString}`);
+}
+
+export async function fetchTrackingConsistency(
+  schemeOptionId: number,
+  asOfDate?: string,
+  knowledgeCutoffTime?: string,
+  benchmarkId?: number
+): Promise<TrackingConsistencyResponse> {
+  const params = new URLSearchParams();
+  if (asOfDate) params.append('asOfDate', asOfDate);
+  if (knowledgeCutoffTime) params.append('knowledgeCutoffTime', knowledgeCutoffTime);
+  if (benchmarkId) params.append('benchmarkId', benchmarkId.toString());
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<TrackingConsistencyResponse>(`/api/v1/analysis/tracking-consistency/${schemeOptionId}${queryString}`);
+}
+
+export async function fetchBetaDynamics(
+  schemeOptionId: number,
+  asOfDate?: string,
+  knowledgeCutoffTime?: string,
+  benchmarkId?: number
+): Promise<BetaDynamicsResponse> {
+  const params = new URLSearchParams();
+  if (asOfDate) params.append('asOfDate', asOfDate);
+  if (knowledgeCutoffTime) params.append('knowledgeCutoffTime', knowledgeCutoffTime);
+  if (benchmarkId) params.append('benchmarkId', benchmarkId.toString());
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<BetaDynamicsResponse>(`/api/v1/analysis/beta/${schemeOptionId}${queryString}`);
+}
+
+export async function fetchBenchmarkRelationship(
+  schemeOptionId: number,
+  asOfDate?: string,
+  knowledgeCutoffTime?: string,
+  benchmarkId?: number
+): Promise<BenchmarkRelationshipResponse> {
+  const params = new URLSearchParams();
+  if (asOfDate) params.append('asOfDate', asOfDate);
+  if (knowledgeCutoffTime) params.append('knowledgeCutoffTime', knowledgeCutoffTime);
+  if (benchmarkId) params.append('benchmarkId', benchmarkId.toString());
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<BenchmarkRelationshipResponse>(`/api/v1/analysis/benchmark-relationship/${schemeOptionId}${queryString}`);
 }

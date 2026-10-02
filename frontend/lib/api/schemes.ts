@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import { Scheme, SchemeOption } from '@/types/domain';
+import { Scheme, SchemeOption, Holding } from '@/types/domain';
 
 export async function fetchAllSchemes(): Promise<Scheme[]> {
   return apiFetch<Scheme[]>('/api/v1/schemes');
@@ -21,4 +21,8 @@ export async function fetchSchemeOptionsBySchemeId(schemeId: number): Promise<Sc
     const allOptions = await fetchAllSchemeOptions();
     return allOptions.filter((opt) => opt.plan?.scheme?.id === schemeId);
   }
+}
+
+export async function fetchSchemeHoldings(schemeOptionId: number): Promise<Holding[]> {
+  return apiFetch<Holding[]>(`/api/v1/schemes/options/${schemeOptionId}/holdings`);
 }

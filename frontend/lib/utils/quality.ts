@@ -7,36 +7,47 @@ import {
   IntegrityCondition,
 } from '@/types/quality';
 
+/**
+ * Six-dimensional data quality taxonomy presentation.
+ *
+ * `label` and `tooltip` are epistemic content and are reproduced verbatim from
+ * the frozen taxonomy — they are never paraphrased. Only the visual encoding
+ * changed: colour now means *state*, never category. Every dimension resolves
+ * into the same semantic vocabulary used by governance badges, so the two
+ * systems cannot drift apart visually.
+ */
 export interface QualityBadgeStyle {
   label: string;
   className: string;
   tooltip: string;
 }
 
+const UNKNOWN: QualityBadgeStyle['className'] = 'state-unavailable';
+
 export function getQualityAssessmentStyle(status: QualityAssessment): QualityBadgeStyle {
   switch (status) {
     case 'VALID':
       return {
         label: 'Valid',
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
+        className: 'state-approved',
         tooltip: 'Conforms to schema and historical sanity thresholds.',
       };
     case 'SUSPICIOUS':
       return {
         label: 'Suspicious',
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
+        className: 'state-candidate',
         tooltip: 'Statistical anomaly detected (requires verification).',
       };
     case 'INVALID':
       return {
         label: 'Invalid',
-        className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800',
+        className: 'state-critical',
         tooltip: 'Rejected by validation rules (excluded from calculation).',
       };
     default:
       return {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Unknown quality status.',
       };
   }
@@ -47,25 +58,25 @@ export function getRevisionStatusStyle(status: RevisionStatus): QualityBadgeStyl
     case 'ORIGINAL':
       return {
         label: 'Original',
-        className: 'bg-zinc-50 text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800',
+        className: 'state-info',
         tooltip: 'Original observation as first published.',
       };
     case 'REVISED':
       return {
         label: 'Revised',
-        className: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800',
+        className: 'state-operational',
         tooltip: 'Authoritative revision after validation (does not imply prior error).',
       };
     case 'SUPERSEDED':
       return {
         label: 'Superseded',
-        className: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800',
+        className: 'state-unavailable',
         tooltip: 'Replaced by subsequent authoritative revision.',
       };
     default:
       return {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Unknown revision status.',
       };
   }
@@ -76,19 +87,19 @@ export function getTemporalStatusStyle(status: TemporalStatus): QualityBadgeStyl
     case 'CURRENT':
       return {
         label: 'Current',
-        className: 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800',
+        className: 'state-info',
         tooltip: 'Within expected observation latency window.',
       };
     case 'STALE':
       return {
         label: 'Stale',
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
+        className: 'state-candidate',
         tooltip: 'Missing expected updates; historical data unchanged.',
       };
     default:
       return {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Unknown temporal freshness status.',
       };
   }
@@ -100,13 +111,14 @@ export function getSourceAvailabilitySemanticStyle(semantic: string): QualityBad
     case 'CONVENTION_EOD_HISTORICAL_CUTOFF':
       return {
         label: 'Historical Backfill (EOD Cutoff)',
-        className: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800',
-        tooltip: 'Analytical EOD cutoff convention applied for historical batch ingestion. Factual source availability timestamp is unrecorded upstream.',
+        className: 'state-candidate',
+        tooltip:
+          'Analytical EOD cutoff convention applied for historical batch ingestion. Factual source availability timestamp is unrecorded upstream.',
       };
     default:
       return {
         label: String(semantic),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Source availability semantic.',
       };
   }
@@ -117,25 +129,27 @@ export function getPresenceStatusStyle(status: PresenceStatus): QualityBadgeStyl
     case 'AVAILABLE':
       return {
         label: 'Available',
-        className: 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800',
+        className: 'state-info',
         tooltip: 'Observation present in source dataset.',
       };
     case 'MISSING':
       return {
         label: 'Missing',
-        className: 'bg-neutral-100 text-neutral-600 border-dashed border-neutral-300 dark:bg-neutral-900 dark:text-neutral-400 dark:border-neutral-700',
+        // Dashed rule: expected-but-absent. Structurally distinct from NOT_APPLICABLE,
+        // which was never applicable at all. Both carry the `unavailable` semantic hue.
+        className: 'state-unavailable border-dashed',
         tooltip: 'Expected observation not found in dataset.',
       };
     case 'NOT_APPLICABLE':
       return {
         label: 'N/A',
-        className: 'bg-zinc-50 text-zinc-400 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-500 dark:border-zinc-800',
+        className: 'state-unavailable',
         tooltip: 'Metric not applicable for this entity or period.',
       };
     default:
       return {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Unknown presence status.',
       };
   }
@@ -146,19 +160,19 @@ export function getVerificationStatusStyle(status: VerificationStatus): QualityB
     case 'VERIFIED':
       return {
         label: 'Verified',
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
+        className: 'state-approved',
         tooltip: 'Observation independently reconciled and verified against external source.',
       };
     case 'UNVERIFIED':
       return {
         label: 'Unverified',
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
+        className: 'state-candidate',
         tooltip: 'Raw observation not yet reconciled against independent secondary source.',
       };
     default:
       return {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Unknown verification status.',
       };
   }
@@ -169,25 +183,25 @@ export function getIntegrityConditionStyle(status: IntegrityCondition): QualityB
     case 'NONE':
       return {
         label: 'Normal',
-        className: 'bg-zinc-50 text-zinc-600 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-400 dark:border-zinc-800',
+        className: 'state-info',
         tooltip: 'No integrity anomalies detected.',
       };
     case 'DUPLICATE':
       return {
         label: 'Duplicate',
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
+        className: 'state-candidate',
         tooltip: 'Duplicate observations detected across ingestion channels.',
       };
     case 'CONFLICTING':
       return {
         label: 'Conflicting',
-        className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800',
+        className: 'state-risk',
         tooltip: 'Conflicting observation values observed for the same bitemporal key.',
       };
     default:
       return {
         label: String(status),
-        className: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700',
+        className: UNKNOWN,
         tooltip: 'Unknown integrity condition.',
       };
   }

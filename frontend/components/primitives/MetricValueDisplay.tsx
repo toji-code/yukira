@@ -33,9 +33,11 @@ export function MetricValueDisplay({
   const finalPeriod = result ? result.periodType : period;
   const status = result?.calculationStatus || 'CALCULATED';
 
-  function renderFormattedValue(): string {
-    if (finalValue === null || finalValue === undefined || status !== 'CALCULATED') {
-      return '—';
+  const isCalculated = finalValue !== null && finalValue !== undefined && status === 'CALCULATED';
+
+  function renderFormattedValue(): string | null {
+    if (!isCalculated || finalValue === null || finalValue === undefined) {
+      return null;
     }
 
     switch (finalUnits.toUpperCase()) {
@@ -56,58 +58,51 @@ export function MetricValueDisplay({
     }
   }
 
+  const formatted = renderFormattedValue();
   const isInsufficient = status === 'INSUFFICIENT_DATA';
   const isError = status === 'ERROR';
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 flex flex-col justify-between shadow-xs">
-      <div>
-        <div className="flex items-start justify-between gap-2 mb-1.5">
-          <span className="text-xs font-medium text-text-secondary">
-            {label}
+    <div className="metric-tile">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[13px] font-medium text-text-secondary">{label}</p>
+        {isInsufficient ? (
+          <span className="status-badge state-candidate">
+            <span className="status-dot" aria-hidden />
+            Insufficient data
           </span>
-          {finalPeriod && (
-            <span className="text-[10px] font-mono font-medium text-text-muted bg-surface-elevated px-1.5 py-0.5 rounded border border-border">
-              {finalPeriod}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-baseline gap-2 my-2">
-          <span
-            className={`text-2xl font-bold tracking-tight font-mono ${
-              finalValue === null || finalValue === undefined || status !== 'CALCULATED'
-                ? 'text-text-muted'
-                : 'text-text-primary'
-            }`}
-          >
-            {renderFormattedValue()}
+        ) : isError ? (
+          <span className="status-badge state-critical">
+            <span className="status-dot" aria-hidden />
+            Error
           </span>
-          {finalUnits && finalValue !== null && finalValue !== undefined && status === 'CALCULATED' && (
-            <span className="text-xs text-text-muted font-mono">
-              {finalUnits}
-            </span>
-          )}
-        </div>
-
-        {isInsufficient && (
-          <p className="text-[11px] text-warning mt-1 font-mono">
-            Insufficient observations for authoritative calculation.
-          </p>
-        )}
-        {isError && (
-          <p className="text-[11px] text-danger mt-1 font-mono">
-            {result?.errorMessage || 'Calculation engine error.'}
-          </p>
-        )}
+        ) : null}
       </div>
 
+      <div className="metric-rule my-3" role="presentation" />
+
+      {isCalculated ? (
+        <>
+          <p className="data-value-lg">{formatted}</p>
+          <p className="mono-meta mt-1">
+            {[finalUnits, finalPeriod].filter(Boolean).join(' · ').toUpperCase()}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="data-unavailable">Not available</p>
+          <p className="mt-1 text-[13px] leading-[1.5] text-text-tertiary">
+            {isError
+              ? result?.errorMessage || 'Calculation engine error.'
+              : 'Insufficient observations for authoritative calculation.'}
+          </p>
+        </>
+      )}
+
       {description && (
-        <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between text-[11px]">
-          <span className="text-text-muted text-[10px] truncate" title={description}>
-            {description}
-          </span>
-        </div>
+        <p className="mt-3 border-t border-border pt-3 text-[13px] leading-[1.55] text-text-secondary">
+          {description}
+        </p>
       )}
     </div>
   );

@@ -930,7 +930,7 @@ The following list is the **authoritative Final Product Scope of YUKIRA**. It is
 | 8 | Fund manager information | PLANNED |
 | 9 | Expense ratio | PLANNED |
 | 10 | AUM | PLANNED |
-| 11 | SIP / lumpsum information | PLANNED |
+| 11 | SIP / lumpsum information | IN PROGRESS |
 | 12 | Charts | PLANNED |
 | 13 | Fund comparison | PLANNED |
 

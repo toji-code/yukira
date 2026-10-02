@@ -158,10 +158,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
           title="Calculation Run Unavailable"
           message={error || `Calculation Run #${runId} could not be retrieved from the backend.`}
           action={
-            <button
-              onClick={reloadAnalysis}
-              className="inline-flex rounded-md border border-border bg-surface px-3.5 py-2 text-xs font-mono font-medium text-text-primary hover:bg-surface-elevated transition"
-            >
+            <button onClick={reloadAnalysis} className="btn btn-secondary">
               Retry Retrieval
             </button>
           }
@@ -185,59 +182,60 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         {showParamPanel && (
           <form
             onSubmit={handleExecuteParameterizedRun}
-            className="mb-8 rounded-xl border border-border bg-surface-elevated p-5 font-mono text-xs space-y-4 animate-in fade-in duration-150"
+            className="panel mt-6 space-y-4 p-4 md:p-5"
           >
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-semibold text-text-primary uppercase tracking-wider">
-                Execute Parameterized Institutional Profile Run
-              </h3>
-              <span className="text-text-muted text-[10px]">
-                Option #{data.context.schemeOptionId} &bull; 16 Deterministic Metrics
+            <div className="panel-header border-b border-border pb-3">
+              <p className="eyebrow">Execute Parameterized Institutional Profile Run</p>
+              <span className="mono-meta shrink-0">
+                Option #{data.context.schemeOptionId} • 16 Deterministic Metrics
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-text-muted mb-1 text-[11px]">Analysis Cutoff Date (T)</label>
+                <label className="field-label" htmlFor="profile-analysis-cutoff">
+                  Analysis Cutoff Date (T)
+                </label>
                 <input
+                  id="profile-analysis-cutoff"
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
                   required
-                  className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="field"
                 />
               </div>
               <div>
-                <label className="block text-text-muted mb-1 text-[11px]">Knowledge Cutoff Time (ISO 8601)</label>
+                <label className="field-label" htmlFor="profile-knowledge-cutoff">
+                  Knowledge Cutoff Time (ISO 8601)
+                </label>
                 <input
+                  id="profile-knowledge-cutoff"
                   type="text"
                   value={customCutoff}
                   onChange={(e) => setCustomCutoff(e.target.value)}
                   required
-                  className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="field field-mono"
                 />
               </div>
             </div>
 
             {customError && (
-              <div className="rounded-md bg-danger/10 border border-danger/30 p-2 text-danger text-xs">
-                {customError}
+              <div className="state-panel-error">
+                <p className="eyebrow text-critical-fg">Run Dispatch Failure</p>
+                <p className="mt-1 text-[13px] leading-[1.5] text-critical-fg">{customError}</p>
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setShowParamPanel(false)}
-                className="rounded-md px-3 py-1.5 text-text-muted hover:text-text-primary font-mono transition"
+                className="btn btn-ghost"
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={executingCustom}
-                className="rounded-md bg-accent px-4 py-1.5 font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-50 font-mono transition"
-              >
+              <button type="submit" disabled={executingCustom} className="btn btn-primary">
                 {executingCustom ? "Executing 16-Metric Profile..." : "Dispatch Profile Run"}
               </button>
             </div>
@@ -278,13 +276,23 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       case "RAT-03":
         return "Treynor Ratio (3Y): annualized excess return per unit of systematic equity market risk (Beta).";
       case "REL-01":
-        return "Tracking Error (3Y): annualized standard deviation of excess returns relative to benchmark.";
+        return "Beta (3Y): slope coefficient from OLS regression of daily fund excess returns against benchmark excess returns.";
       case "REL-02":
+        return "Tracking Error (3Y): annualized standard deviation of excess returns relative to benchmark.";
+      case "REL-03":
         return "Jensen's Alpha (3Y): annualized intercept from single-index excess-return regression.";
+      case "REL-04":
+        return "Downside Beta (3Y): market sensitivity conditioned exclusively on negative benchmark trading days.";
+      case "REL-05":
+        return "Upside Beta (3Y): market sensitivity conditioned exclusively on positive benchmark trading days.";
+      case "REL-06":
+        return "Annualized Mean Active Return (3Y): mean daily active return scaled by 252 trading days.";
+      case "RAT-04":
+        return "Information Ratio (3Y): ratio of annualized mean active return to annualized tracking error.";
       case "MKT-01":
-        return "Equity Beta (3Y): slope coefficient from single-index excess-return OLS regression against the NIFTY 50 TRI benchmark.";
+        return "Equity Beta (3Y): slope coefficient from single-index excess-return OLS regression against benchmark.";
       case "MKT-02":
-        return "Downside Beta (3Y): market sensitivity conditioned exclusively on trading days where the benchmark experienced negative returns (R_b < 0).";
+        return "Downside Beta (3Y): market sensitivity conditioned exclusively on trading days where benchmark return is negative.";
       case "RET-03":
         return "3-Year CAGR: compound annualized growth rate normalized across 36 calendar months using 365.25 calendar days per year convention.";
       case "RET-02":
@@ -315,10 +323,20 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         return "Candidate methodology. Downside semideviation divisor convention under empirical regime testing.";
       case "RAT-03":
         return "Approved methodology. Applicable only when systematic Beta > 0; meaningful for diversified equity portfolios.";
+      case "RAT-04":
+        return "Candidate methodology. Undefined when tracking error is zero.";
       case "REL-01":
-        return "Candidate methodology. Benchmark tracking error subject to index synchronization tolerances.";
+        return "Approved/Candidate methodology. Linear excess-return OLS model assuming constant market sensitivity.";
       case "REL-02":
+        return "Candidate methodology. Benchmark tracking error subject to index synchronization tolerances.";
+      case "REL-03":
         return "Candidate methodology. Jensen's Alpha assumes stationary single-index capital asset pricing dynamics.";
+      case "REL-04":
+        return "Candidate methodology. Requires minimum downside benchmark trading days.";
+      case "REL-05":
+        return "Candidate methodology. Requires minimum upside benchmark trading days.";
+      case "REL-06":
+        return "Candidate methodology. Mean active daily return scaled to annual horizon.";
       case "MKT-01":
         return "Approved methodology. Linear excess-return OLS model assuming constant market sensitivity; beta varies across market regimes.";
       case "MKT-02":
@@ -367,9 +385,9 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       action={
         <Link
           href={`/funds/${data.identity.schemeOptionId || 1}`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-xs font-mono text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition"
+          className="btn btn-secondary"
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
           Fund Detail Workspace
@@ -377,18 +395,19 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       }
     >
       {/* 1. TOP STATUS & CONTROLS BAR */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="font-mono text-xs text-text-muted">Execution Status:</span>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="eyebrow">Execution Status</span>
           <span
-            className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-mono font-semibold ${
+            className={`status-badge ${
               isCalculated
-                ? "bg-success/15 text-success border border-success/30"
+                ? "state-operational"
                 : isInsufficient
-                ? "bg-warning/15 text-warning border border-warning/30"
-                : "bg-danger/15 text-danger border border-danger/30"
+                  ? "state-candidate"
+                  : "state-critical"
             }`}
           >
+            <span className="status-dot" aria-hidden />
             {data.result.calculationStatus}
           </span>
 
@@ -400,7 +419,8 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
         <button
           onClick={() => setShowParamPanel(!showParamPanel)}
-          className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-mono font-medium text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="btn btn-secondary"
+          aria-expanded={showParamPanel}
         >
           {showParamPanel ? "Close Parameter Controls" : "Re-run Parameterized Analysis"}
         </button>
@@ -410,73 +430,75 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       {showParamPanel && (
         <form
           onSubmit={handleExecuteParameterizedRun}
-          className="mb-8 rounded-xl border border-border bg-surface-elevated p-5 font-mono text-xs space-y-4 animate-in fade-in duration-150"
+          className="panel mt-5 space-y-4 p-4 md:p-5"
         >
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="font-semibold text-text-primary uppercase tracking-wider">
-              Execute Parameterized Analysis Run
-            </h3>
-            <span className="text-text-muted text-[10px]">
-              Option #{data.identity.schemeOptionId} &bull; Deterministic Execution
+          <div className="panel-header border-b border-border pb-3">
+            <p className="eyebrow">Execute Parameterized Analysis Run</p>
+            <span className="mono-meta shrink-0">
+              Option #{data.identity.schemeOptionId} • Deterministic Execution
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {!hasWindow && (
               <div>
-                <label className="block text-text-muted mb-1 text-[11px]">Requested Start Date</label>
+                <label className="field-label" htmlFor="run-start-date">
+                  Requested Start Date
+                </label>
                 <input
+                  id="run-start-date"
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
                   required
-                  className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="field"
                 />
               </div>
             )}
             <div>
-              <label className="block text-text-muted mb-1 text-[11px]">
+              <label className="field-label" htmlFor="run-end-date">
                 {hasWindow ? "Analysis Cutoff Date (T)" : "Requested End Date"}
               </label>
               <input
+                id="run-end-date"
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 required
-                className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="field"
               />
             </div>
             <div>
-              <label className="block text-text-muted mb-1 text-[11px]">Knowledge Cutoff Time (ISO 8601)</label>
+              <label className="field-label" htmlFor="run-knowledge-cutoff">
+                Knowledge Cutoff Time (ISO 8601)
+              </label>
               <input
+                id="run-knowledge-cutoff"
                 type="text"
                 value={customCutoff}
                 onChange={(e) => setCustomCutoff(e.target.value)}
                 required
-                className="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="field field-mono"
               />
             </div>
           </div>
 
           {customError && (
-            <div className="rounded-md bg-danger/10 border border-danger/30 p-2 text-danger text-xs">
-              {customError}
+            <div className="state-panel-error">
+              <p className="eyebrow text-critical-fg">Run Dispatch Failure</p>
+              <p className="mt-1 text-[13px] leading-[1.5] text-critical-fg">{customError}</p>
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
             <button
               type="button"
               onClick={() => setShowParamPanel(false)}
-              className="rounded-md px-3 py-1.5 text-text-muted hover:text-text-primary font-mono transition"
+              className="btn btn-ghost"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={executingCustom}
-              className="rounded-md bg-accent px-4 py-1.5 font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-50 font-mono transition"
-            >
+            <button type="submit" disabled={executingCustom} className="btn btn-primary">
               {executingCustom ? "Executing Quantitative Engine..." : "Dispatch Run"}
             </button>
           </div>
@@ -495,11 +517,11 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       {/* 3. PROGRESSIVE DISCLOSURE ARCHITECTURE */}
       <ProgressiveDisclosure
         level1={
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Primary KPI Card */}
-            <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-3">
+            <div className="panel p-4 md:p-5">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 space-y-3">
                   <MetricValueDisplay
                     label={data.result.metricName}
                     value={data.result.numericValue}
@@ -508,171 +530,173 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                     candidateConvention={data.methodology.methodologyVersion}
                     description={getMetricInterpretation(data.result.metricCode)}
                   />
-                  <div className="font-mono text-xs text-text-muted">
-                    Engine Status: <strong className="text-text-primary">{data.result.calculationStatus}</strong>
-                  </div>
+                  <p className="mono-meta">
+                    Engine Status:{" "}
+                    <span className="text-text-primary">{data.result.calculationStatus}</span>
+                  </p>
                 </div>
 
-                <div className="rounded-xl border border-border bg-surface-elevated p-4 font-mono text-xs space-y-2">
-                  <div className="text-text-muted uppercase tracking-wider text-[10px] font-bold">
+                <div className="panel-inset w-full p-4 lg:max-w-[380px]">
+                  <p className="def-label">
                     {hasWindow ? "36-Month Lookback Window" : "Evaluation Window"}
+                  </p>
+                  <div className="space-y-2">
+                    {hasWindow && data.window ? (
+                      <>
+                        <div>
+                          <p className="mono-meta">Target Range</p>
+                          <p className="data-value-sm">
+                            {data.window.requestedStartDate || "—"} → {data.window.requestedEndDate || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="mono-meta">Resolved Dates</p>
+                          <p className="data-value-sm text-accent">
+                            {data.window.actualStartDate || "—"} → {data.window.actualEndDate || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="mono-meta">Observation Count</p>
+                          <p className="data-value-sm text-operational-fg">
+                            {data.window.observationCount} days ({data.window.minObservationsRequired} required)
+                          </p>
+                        </div>
+                      </>
+                    ) : data.period ? (
+                      <>
+                        <div>
+                          <p className="mono-meta">Requested Dates</p>
+                          <p className="data-value-sm">
+                            {data.period.requestedStartDate || "—"} → {data.period.requestedEndDate || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="mono-meta">Resolved Dates</p>
+                          <p className="data-value-sm text-accent">
+                            {data.period.selectedStartDate || "—"} → {data.period.selectedEndDate || "—"}
+                          </p>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
-                  {hasWindow && data.window ? (
-                    <>
-                      <div>
-                        <span className="text-text-muted">Target Range: </span>
-                        <span className="text-text-secondary font-semibold">
-                          {data.window.requestedStartDate || "—"} &rarr; {data.window.requestedEndDate || "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted">Resolved Dates: </span>
-                        <span className="text-accent font-semibold">
-                          {data.window.actualStartDate || "—"} &rarr; {data.window.actualEndDate || "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted">Observation Count: </span>
-                        <span className="text-success font-semibold">
-                          {data.window.observationCount} days ({data.window.minObservationsRequired} required)
-                        </span>
-                      </div>
-                    </>
-                  ) : data.period ? (
-                    <>
-                      <div>
-                        <span className="text-text-muted">Requested Dates: </span>
-                        <span className="text-text-secondary font-semibold">
-                          {data.period.requestedStartDate || "—"} &rarr; {data.period.requestedEndDate || "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted">Resolved Dates: </span>
-                        <span className="text-accent font-semibold">
-                          {data.period.selectedStartDate || "—"} &rarr; {data.period.selectedEndDate || "—"}
-                        </span>
-                      </div>
-                    </>
-                  ) : null}
                 </div>
               </div>
 
               {isInsufficient && data.result.errorMessage && (
-                <div className="mt-6 rounded-lg border border-warning/30 bg-warning/10 p-4 text-xs text-warning font-mono">
-                  <strong className="uppercase">Evidence Limitation: </strong>
-                  {data.result.errorMessage}
+                <div className="state-panel-error mt-4">
+                  <p className="eyebrow text-candidate-fg">Evidence Limitation</p>
+                  <p className="mt-1 text-[13px] leading-[1.5] text-candidate-fg">
+                    {data.result.errorMessage}
+                  </p>
                 </div>
               )}
             </div>
 
             {/* Scheme Metadata Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono text-xs">
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <span className="text-text-muted text-[10px] uppercase block">AMFI Code</span>
-                <span className="text-text-primary font-semibold">{data.identity.amfiCode || "—"}</span>
+            <div className="def-list def-list-4">
+              <div>
+                <p className="def-label">AMFI Code</p>
+                <p className="def-value">{data.identity.amfiCode || "—"}</p>
               </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <span className="text-text-muted text-[10px] uppercase block">ISIN</span>
-                <span className="text-text-primary font-semibold">{data.identity.isin || "—"}</span>
+              <div>
+                <p className="def-label">ISIN</p>
+                <p className="def-value">{data.identity.isin || "—"}</p>
               </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <span className="text-text-muted text-[10px] uppercase block">Option Type</span>
-                <span className="text-text-primary font-semibold">{data.identity.optionType}</span>
+              <div>
+                <p className="def-label">Option Type</p>
+                <p className="def-value">{data.identity.optionType}</p>
               </div>
-              <div className="rounded-lg border border-border bg-surface-elevated p-3">
-                <span className="text-text-muted text-[10px] uppercase block">Methodology Version</span>
-                <span className="text-warning font-semibold">{data.methodology.methodologyVersion}</span>
+              <div>
+                <p className="def-label">Methodology Version</p>
+                <p className="def-value text-candidate-fg">{data.methodology.methodologyVersion}</p>
               </div>
             </div>
           </div>
         }
         level2={
-          <div className="space-y-6">
-            <h3 className="font-mono text-xs uppercase tracking-wider text-text-muted">
-              Evidence Base & Methodology Resolution
-            </h3>
+          <div className="space-y-4">
+            <p className="eyebrow">Evidence Base &amp; Methodology Resolution</p>
 
             {/* Window / Period Evidence Details */}
             {hasWindow && data.window ? (
-              <div className="rounded-xl border border-border bg-surface-elevated p-5 font-mono text-xs space-y-3">
-                <div className="flex items-center justify-between pb-3 border-b border-border">
-                  <span className="font-semibold text-text-primary uppercase tracking-wider">
-                    36-Month Trading Continuity
-                  </span>
-                  <span className="text-[10px] text-success bg-success/10 border border-success/20 px-2 py-0.5 rounded">
+              <div className="panel p-4 md:p-5">
+                <div className="panel-header border-b border-border pb-3">
+                  <p className="eyebrow">36-Month Trading Continuity</p>
+                  <span className="status-badge state-approved shrink-0">
+                    <span className="status-dot" aria-hidden />
                     Sufficient History ({data.window.observationCount} &ge; {data.window.minObservationsRequired} required)
                   </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="def-list def-list-3 mt-3">
                   <div>
-                    <span className="text-text-muted text-[10px] uppercase block">Window Start</span>
-                    <span className="text-accent font-semibold mt-1 block">{data.window.actualStartDate}</span>
-                    <span className="text-text-muted text-[10px]">Requested: {data.window.requestedStartDate}</span>
+                    <p className="def-label">Window Start</p>
+                    <p className="def-value text-accent">{data.window.actualStartDate}</p>
+                    <p className="mono-meta mt-1">Requested: {data.window.requestedStartDate}</p>
                   </div>
                   <div>
-                    <span className="text-text-muted text-[10px] uppercase block">Window End (As-Of Cutoff)</span>
-                    <span className="text-accent font-semibold mt-1 block">{data.window.actualEndDate}</span>
-                    <span className="text-text-muted text-[10px]">Requested: {data.window.requestedEndDate}</span>
+                    <p className="def-label">Window End (As-Of Cutoff)</p>
+                    <p className="def-value text-accent">{data.window.actualEndDate}</p>
+                    <p className="mono-meta mt-1">Requested: {data.window.requestedEndDate}</p>
                   </div>
                   <div>
-                    <span className="text-text-muted text-[10px] uppercase block">Trading Continuity</span>
-                    <span className="text-text-primary font-semibold mt-1 block">{data.window.observationCount} trading dates</span>
-                    <span className="text-text-muted text-[10px]">Zero synthetic imputation</span>
+                    <p className="def-label">Trading Continuity</p>
+                    <p className="def-value">{data.window.observationCount} trading dates</p>
+                    <p className="mono-meta mt-1">Zero synthetic imputation</p>
                   </div>
                 </div>
               </div>
             ) : data.period ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
-                <div className="rounded-xl border border-border bg-surface-elevated p-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-border">
-                    <span className="font-semibold text-text-primary uppercase tracking-wider">
-                      Start Observation (NAV_start)
-                    </span>
-                    <span className="text-[10px] text-text-muted bg-surface px-2 py-0.5 rounded border border-border">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="panel p-4 md:p-5">
+                  <div className="panel-header border-b border-border pb-3">
+                    <p className="eyebrow">Start Observation (NAV_start)</p>
+                    <span className="status-badge state-unavailable shrink-0">
                       {data.period.startSubstituted
                         ? `${data.period.startLookbackDaysUsed}d lookback substitution`
                         : "Exact date match"}
                     </span>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Requested Target:</span>
-                      <span className="text-text-secondary">{data.period.requestedStartDate || "—"}</span>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono-meta">Requested Target</span>
+                      <span className="data-value-sm">{data.period.requestedStartDate || "—"}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Selected Effective:</span>
-                      <span className="text-accent font-semibold">{data.period.selectedStartDate || "—"}</span>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono-meta">Selected Effective</span>
+                      <span className="data-value-sm text-accent">{data.period.selectedStartDate || "—"}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Lookback Days Used:</span>
-                      <span className="text-text-secondary">{data.period.startLookbackDaysUsed} / 4 calendar days max</span>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono-meta">Lookback Days Used</span>
+                      <span className="data-value-sm">
+                        {data.period.startLookbackDaysUsed} / 4 calendar days max
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-surface-elevated p-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-border">
-                    <span className="font-semibold text-text-primary uppercase tracking-wider">
-                      End Observation (NAV_end)
-                    </span>
-                    <span className="text-[10px] text-text-muted bg-surface px-2 py-0.5 rounded border border-border">
+                <div className="panel p-4 md:p-5">
+                  <div className="panel-header border-b border-border pb-3">
+                    <p className="eyebrow">End Observation (NAV_end)</p>
+                    <span className="status-badge state-unavailable shrink-0">
                       {data.period.endSubstituted
                         ? `${data.period.endLookbackDaysUsed}d lookback substitution`
                         : "Exact date match"}
                     </span>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Requested Target:</span>
-                      <span className="text-text-secondary">{data.period.requestedEndDate || "—"}</span>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono-meta">Requested Target</span>
+                      <span className="data-value-sm">{data.period.requestedEndDate || "—"}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Selected Effective:</span>
-                      <span className="text-accent font-semibold">{data.period.selectedEndDate || "—"}</span>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono-meta">Selected Effective</span>
+                      <span className="data-value-sm text-accent">{data.period.selectedEndDate || "—"}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-muted">Lookback Days Used:</span>
-                      <span className="text-text-secondary">{data.period.endLookbackDaysUsed} / 4 calendar days max</span>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono-meta">Lookback Days Used</span>
+                      <span className="data-value-sm">
+                        {data.period.endLookbackDaysUsed} / 4 calendar days max
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -680,55 +704,60 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             ) : null}
 
             {/* Methodology Specification Panel */}
-            <div className="rounded-xl border border-border bg-surface-elevated p-5 font-mono text-xs space-y-2">
-              <span className="font-semibold text-text-primary uppercase tracking-wider block mb-2">
+            <div className="panel p-4 md:p-5">
+              <p className="eyebrow border-b border-border pb-3">
                 Methodology Specification ({data.methodology.methodologyCode})
-              </span>
-              <div>
-                <span className="text-text-muted">Formula: </span>
-                <span className="text-text-primary">{data.methodology.formulaDisclosure}</span>
-              </div>
-              {isRiskMetric && rskMethodology?.annualizationConvention ? (
-                <>
-                  <div>
-                    <span className="text-text-muted">Annualization: </span>
-                    <span className="text-warning font-semibold">{rskMethodology.annualizationConvention} (Candidate — not validated)</span>
-                  </div>
-                  {rskMethodology.denominatorConvention && (
-                    <div>
-                      <span className="text-text-muted">Denominator: </span>
-                      <span className="text-warning font-semibold">{rskMethodology.denominatorConvention} (Candidate — not validated)</span>
-                    </div>
-                  )}
-                </>
-              ) : (
+              </p>
+              <div className="def-list mt-3">
                 <div>
-                  <span className="text-text-muted">Window Rule: </span>
-                  <span className="text-text-primary">{data.methodology.lookbackSpecification || "36 calendar months candidate analytical window"}</span>
+                  <p className="def-label">Formula</p>
+                  <p className="def-value">{data.methodology.formulaDisclosure}</p>
                 </div>
-              )}
-              <div>
-                <span className="text-text-muted">Knowledge Cutoff: </span>
-                <span className="text-text-primary">{formatDateTime(data.pit.knowledgeCutoffTime)}</span>
+                {isRiskMetric && rskMethodology?.annualizationConvention ? (
+                  <>
+                    <div>
+                      <p className="def-label">Annualization</p>
+                      <p className="def-value text-candidate-fg">
+                        {rskMethodology.annualizationConvention} (Candidate — not validated)
+                      </p>
+                    </div>
+                    {rskMethodology.denominatorConvention && (
+                      <div>
+                        <p className="def-label">Denominator</p>
+                        <p className="def-value text-candidate-fg">
+                          {rskMethodology.denominatorConvention} (Candidate — not validated)
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div>
+                    <p className="def-label">Window Rule</p>
+                    <p className="def-value">
+                      {data.methodology.lookbackSpecification ||
+                        "36 calendar months candidate analytical window"}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="def-label">Knowledge Cutoff</p>
+                  <p className="def-value">{formatDateTime(data.pit.knowledgeCutoffTime)}</p>
+                </div>
               </div>
             </div>
           </div>
         }
         level3={
-          <div className="space-y-6">
-            <h3 className="font-mono text-xs uppercase tracking-wider text-text-muted">
-              Institutional Audit & Deep Provenance
-            </h3>
+          <div className="space-y-4">
+            <p className="eyebrow">Institutional Audit &amp; Deep Provenance</p>
 
             {/* 6-Dimension Quality States */}
             <div>
-              <span className="font-mono text-xs text-text-muted block mb-3 uppercase tracking-wider">
-                Authoritative 6-Dimensional Data Quality States
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <p className="eyebrow mb-3">Authoritative 6-Dimensional Data Quality States</p>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 {data.quality.dimensions.map((dim) => (
-                  <div key={dim.dimension} className="rounded-lg border border-border bg-surface-elevated p-3 font-mono text-xs">
-                    <span className="text-text-muted text-[10px] uppercase block mb-1">{dim.dimension}</span>
+                  <div key={dim.dimension} className="metric-tile">
+                    <p className="def-label">{dim.dimension}</p>
                     <DataQualityBadge
                       type={
                         dim.dimension.toLowerCase() === "quality" ? "assessment"
@@ -740,7 +769,7 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
                       }
                       status={dim.state}
                     />
-                    <p className="mt-2 text-[10px] text-text-muted line-clamp-2" title={dim.description}>
+                    <p className="mono-meta mt-2 line-clamp-2" title={dim.description}>
                       {dim.description}
                     </p>
                   </div>
@@ -749,88 +778,76 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             </div>
 
             {/* Run Provenance Details */}
-            <div className="rounded-xl border border-border bg-surface-elevated p-5 font-mono text-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <span className="font-semibold text-text-primary uppercase tracking-wider">
-                  Calculation Run #{data.provenance.calculationRunId}
-                </span>
-                <span className="text-text-muted text-[11px]">
+            <div className="panel p-4 md:p-5">
+              <div className="panel-header border-b border-border pb-3">
+                <p className="eyebrow">Calculation Run #{data.provenance.calculationRunId}</p>
+                <span className="mono-meta shrink-0">
                   Started: {formatDateTime(data.provenance.executionStartedAt)}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-text-secondary">
+              <div className="grid grid-cols-1 gap-4 pt-3 md:grid-cols-2">
                 <div>
-                  <span className="text-text-muted text-[10px] uppercase block mb-1">
-                    Input Snapshot SHA-256 Digest
-                  </span>
-                  <span className="text-text-primary break-all select-all block bg-surface p-2 rounded-md border border-border font-mono text-[11px]">
+                  <p className="def-label">Input Snapshot SHA-256 Digest</p>
+                  <p className="def-value select-all break-all">
                     {data.provenance.inputSnapshotSha256 || "—"}
-                  </span>
+                  </p>
                 </div>
                 <div>
-                  <span className="text-text-muted text-[10px] uppercase block mb-1">
-                    Quantitative Engine Version
-                  </span>
-                  <span className="text-text-primary block bg-surface p-2 rounded-md border border-border font-mono text-[11px]">
-                    {data.provenance.quantEngineVersion}
-                  </span>
+                  <p className="def-label">Quantitative Engine Version</p>
+                  <p className="def-value">{data.provenance.quantEngineVersion}</p>
                 </div>
               </div>
             </div>
 
             {/* Input Observations Lineage Table */}
             <div>
-              <span className="font-mono text-xs text-text-muted block mb-3 uppercase tracking-wider">
+              <p className="eyebrow mb-3">
                 Authoritative Input Observations ({data.provenance.inputObservations.length} Lineage Records)
-              </span>
+              </p>
 
               {data.provenance.inputObservations.length === 0 ? (
-                <div className="rounded-lg border border-border bg-surface-elevated p-4 font-mono text-xs text-text-muted text-center">
-                  Zero input observations recorded for this run.
+                <div className="state-well">
+                  <p className="eyebrow">Zero Lineage Records</p>
+                  <p className="mt-1 text-[13px] leading-[1.5] text-text-secondary">
+                    Zero input observations recorded for this run.
+                  </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-border bg-surface-elevated font-mono text-xs">
-                  <table className="w-full text-left">
-                    <thead className="border-b border-border bg-surface uppercase tracking-wider text-text-muted text-[11px]">
+                <div className="panel scroll-region">
+                  <table className="data-table">
+                    <caption className="sr-only">
+                      Authoritative input observation lineage for this calculation run
+                    </caption>
+                    <thead>
                       <tr>
-                        <th className="px-4 py-3">Role</th>
-                        <th className="px-4 py-3">Obs ID</th>
-                        <th className="px-4 py-3">Effective Date</th>
-                        <th className="px-4 py-3">Rev Seq</th>
-                        <th className="px-4 py-3">NAV Value (INR)</th>
-                        <th className="px-4 py-3">Quality</th>
-                        <th className="px-4 py-3">Temporal Status</th>
-                        <th className="px-4 py-3">Source Artifact Hash</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Obs ID</th>
+                        <th scope="col">Effective Date</th>
+                        <th scope="col">Rev Seq</th>
+                        <th scope="col" className="text-right">NAV Value (INR)</th>
+                        <th scope="col">Quality</th>
+                        <th scope="col">Temporal Status</th>
+                        <th scope="col">Source Artifact Hash</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/60">
+                    <tbody>
                       {data.provenance.inputObservations.map((obs) => (
-                        <tr key={obs.observationId} className="hover:bg-surface/50 transition">
-                          <td className="px-4 py-3 font-semibold text-accent">
-                            {obs.role}
-                          </td>
-                          <td className="px-4 py-3 text-text-muted">
-                            #{obs.observationId}
-                          </td>
-                          <td className="px-4 py-3 text-text-secondary">
-                            {obs.effectiveDate}
-                          </td>
-                          <td className="px-4 py-3 text-text-muted">
-                            v{obs.revisionSeq}
-                          </td>
-                          <td className="px-4 py-3 text-text-primary font-bold">
+                        <tr key={obs.observationId}>
+                          <td className="key whitespace-nowrap font-medium text-accent">{obs.role}</td>
+                          <td className="num text-left text-text-tertiary">#{obs.observationId}</td>
+                          <td className="num text-left">{obs.effectiveDate}</td>
+                          <td className="num text-left text-text-tertiary">v{obs.revisionSeq}</td>
+                          <td className="num">
                             {obs.navValue !== null && obs.navValue !== undefined
                               ? Number(obs.navValue).toFixed(4)
-                              : "—"}
+                              : "Not available"}
                           </td>
-                          <td className="px-4 py-3">
+                          <td>
                             <DataQualityBadge type="assessment" status={obs.qualityAssessment} size="sm" />
                           </td>
-                          <td className="px-4 py-3 text-text-muted">
-                            {obs.temporalStatus}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-[10px] text-text-muted">
+                          <td className="num text-left text-text-tertiary">{obs.temporalStatus}</td>
+                          <td className="num text-left text-text-tertiary">
                             {obs.sourceArtifactSha256
                               ? obs.sourceArtifactSha256.substring(0, 12) + "..."
                               : "unlinked"}
@@ -845,24 +862,27 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
 
             {/* Source Artifacts Provenance */}
             {data.provenance.sourceArtifacts.length > 0 && (
-              <div className="rounded-xl border border-border bg-surface-elevated p-5 font-mono text-xs space-y-3">
-                <span className="font-semibold text-text-primary uppercase tracking-wider block">
+              <div className="panel p-4 md:p-5">
+                <p className="eyebrow border-b border-border pb-3">
                   Raw Ingestion Source Artifacts
-                </span>
-                {data.provenance.sourceArtifacts.map((art) => (
-                  <div key={art.sourceArtifactId} className="rounded-lg border border-border bg-surface p-3 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">Artifact #{art.sourceArtifactId}</span>
-                      <span className="text-text-muted text-[10px]">{art.byteSize} bytes</span>
+                </p>
+                <div className="mt-3 space-y-3">
+                  {data.provenance.sourceArtifacts.map((art) => (
+                    <div key={art.sourceArtifactId} className="panel-inset p-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="data-value-sm">Artifact #{art.sourceArtifactId}</span>
+                        <span className="mono-meta shrink-0">{art.byteSize} bytes</span>
+                      </div>
+                      <p className="mt-1 break-all">
+                        <span className="mono-meta">SHA-256</span>{" "}
+                        <span className="data-value-sm select-all break-all">{art.sha256Hash}</span>
+                      </p>
+                      <p className="mono-meta mt-1 break-all">
+                        Source: {art.sourceUrl} | Retrieved: {formatDateTime(art.retrievalTimestamp)}
+                      </p>
                     </div>
-                    <div className="text-text-muted text-[11px] break-all">
-                      SHA-256: <span className="text-text-primary font-mono select-all">{art.sha256Hash}</span>
-                    </div>
-                    <div className="text-text-muted text-[10px]">
-                      Source: {art.sourceUrl} | Retrieved: {formatDateTime(art.retrievalTimestamp)}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>

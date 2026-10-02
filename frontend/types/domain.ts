@@ -37,3 +37,12 @@ export interface Benchmark {
   provider: string;
   benchmarkType: string;
 }
+
+export interface Holding {
+  id?: number;
+  securityName: string;
+  weight: number;
+  category?: string;
+  asOfDate: string;
+  source?: string;
+}
