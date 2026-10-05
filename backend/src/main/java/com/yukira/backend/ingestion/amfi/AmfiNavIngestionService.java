@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -20,21 +21,29 @@ import java.util.*;
 @SuppressWarnings("null")
 public class AmfiNavIngestionService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AmfiNavIngestionService.class);
+
     private final AmfiNavParser parser;
     private final SchemeOptionRepository schemeOptionRepository;
     private final NavObservationRepository navObservationRepository;
     private final ValidationIssueRepository validationIssueRepository;
+    private final com.yukira.backend.repository.SourceArtifactRepository sourceArtifactRepository;
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     public AmfiNavIngestionService(
         AmfiNavParser parser,
         SchemeOptionRepository schemeOptionRepository,
         NavObservationRepository navObservationRepository,
-        ValidationIssueRepository validationIssueRepository
+        ValidationIssueRepository validationIssueRepository,
+        com.yukira.backend.repository.SourceArtifactRepository sourceArtifactRepository
     ) {
         this.parser = parser;
         this.schemeOptionRepository = schemeOptionRepository;
         this.navObservationRepository = navObservationRepository;
         this.validationIssueRepository = validationIssueRepository;
+        this.sourceArtifactRepository = sourceArtifactRepository;
     }
 
     /**
@@ -44,11 +53,29 @@ public class AmfiNavIngestionService {
      */
     @Transactional
     public IngestionSummary ingestArtifact(SourceArtifact artifact) {
+        return ingestArtifact(artifact, null);
+    }
+
+    /**
+     * Ingests parsed AMFI records from a SourceArtifact into the bitemporal nav_observation ledger,
+     * optionally target-scoped to a specific AMFI scheme code to prevent unmapped DB issues during targeted backfills.
+     */
+    @Transactional
+    public IngestionSummary ingestArtifact(SourceArtifact artifact, String targetAmfiCode) {
         if (artifact == null || artifact.getPayloadBlob() == null) {
             throw new IllegalArgumentException("SourceArtifact or payload_blob must not be null");
         }
 
-        List<AmfiNavRecord> records = parser.parse(artifact.getPayloadBlob());
+        log.info("ingestArtifact STARTED for artifact #{}, size {} bytes (targetAmfiCode={})", artifact.getId(), artifact.getByteSize(), targetAmfiCode);
+        byte[] payload = artifact.getPayloadBlob();
+        if (artifact.getId() != null && entityManager != null) {
+            entityManager.detach(artifact);
+        }
+        long startTime = System.currentTimeMillis();
+        List<AmfiNavRecord> records = parser.parse(payload);
+        log.info("ingestArtifact parsed {} records in {} ms", records.size(), System.currentTimeMillis() - startTime);
+
+        SourceArtifact artifactRef = sourceArtifactRepository.getReferenceById(artifact.getId());
         List<String> messages = new ArrayList<>();
 
         int totalParsed = records.size();
@@ -58,10 +85,15 @@ public class AmfiNavIngestionService {
         int duplicatesSkipped = 0;
         int issuesCreated = 0;
 
-        // Pre-load all registered SchemeOptions into local memory to prevent N+1 database roundtrips on large feeds
+        // Pre-load targeted or all registered SchemeOptions into local memory
         Map<String, SchemeOption> amfiCodeMap = new HashMap<>();
         Map<String, SchemeOption> isinMap = new HashMap<>();
         for (SchemeOption opt : schemeOptionRepository.findAll()) {
+            if (targetAmfiCode != null && !targetAmfiCode.isBlank()) {
+                if (!targetAmfiCode.trim().equalsIgnoreCase(opt.getAmfiCode())) {
+                    continue;
+                }
+            }
             if (opt.getAmfiCode() != null && !opt.getAmfiCode().isBlank()) {
                 amfiCodeMap.put(opt.getAmfiCode().trim(), opt);
             }
@@ -113,26 +145,29 @@ public class AmfiNavIngestionService {
             }
 
             if (schemeOption == null) {
-                // Unknown scheme identity -> Emit explicit diagnostic, preserve raw artifact, do not invent fake identity
-                // Cap database-persisted issues for unmapped batch items to 50 to avoid DB connection exhaustion on massive feeds
-                if (issuesCreated < 50) {
-                    ValidationIssue issue = new ValidationIssue(
-                        "SOURCE_ARTIFACT",
-                        artifact.getId(),
-                        "UNMAPPED_SOURCE_SCHEME",
-                        String.format("Line %d: No SchemeOption mapped for AMFI code '%s' or ISIN '%s'",
-                            rec.lineNumber(), rec.schemeCode(), rec.isinGrowth())
-                    );
-                    issue.setQualityAssessment("SUSPICIOUS");
-                    issue.setVerificationStatus("UNVERIFIED");
-                    validationIssueRepository.save(issue);
+                // Unknown or untargeted scheme identity -> skip observation
+                if (targetAmfiCode == null || targetAmfiCode.isBlank()) {
+                    if (issuesCreated < 50) {
+                        ValidationIssue issue = new ValidationIssue(
+                            "SOURCE_ARTIFACT",
+                            artifact.getId(),
+                            "UNMAPPED_SOURCE_SCHEME",
+                            String.format("Line %d: No SchemeOption mapped for AMFI code '%s' or ISIN '%s'",
+                                rec.lineNumber(), rec.schemeCode(), rec.isinGrowth())
+                        );
+                        issue.setQualityAssessment("SUSPICIOUS");
+                        issue.setVerificationStatus("UNVERIFIED");
+                        validationIssueRepository.save(issue);
+                    }
+                    issuesCreated++;
                 }
-                issuesCreated++;
                 continue;
             }
 
             schemeGroupedRecords.computeIfAbsent(schemeOption.getId(), k -> new ArrayList<>()).add(rec);
         }
+
+        log.info("Scheme matching complete: {} matched scheme groups, {} total issues created", schemeGroupedRecords.size(), issuesCreated);
 
         // Process grouped observations per scheme option sorted chronologically
         for (Map.Entry<Long, List<AmfiNavRecord>> entry : schemeGroupedRecords.entrySet()) {
@@ -144,6 +179,18 @@ public class AmfiNavIngestionService {
 
             SchemeOption option = schemeOptionRepository.findById(schemeOptionId).orElseThrow();
             BigDecimal prevNav = null;
+
+            LocalDate minChunkDate = schemeRecords.getFirst().navDate();
+            LocalDate maxChunkDate = schemeRecords.getLast().navDate();
+            log.info("Querying existing observations for scheme option {} from {} to {}", schemeOptionId, minChunkDate, maxChunkDate);
+
+            Map<java.time.LocalDate, List<NavObservation>> existingObsMap = new HashMap<>();
+            for (NavObservation o : navObservationRepository.findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(schemeOptionId, minChunkDate, maxChunkDate)) {
+                existingObsMap.computeIfAbsent(o.getEffectiveDate(), k -> new ArrayList<>()).add(o);
+            }
+            log.info("Found {} existing observations in database range for scheme option {}", existingObsMap.size(), schemeOptionId);
+
+            List<NavObservation> newObsToSave = new ArrayList<>();
 
             for (AmfiNavRecord rec : schemeRecords) {
 
@@ -193,21 +240,21 @@ public class AmfiNavIngestionService {
                 );
 
                 // 4. Bitemporal Revision & Immutability Management
-                List<NavObservation> existingObs = navObservationRepository
-                    .findBySchemeOptionIdAndEffectiveDate(schemeOptionId, rec.navDate());
+                List<NavObservation> existingObs = existingObsMap.getOrDefault(rec.navDate(), Collections.emptyList());
 
                 if (existingObs.isEmpty()) {
                     // Case A: Initial observation
                     NavObservation obs = new NavObservation(
                         option, rec.navDate(), rec.navValue(), 1, analyticalAvailability
                     );
-                    obs.setSourceArtifact(artifact);
+                    obs.setSourceArtifact(artifactRef);
                     obs.setRevisionStatus("ORIGINAL");
                     obs.setTemporalStatus("CURRENT"); // Dimension 4: Freshness (CURRENT / STALE)
                     obs.setQualityAssessment(isSuspiciousJump ? "SUSPICIOUS" : "VALID");
                     obs.setVerificationStatus("VERIFIED");
                     obs.setPresenceStatus("AVAILABLE");
-                    navObservationRepository.save(obs);
+                    newObsToSave.add(obs);
+                    existingObsMap.computeIfAbsent(rec.navDate(), k -> new ArrayList<>()).add(obs);
                     ingested++;
                 } else {
                     // Find latest revision
@@ -229,13 +276,13 @@ public class AmfiNavIngestionService {
                         NavObservation restated = new NavObservation(
                             option, rec.navDate(), rec.navValue(), nextSeq, analyticalAvailability
                         );
-                        restated.setSourceArtifact(artifact);
+                        restated.setSourceArtifact(artifactRef);
                         restated.setRevisionStatus("REVISED");
                         restated.setTemporalStatus("CURRENT");
                         restated.setQualityAssessment(isSuspiciousJump ? "SUSPICIOUS" : "VALID");
                         restated.setVerificationStatus("VERIFIED");
                         restated.setPresenceStatus("AVAILABLE");
-                        navObservationRepository.save(restated);
+                        newObsToSave.add(restated);
 
                         ValidationIssue issue = new ValidationIssue(
                             "NAV_OBSERVATION",
@@ -253,6 +300,13 @@ public class AmfiNavIngestionService {
                     }
                 }
             }
+
+            if (!newObsToSave.isEmpty()) {
+                log.info("Saving {} new observations to database for scheme option {}", newObsToSave.size(), schemeOptionId);
+                navObservationRepository.saveAll(newObsToSave);
+            }
+            log.info("Observation processing complete for scheme option {}: ingested={}, revisions={}, skipped={}",
+                schemeOptionId, ingested, revisions, duplicatesSkipped);
         }
 
         messages.add(String.format("Ingested %d observations (%d revisions, %d duplicates skipped) from artifact %d",

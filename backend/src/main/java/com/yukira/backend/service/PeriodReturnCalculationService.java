@@ -292,15 +292,22 @@ public class PeriodReturnCalculationService {
             run.setExecutionCompletedAt(OffsetDateTime.now());
 
         } catch (Exception e) {
-            // Local fallback deterministic calculation if Quant Engine HTTP is offline
-            BigDecimal startVal = startObs.getNavValue();
-            BigDecimal endVal = endObs.getNavValue();
-            BigDecimal periodReturn = endVal.subtract(startVal)
-                .divide(startVal, 10, java.math.RoundingMode.HALF_UP);
+            // Governance (AGENTS.md 6): the Quant Engine is the sole numerical authority for
+            // RET-02 (methodology RET_02_SIMPLE_RETURN). A failed engine dispatch must surface as
+            // an explicit FAILED state with a null numeric value. The backend must never substitute
+            // its own Java arithmetic for the authoritative kernel, because that would (a) create a
+            // second numerical authority, (b) mask the real failure as CALCULATED, and
+            // (c) silently diverge from engine precision (BigDecimal scale 10 / HALF_UP versus
+            // 64-bit IEEE floating point). Behaviour is deliberately aligned with executeRet03Calculation.
+            String errorMsg = "Quant Engine calculation failure: " + e.getMessage();
+            run.setRunStatus("FAILED");
+            run.setExecutionCompletedAt(OffsetDateTime.now());
+            run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, "RET-02", "PERIOD", periodReturn, "PERCENTAGE", "CALCULATED"
+                run, "RET-02", "PERIOD", null, "PERCENTAGE", "FAILED"
             );
+            metricResult.setErrorMessage(errorMsg);
 
             Map<String, Object> diagnostics = new HashMap<>();
             diagnostics.put("methodology_status", "CANDIDATE");
@@ -318,15 +325,14 @@ public class PeriodReturnCalculationService {
             diagnostics.put("start_lookback_days_used", startSel.lookbackDaysUsed());
             diagnostics.put("end_lookback_days_used", endSel.lookbackDaysUsed());
             diagnostics.put("knowledge_cutoff_time", knowledgeCutoffTime.toString());
-            diagnostics.put("local_fallback", true);
+            diagnostics.put("failure_reason", errorMsg);
+            diagnostics.put("numerical_authority", "QUANT_ENGINE_ONLY_NO_BACKEND_SUBSTITUTION");
 
             try {
                 metricResult.setDiagnostics(objectMapper.writeValueAsString(diagnostics));
             } catch (Exception ignored) {}
 
             metricResultRepository.save(metricResult);
-            run.setRunStatus("COMPLETED");
-            run.setExecutionCompletedAt(OffsetDateTime.now());
         }
 
         return calculationRunRepository.save(run);

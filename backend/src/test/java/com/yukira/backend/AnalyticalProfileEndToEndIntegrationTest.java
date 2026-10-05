@@ -98,8 +98,8 @@ public class AnalyticalProfileEndToEndIntegrationTest {
 
         assertEquals(3, retMetrics.size(), "Return section must have RET-02, RET-03, RET-07");
         assertEquals(7, rskMetrics.size(), "Risk section must have RSK-01 through RSK-07");
-        assertEquals(3, ratMetrics.size(), "Risk-adjusted section must have RAT-01, RAT-02, RAT-04");
-        assertEquals(7, relMetrics.size(), "Market sensitivity section must have MKT-01..05, REL-02, REL-03");
+        assertEquals(3, ratMetrics.size(), "Risk-adjusted section must have RAT-01, RAT-03, RAT-04");
+        assertEquals(7, relMetrics.size(), "Market sensitivity section must have MKT-01..05, REL-01, REL-02");
 
         int totalMetrics = retMetrics.size() + rskMetrics.size() + ratMetrics.size() + relMetrics.size();
         assertEquals(20, totalMetrics, "Total unified profile must contain exactly 20 metrics");
@@ -135,9 +135,9 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         AnalyticalProfileResponse.ProfileMetricItem rat01 = findMetric(ratMetrics, "RAT-01");
         assertEquals(1.3669125480, rat01.numericValue().doubleValue(), 0.05, "RAT-01 canonical Sharpe mismatch");
 
-        // RAT-02 Treynor: ~0.2145410507
-        AnalyticalProfileResponse.ProfileMetricItem rat02 = findMetric(ratMetrics, "RAT-02");
-        assertEquals(0.2145410507, rat02.numericValue().doubleValue(), 0.05, "RAT-02 canonical Treynor mismatch");
+        // RAT-03 Treynor: ~0.2145410507
+        AnalyticalProfileResponse.ProfileMetricItem rat03 = findMetric(ratMetrics, "RAT-03");
+        assertEquals(0.2145410507, rat03.numericValue().doubleValue(), 0.05, "RAT-03 canonical Treynor mismatch");
 
         // RAT-04 Information Ratio
         AnalyticalProfileResponse.ProfileMetricItem rat04 = findMetric(ratMetrics, "RAT-04");
@@ -151,25 +151,38 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         AnalyticalProfileResponse.ProfileMetricItem mkt02 = findMetric(relMetrics, "MKT-02");
         assertEquals(0.9678148690, mkt02.numericValue().doubleValue(), 0.05, "MKT-02 canonical Downside Beta mismatch");
 
-        // REL-02 Tracking Error and REL-03 Jensen's Alpha remain distinct frozen registry identities
+        // REL-01 Tracking Error and REL-02 Jensen's Alpha remain distinct canonical registry identities
+        AnalyticalProfileResponse.ProfileMetricItem rel01 = findMetric(relMetrics, "REL-01");
         AnalyticalProfileResponse.ProfileMetricItem rel02 = findMetric(relMetrics, "REL-02");
-        AnalyticalProfileResponse.ProfileMetricItem rel03 = findMetric(relMetrics, "REL-03");
+        assertEquals("CANDIDATE", rel01.governanceStatus());
         assertEquals("CANDIDATE", rel02.governanceStatus());
-        assertEquals("CANDIDATE", rel03.governanceStatus());
 
         // 6. Governance Status Verifications
-        // Operational: RET-02
+        //
+        // Governance invariant (AGENTS.md 11 / 12): IMPLEMENTED != VALIDATED != APPROVED.
+        // Every methodology_version row in the database is lifecycle CANDIDATE /
+        // approval CANDIDATE / validation UNVALIDATED, with no approved_by and no
+        // approval_record. No metric may therefore be presented as APPROVED.
+        //
+        // The profile previously hardcoded "APPROVED" for RET-03, RAT-01 and RAT-02 as a
+        // Java display string that had no governance backing, overstating the status of
+        // three metrics whose persisted methodology versions are all CANDIDATE.
+        // These assertions now pin the honest status.
+
+        // Operational baseline: RET-02 (candidate primitive, per phase2h section 4.2)
         AnalyticalProfileResponse.ProfileMetricItem ret02 = findMetric(retMetrics, "RET-02");
-        assertTrue(ret02.governanceStatus().contains("OPERATIONAL") || "APPROVED".equals(ret02.governanceStatus()));
+        assertTrue(ret02.governanceStatus().contains("OPERATIONAL")
+                || "CANDIDATE".equals(ret02.governanceStatus()),
+            "RET-02 must not be presented as APPROVED");
 
-        // Approved: RET-03, RAT-01, RAT-02
+        // Previously mislabelled APPROVED; persisted methodology versions are CANDIDATE.
         AnalyticalProfileResponse.ProfileMetricItem ret03 = findMetric(retMetrics, "RET-03");
-        assertEquals("APPROVED", ret03.governanceStatus());
+        assertEquals("CANDIDATE", ret03.governanceStatus());
 
-        assertEquals("APPROVED", rat01.governanceStatus());
-        assertEquals("APPROVED", rat02.governanceStatus());
+        assertEquals("CANDIDATE", rat01.governanceStatus());
+        assertEquals("CANDIDATE", rat03.governanceStatus());
 
-        // Candidates: RSK-01..07, RET-07, RAT-04, MKT-01..05, REL-02, REL-03
+        // Candidates: RSK-01..07, RET-07, RAT-04, MKT-01..05, REL-01, REL-02
         assertEquals("CANDIDATE", rsk01.governanceStatus());
         assertEquals("CANDIDATE", rsk02.governanceStatus());
         assertEquals("CANDIDATE", mkt01.governanceStatus());
@@ -178,8 +191,8 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         AnalyticalProfileResponse.ProfileMetricItem ret07 = findMetric(retMetrics, "RET-07");
         assertEquals("CANDIDATE", ret07.governanceStatus());
 
+        assertEquals("CANDIDATE", rel01.governanceStatus());
         assertEquals("CANDIDATE", rel02.governanceStatus());
-        assertEquals("CANDIDATE", rel03.governanceStatus());
 
         // 7. Database Persistence & Run-Level Verification
         Long runId = response.provenance().calculationRunId();

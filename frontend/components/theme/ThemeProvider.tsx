@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -15,36 +15,20 @@ interface ThemeContextType {
 
 const THEME_STORAGE_KEY = "yukira-theme-preference";
 
-function subscribe(callback: () => void) {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("storage", callback);
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  mediaQuery.addEventListener("change", callback);
-
-  return () => {
-    window.removeEventListener("storage", callback);
-    mediaQuery.removeEventListener("change", callback);
-  };
-}
-
-function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
-    if (stored === "light" || stored === "dark" || stored === "system") {
-      return stored;
-    }
-  } catch {
-    // fallback
-  }
-  return "dark";
-}
-
 function getSystemTheme(): ResolvedTheme {
   if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
     return "dark";
   }
   return "light";
+}
+
+function applyThemeToDom(resolved: ResolvedTheme) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  root.classList.remove("light", "dark");
+  root.classList.add(resolved);
+  root.setAttribute("data-theme", resolved);
+  root.style.colorScheme = resolved;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -56,35 +40,57 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const theme = useSyncExternalStore<Theme>(
-    subscribe,
-    getStoredTheme,
-    () => "dark"
-  );
+  const [theme, setThemeState] = useState<Theme>("dark");
+  const [mounted, setMounted] = useState(false);
 
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
+  // Read stored theme on mount
+  useEffect(() => {
+    setMounted(true);
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
+      if (stored === "light" || stored === "dark" || stored === "system") {
+        setThemeState(stored);
+        const resolved = stored === "system" ? getSystemTheme() : stored;
+        applyThemeToDom(resolved);
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    // Default to dark if no stored preference
+    applyThemeToDom("dark");
+  }, []);
 
   const resolvedTheme: ResolvedTheme =
     theme === "system"
       ? (typeof window !== "undefined" ? getSystemTheme() : "dark")
       : theme;
 
+  // Keep DOM in sync whenever resolvedTheme changes
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove("light", "dark");
-    root.classList.add(resolvedTheme);
-    root.setAttribute("data-theme", resolvedTheme);
-    root.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
+    if (mounted) {
+      applyThemeToDom(resolvedTheme);
+    }
+  }, [resolvedTheme, mounted]);
+
+  // Listen to system preference changes if theme === "system"
+  useEffect(() => {
+    if (typeof window === "undefined" || theme !== "system") return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      const newResolved = mediaQuery.matches ? "dark" : "light";
+      applyThemeToDom(newResolved);
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme);
+    const resolved = newTheme === "system" ? getSystemTheme() : newTheme;
+    applyThemeToDom(resolved);
     try {
       localStorage.setItem(THEME_STORAGE_KEY, newTheme);
-      window.dispatchEvent(new Event("storage"));
     } catch {
       // ignore
     }

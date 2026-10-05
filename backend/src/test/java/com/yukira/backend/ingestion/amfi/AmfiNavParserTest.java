@@ -80,4 +80,50 @@ class AmfiNavParserTest {
         assertEquals(run1.get(0).navValue(), run2.get(0).navValue());
         assertEquals(run1.get(0).navDate(), run2.get(0).navDate());
     }
+
+    @Test
+    @DisplayName("Parse historical report format with Plan and Option columns (DownloadNAVHistoryReport_Po.aspx)")
+    void testParseHistoricalReportFormat() {
+        String content = """
+            Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date
+            118955;HDFC Flexi Cap Fund;Direct;Growth;INF179K01UT0;;1630.7330;01-Jan-2024
+            118955;HDFC Flexi Cap Fund;Direct;Growth;INF179K01UT0;;1670.6720;15-Jan-2024
+            """;
+
+        List<AmfiNavRecord> records = parser.parse(content.getBytes(WINDOWS_1252));
+
+        assertEquals(2, records.size());
+        AmfiNavRecord r1 = records.get(0);
+        assertTrue(r1.isValid());
+        assertEquals("118955", r1.schemeCode());
+        assertEquals("HDFC Flexi Cap Fund", r1.schemeName());
+        assertEquals("INF179K01UT0", r1.isinGrowth());
+        assertEquals(new BigDecimal("1630.7330"), r1.navValue());
+        assertEquals(LocalDate.of(2024, 1, 1), r1.navDate());
+
+        AmfiNavRecord r2 = records.get(1);
+        assertTrue(r2.isValid());
+        assertEquals("1670.6720", r2.navValue().toPlainString());
+        assertEquals(LocalDate.of(2024, 1, 15), r2.navDate());
+    }
+
+    @Test
+    @DisplayName("Parse daily NAVAll format with ISIN before Scheme Name")
+    void testParseDailyNavAllFormat() {
+        String content = """
+            Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+            118955;INF179K01UT0;;HDFC Flexi Cap Fund - Direct Plan - Growth Option;Direct;Growth;1950.4500;02-Oct-2026
+            """;
+
+        List<AmfiNavRecord> records = parser.parse(content.getBytes(WINDOWS_1252));
+
+        assertEquals(1, records.size());
+        AmfiNavRecord r1 = records.get(0);
+        assertTrue(r1.isValid());
+        assertEquals("118955", r1.schemeCode());
+        assertEquals("INF179K01UT0", r1.isinGrowth());
+        assertEquals("HDFC Flexi Cap Fund - Direct Plan - Growth Option", r1.schemeName());
+        assertEquals(new BigDecimal("1950.4500"), r1.navValue());
+        assertEquals(LocalDate.of(2026, 10, 2), r1.navDate());
+    }
 }

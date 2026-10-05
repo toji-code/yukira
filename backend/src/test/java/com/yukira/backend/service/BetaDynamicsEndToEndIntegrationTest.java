@@ -100,7 +100,7 @@ class BetaDynamicsEndToEndIntegrationTest {
             + " [" + response.metrics().standardBetaStatus() + "]");
         System.out.println("MKT-02 Downside Beta: " + response.metrics().downsideBeta()
             + " [" + response.metrics().downsideBetaStatus() + "]");
-        System.out.println("REL-05 Upside Beta: " + response.metrics().upsideBeta()
+        System.out.println("Upside Beta: " + response.metrics().upsideBeta()
             + " [" + response.metrics().upsideBetaStatus() + "]");
         System.out.println("Beta Asymmetry (up - down): " + response.metrics().betaAsymmetrySpread()
             + " [" + response.metrics().asymmetryStatus() + "]");
@@ -131,36 +131,27 @@ class BetaDynamicsEndToEndIntegrationTest {
             "Standard beta requires >= 700 paired days, got " + response.metrics().totalPairedDays());
         assertEquals(700, response.metrics().minPairedRequired());
         assertEquals(100, response.metrics().minDownRequired());
-        assertEquals(150, response.metrics().minUpRequired());
+        assertEquals(0, response.metrics().minUpRequired());
         assertEquals("CALCULATED", response.metrics().standardBetaStatus());
         assertEquals("CALCULATED", response.metrics().downsideBetaStatus());
-        assertEquals("CALCULATED", response.metrics().upsideBetaStatus());
+        assertEquals("NOT_AVAILABLE", response.metrics().upsideBetaStatus());
         assertTrue(response.metrics().isStandardSufficient());
         assertTrue(response.metrics().isDownsideSufficient());
-        assertTrue(response.metrics().isUpsideSufficient());
-        assertTrue(response.metrics().upDaysCount() >= 150);
+        assertFalse(response.metrics().isUpsideSufficient());
         assertTrue(response.metrics().downDaysCount() >= 100);
         assertEquals(response.metrics().totalPairedDays(),
-            response.metrics().upDaysCount() + response.metrics().downDaysCount() + response.metrics().flatDaysCount(),
-            "Paired days must decompose exactly into up + down + flat");
+            response.metrics().downDaysCount() + response.metrics().flatDaysCount(),
+            "Paired days must decompose exactly into down + non-down (flat/up)");
 
         // 5. Canonical value verification (authoritative ledger baseline)
         double stdBeta = response.metrics().standardBeta().doubleValue();
         double downBeta = response.metrics().downsideBeta().doubleValue();
-        double upBeta = response.metrics().upsideBeta().doubleValue();
 
         assertEquals(0.9590602545, stdBeta, 0.05, "MKT-01 canonical Beta mismatch");
         assertEquals(0.9678148690, downBeta, 0.05, "MKT-02 canonical Downside Beta mismatch");
-        assertTrue(upBeta > 0.0 && upBeta < 3.0,
-            "REL-05 Upside Beta must be a finite plausible ratio, got: " + upBeta);
-
-        // Asymmetry invariant: spread == upside - downside (rounded half-up to 4dp)
-        BigDecimal expectedSpread = response.metrics().upsideBeta()
-            .subtract(response.metrics().downsideBeta())
-            .setScale(4, RoundingMode.HALF_UP);
-        assertEquals(0, expectedSpread.compareTo(response.metrics().betaAsymmetrySpread()),
-            "Beta asymmetry must equal upside beta minus downside beta");
-        assertEquals("CALCULATED", response.metrics().asymmetryStatus());
+        assertNull(response.metrics().upsideBeta(), "Unauthorized Upside Beta must be null");
+        assertNull(response.metrics().betaAsymmetrySpread(), "Beta asymmetry spread must be null when Upside Beta is unauthorized");
+        assertEquals("NOT_AVAILABLE", response.metrics().asymmetryStatus());
 
         // Risk-free alignment is mandatory for standard beta only
         assertTrue(response.metrics().riskFreeAligned());
@@ -174,7 +165,7 @@ class BetaDynamicsEndToEndIntegrationTest {
         Map<String, MetricResult> byCode = persisted.stream()
             .collect(Collectors.toMap(MetricResult::getMetricCode, Function.identity()));
 
-        for (String code : List.of("MKT-01", "MKT-02", "REL-05")) {
+        for (String code : List.of("MKT-01", "MKT-02")) {
             assertTrue(byCode.containsKey(code), "metric_result row missing for " + code);
             assertEquals("CALCULATED", byCode.get(code).getCalculationStatus(), code);
             assertNotNull(byCode.get(code).getNumericValue(), code);
@@ -185,8 +176,8 @@ class BetaDynamicsEndToEndIntegrationTest {
             "Persisted MKT-01 must equal API response");
         assertEquals(0, byCode.get("MKT-02").getNumericValue().compareTo(response.metrics().downsideBeta()),
             "Persisted MKT-02 must equal API response");
-        assertEquals(0, byCode.get("REL-05").getNumericValue().compareTo(response.metrics().upsideBeta()),
-            "Persisted REL-05 must equal API response");
+        assertFalse(byCode.containsKey("REL-05"), "REL-05 must not be calculated or persisted");
+        assertFalse(byCode.containsKey("MKT-06"), "MKT-06 must not be calculated or persisted");
 
         // 7. Calculation run manifest verification
         CalculationRun run = calculationRunRepository.findById(runId)
@@ -211,7 +202,7 @@ class BetaDynamicsEndToEndIntegrationTest {
         assertTrue(response.epistemic().benchmarkLineage().contains("synchronously"));
         assertTrue(response.epistemic().observation().contains("Standard Beta"));
         assertTrue(response.epistemic().observation().contains("Downside Beta"));
-        assertTrue(response.epistemic().observation().contains("Upside Beta"));
+        assertFalse(response.epistemic().observation().contains("Upside Beta"), "Unauthorized Upside Beta must not appear in observation");
         assertNotNull(response.epistemic().interpretation());
         assertNotNull(response.epistemic().limitation());
         assertTrue(response.epistemic().limitation().contains("Zero interpolation"));
@@ -256,8 +247,8 @@ class BetaDynamicsEndToEndIntegrationTest {
         assertNull(response.metrics().betaAsymmetrySpread());
         assertEquals("INSUFFICIENT_DATA", response.metrics().standardBetaStatus());
         assertEquals("INSUFFICIENT_DATA", response.metrics().downsideBetaStatus());
-        assertEquals("INSUFFICIENT_DATA", response.metrics().upsideBetaStatus());
-        assertEquals("INSUFFICIENT_DATA", response.metrics().asymmetryStatus());
+        assertEquals("NOT_AVAILABLE", response.metrics().upsideBetaStatus());
+        assertEquals("NOT_AVAILABLE", response.metrics().asymmetryStatus());
         assertFalse(response.metrics().isStandardSufficient());
         assertFalse(response.metrics().isDownsideSufficient());
         assertFalse(response.metrics().isUpsideSufficient());

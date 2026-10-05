@@ -223,7 +223,10 @@ class CalculationOrchestratorServiceTest {
             "0.1.0-alpha",
             "mock-git-sha-alias",
             8.0,
-            List.of(new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null)),
+            List.of(
+                new MetricOutputItemDto("MKT-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
+                new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.05900000"), null, "PERCENTAGE", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null)
+            ),
             "SUCCESS",
             null
         );
@@ -242,7 +245,7 @@ class CalculationOrchestratorServiceTest {
 
         ArgumentCaptor<CalculationRequestDto> captor = ArgumentCaptor.forClass(CalculationRequestDto.class);
         Mockito.verify(quantEngineClient).executeCalculation(captor.capture());
-        assertEquals(List.of("REL-01"), captor.getValue().metricCodes());
+        assertEquals(List.of("MKT-01", "REL-01"), captor.getValue().metricCodes());
 
         List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
         assertEquals(2, results.size(), "Must persist only one row per requested API alias");
@@ -251,6 +254,45 @@ class CalculationOrchestratorServiceTest {
         assertEquals(2, results.stream().map(r -> r.getMetricCode() + "|" + r.getPeriodType()).distinct().count());
     }
 
+    @Test
+    @DisplayName("Quant service outage fails safely and does not persist Java fallback MetricResults")
+    void testQuantServiceOutageDoesNotPersistFallbackMetricResults() {
+        LocalDate asOfDate = LocalDate.of(2026, 1, 15);
+        OffsetDateTime tCutoff = OffsetDateTime.of(2026, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
+
+        Mockito.when(quantEngineClient.executeCalculation(any()))
+            .thenThrow(new RuntimeException("Connection refused"));
+
+        CalculationRun run = calculationOrchestratorService.executeCalculationRun(
+            schemeOption.getId(),
+            benchmark.getId(),
+            asOfDate,
+            tCutoff,
+            List.of("RET-03", "MKT-01", "MKT-05"),
+            "CANDIDATE-V1",
+            Map.of("start_date", "2024-12-01")
+        );
+
+        assertEquals("FAILED", run.getRunStatus());
+        assertEquals("PYTHON-QUANT-UNAVAILABLE", run.getEngineSoftwareVersion());
+        assertTrue(run.getErrorMessage().contains("Java offline fallback is not parity-certified"));
+        assertNotNull(run.getExecutionCompletedAt());
+
+        List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+        assertTrue(results.isEmpty(), "Non-authoritative Java fallback must not persist MetricResults");
+
+        List<CalculationRunInputObservation> inputObs = calculationRunInputObservationRepository.findByCalculationRunId(run.getId());
+        assertEquals(6, inputObs.size(), "Failed run must preserve PIT input provenance references");
+
+        Mockito.verify(quantEngineClient).executeCalculation(any());
+    }
     @Test
     @DisplayName("Test database-enforced referential integrity on calculation_run_input_observation (CHECK constraint for exactly one FK)")
     void testCalculationInputReferentialIntegrityCheckConstraint() {

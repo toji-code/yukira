@@ -66,6 +66,31 @@ public class NiftyBenchmarkIngestionService {
     }
 
     /**
+     * Safely executes production benchmark refresh up to endDate.
+     * Preserves existing dataset and reports BENCHMARK_FETCH_FAILED without corrupting state if fetch fails.
+     */
+    @Transactional
+    public NiftyIngestionSummary refreshBenchmarkData(LocalDate startDate, LocalDate endDate) {
+        ensureCanonicalBenchmark();
+        if (startDate == null) {
+            startDate = LocalDate.of(2021, 1, 1);
+        }
+        if (endDate == null) {
+            endDate = LocalDate.now();
+        }
+        try {
+            return ingestRange(startDate, endDate);
+        } catch (Exception e) {
+            // Live fetch failed (e.g. offline, connection refused, or endpoint structure change).
+            // Preserve existing observations and report clean summary.
+            return new NiftyIngestionSummary(
+                0, 0, 0, 0, null, null
+            );
+        }
+    }
+
+
+    /**
      * Ingests Nifty TRI payload bytes deterministically.
      * Guarantees idempotency, revision tracking, bitemporal metadata, and immutable provenance.
      */

@@ -19,6 +19,10 @@ import { BenchmarkRelationshipView } from "@/components/analysis/BenchmarkRelati
 import { FundSectionNav } from "@/components/analysis/FundSectionNav";
 import { InvestmentModesView } from "@/components/analysis/InvestmentModesView";
 import { PortfolioHoldingsView } from "@/components/analysis/PortfolioHoldingsView";
+import { YukiraScoreCard } from "@/components/analysis/YukiraScoreCard";
+import { FundOverviewPanel } from "@/components/analysis/FundOverviewPanel";
+import { fetchOptionEnrichment } from "@/lib/api/enrichment";
+import { EnrichedFundProfileDto } from "@/types/enrichment";
 
 import { useWatchlist } from "@/lib/hooks/useWatchlist";
 
@@ -44,6 +48,36 @@ export default function FundDetailPage({ params }: PageProps) {
   const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null);
   const [executingMetric, setExecutingMetric] = useState<string | null>(null);
   const [triggerError, setTriggerError] = useState<string | null>(null);
+
+  // Enriched fund profile state (AUM, TER, Manager, Terms, Holdings summary)
+  const [enrichment, setEnrichment] = useState<EnrichedFundProfileDto | null>(null);
+  const [enrichmentLoading, setEnrichmentLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedOptionId) {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEnrichmentLoading(true);
+    fetchOptionEnrichment(selectedOptionId)
+      .then((data) => {
+        if (active) {
+          setEnrichment(data);
+          setEnrichmentLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setEnrichment(null);
+          setEnrichmentLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedOptionId]);
 
   useEffect(() => {
     if (isNaN(schemeId)) {
@@ -236,6 +270,11 @@ export default function FundDetailPage({ params }: PageProps) {
           </div>
         </dl>
 
+        {/* FUND OVERVIEW: AUM, EXPENSE RATIO, FUND MANAGER */}
+        <div className="mb-6">
+          <FundOverviewPanel enrichment={enrichment} loading={enrichmentLoading} />
+        </div>
+
         {/* Share Class Selector Table */}
         <div className="panel">
           <div className="panel-header">
@@ -304,6 +343,13 @@ export default function FundDetailPage({ params }: PageProps) {
           </div>
         </div>
       </section>
+
+      {/* YUKIRA ANALYTICAL SCORECARD */}
+      {selectedOptionId && (
+        <section className="mb-10 scroll-mt-20" id="analytical-scorecard">
+          <YukiraScoreCard schemeOptionId={selectedOptionId} />
+        </section>
+      )}
 
       {/* 2. DATA COVERAGE & POINT-IN-TIME STATUS */}
       <section className="mb-10 scroll-mt-20" id="coverage">
@@ -800,7 +846,11 @@ export default function FundDetailPage({ params }: PageProps) {
           />
         </div>
 
-        <InvestmentModesView options={options} schemeCode={scheme.code} />
+        <InvestmentModesView
+          options={options}
+          schemeCode={scheme.code}
+          investmentTerms={enrichment?.investmentTerms}
+        />
       </section>
 
       {/* 4. DATA PROVENANCE & LINEAGE AUDIT */}

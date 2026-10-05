@@ -8,6 +8,8 @@ import com.yukira.backend.client.dto.CalculationDtos.MetricOutputItemDto;
 import com.yukira.backend.client.dto.CalculationDtos.ObservationItemDto;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +23,8 @@ import java.util.*;
 @Service
 public class CalculationOrchestratorService {
 
-    private static final Map<String, String> CANONICAL_TO_ENGINE_METRIC_CODE = Map.of(
-        "MKT-01", "REL-01",
-        "MKT-02", "REL-04"
-    );
+    private static final Logger log = LoggerFactory.getLogger(CalculationOrchestratorService.class);
+    private static final Map<String, String> CANONICAL_TO_ENGINE_METRIC_CODE = Map.of();
 
     private final NavObservationRepository navObservationRepository;
     private final BenchmarkObservationRepository benchmarkObservationRepository;
@@ -268,9 +268,11 @@ public class CalculationOrchestratorService {
             run.setErrorMessage(response.errorMessage());
 
         } catch (Exception e) {
+            log.warn("Quant Engine HTTP service unavailable ({}); refusing non-authoritative Java fallback scoring", e.getMessage());
             run.setRunStatus("FAILED");
+            run.setEngineSoftwareVersion("PYTHON-QUANT-UNAVAILABLE");
             run.setExecutionCompletedAt(OffsetDateTime.now());
-            run.setErrorMessage("Quant Engine invocation failure: " + e.getMessage());
+            run.setErrorMessage("Authoritative Python quant engine unavailable; Java offline fallback is not parity-certified for score-producing runs.");
         }
 
         return calculationRunRepository.save(run);

@@ -1,9 +1,5 @@
 import Link from "next/link";
-import {
-  PageContainer,
-  SectionHeading,
-  MetricGrid,
-} from "@/components/layout/PageContainer";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const SEVEN_STEPS = [
   {
@@ -81,111 +77,140 @@ const PRINCIPLES = [
 export default function HomePage() {
   return (
     <PageContainer width="app">
-      {/* Masthead — proposition and primary investor actions */}
-      <section className="panel mb-6">
-        <div className="panel-header">
-          <p className="eyebrow">Quantitative Investment Intelligence · Institutional-Oriented Checkpoint</p>
-        </div>
-        <div className="px-5 py-6 sm:px-6 sm:py-8">
-          <h1 className="max-w-[26ch] text-[clamp(1.75rem,4vw,2.75rem)] font-semibold leading-[1.1] tracking-[-0.025em] text-text-primary">
-            Before you commit capital, ask one more question.
+      {/* Template Hero Masthead */}
+      <section className="relative overflow-hidden rounded-3xl bg-surface-raised p-6 sm:p-10 lg:p-14 mb-10 border border-border dark:bg-[#131314] dark:border-[#2a2a2b] dark:grid-bg">
+        <div className="flex flex-col gap-6 max-w-4xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3.5 py-1 text-xs font-medium text-text-secondary dark:bg-[#1c1b1d] dark:border-[#2a2a2b] dark:text-[#50d8e9]">
+            <span className="h-2 w-2 rounded-full bg-accent dark:bg-[#50d8e9]" />
+            Quantitative Investment Intelligence Platform
+          </div>
+
+          <h1 className="text-3xl font-extrabold tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
+            Bringing investment intelligence to life.
           </h1>
-          <p className="mt-4 max-w-[74ch] text-[14px] leading-[1.6] text-text-secondary">
-            YUKIRA is an evidence-based quantitative decision-support platform initially focused on
-            Indian mutual funds. We reject simplistic trailing returns, opaque star ratings, and
-            marketing narratives. Instead, we provide deterministic mathematical calculation,
-            cryptographic source provenance, and point-in-time empirical verification.
+
+          <p className="text-base sm:text-lg leading-relaxed text-text-secondary max-w-3xl">
+            Before you commit capital, ask one more question. YUKIRA is an evidence-based quantitative decision-support platform for Indian mutual funds, replacing trailing returns and star ratings with deterministic calculation, point-in-time verification, and cryptographic provenance.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            <Link href="/funds" className="btn btn-primary">
+
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Link
+              href="/funds"
+              className="rounded-full bg-text-primary px-6 py-3 text-sm font-semibold text-background transition-all hover:opacity-90 dark:bg-[#5E6BFF] dark:text-white"
+            >
               Explore Funds
             </Link>
-            <Link href="/funds/1" className="btn btn-secondary">
-              Canonical Pilot Workspace
+            <Link
+              href="/funds/10189"
+              className="rounded-full bg-background px-6 py-3 text-sm font-semibold text-text-primary border border-border transition-all hover:bg-surface-raised dark:bg-[#1c1b1d] dark:border-[#2a2a2b] dark:text-[#e5e2e3]"
+            >
+              Canonical Pilot #10189
             </Link>
-            <Link href="/methodology" className="btn btn-secondary">
-              Methodology &amp; Governance
+            <Link
+              href="/methodology"
+              className="rounded-full bg-transparent px-6 py-3 text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Methodology & Governance
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Governance mandate — contextual, not a decorative ambient banner */}
-      <section className="mb-8" aria-label="Governance Mandate">
-        <div className="panel state-candidate">
-          <div className="panel-header">
-            <p className="eyebrow">Governance Mandate</p>
-            <span className="status-badge state-candidate">
+      {/* Governance Mandate Banner */}
+      <section className="mb-10">
+        <div className="panel p-6 dark:bg-[#1c1b1d] dark:border-[#2a2a2b]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4 mb-4 dark:border-[#2a2a2b]">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+                Governance Mandate
+              </p>
+              <h2 className="text-lg font-bold text-text-primary mt-1">
+                Methodology Verification Lifecycle
+              </h2>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded px-3 py-1 font-mono text-xs uppercase tracking-widest bg-[#471e00]/30 text-[#ffb689] border border-[#e0731d]">
               IMPLEMENTED ≠ VALIDATED ≠ APPROVED
             </span>
           </div>
-          <div className="px-4 py-4">
-            <p className="max-w-[80ch] text-[13px] leading-[1.6] text-text-secondary">
-              In YUKIRA, implementing an algorithm in code does not constitute approval for live
-              investment advice. Every calculation is governed under strict empirical validation
-              standards, ensuring transparent verification across approved, candidate, and research
-              methodologies.
-            </p>
-            <p className="mt-3 border-t border-border pt-3 font-mono text-[11px] leading-[1.6] text-text-tertiary">
-              Zero automated buy/sell tips · Zero 5-star ratings · Zero synthetic NAV imputation ·
-              Zero LLM hallucinations in financial calculations.
-            </p>
+          <p className="text-sm leading-relaxed text-text-secondary">
+            In YUKIRA, implementing an algorithm in code does not constitute approval for live investment advice. Every calculation is governed under strict empirical validation standards across candidate, validated, and approved methodology tiers.
+          </p>
+          <div className="mt-4 pt-3 border-t border-border font-mono text-xs text-text-tertiary flex flex-wrap gap-4 dark:border-[#2a2a2b]">
+            <span>Zero automated buy/sell tips</span>
+            <span>·</span>
+            <span>Zero star ratings</span>
+            <span>·</span>
+            <span>Zero synthetic NAV imputation</span>
+            <span>·</span>
+            <span>Zero LLM financial calculations</span>
           </div>
         </div>
       </section>
 
-      {/* Canonical pilot instrument — evidence at a glance */}
-      <section className="mb-10" id="pilot">
-        <div className="mb-4">
-          <SectionHeading
-            ordinal="01"
-            title="Canonical Pilot Instrument"
-            description="Authoritative canonical pilot dataset for empirical baseline verifications."
-            action={
-              <Link href="/funds/1" className="btn btn-secondary btn-sm">
-                Open Fund Workspace
-              </Link>
-            }
-          />
-        </div>
-
-        <div className="panel mb-4">
-          <div className="panel-header">
-            <h3 className="text-[15px] font-semibold text-text-primary">
-              HDFC Flexi Cap Fund (Direct Plan · Growth)
-            </h3>
-            <span className="mono-meta">AMFI 118955 · ISIN INF179K01UT0</span>
+      {/* Canonical Pilot Spotlight */}
+      <section className="mb-12" id="pilot">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+              01 · Baseline Verification
+            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+              Canonical Pilot Instrument
+            </h2>
           </div>
-          <dl className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <dt className="def-label">AMFI Scheme Code</dt>
-              <dd className="def-value">118955</dd>
-              <dd className="mono-meta mt-1">ISIN: INF179K01UT0</dd>
-            </div>
-            <div>
-              <dt className="def-label">Observation Horizon</dt>
-              <dd className="def-value">5 Full Years</dd>
-              <dd className="mono-meta mt-1">2019-01-01 → 2024-01-15</dd>
-            </div>
-            <div>
-              <dt className="def-label">Trading Ledger</dt>
-              <dd className="def-value">1,243 Market Dates</dd>
-              <dd className="mono-meta mt-1">Zero synthetic gaps</dd>
-            </div>
-            <div>
-              <dt className="def-label">Cryptographic Hash</dt>
-              <dd
-                className="def-value text-[12px]"
-                title="SHA-256: 900508f8bf137cb8ba02adae70a0eb6a0be7318389e9b3943f0bee738f3be259"
-              >
-                900508f8bf13…
-              </dd>
-              <dd className="mono-meta mt-1">AMFI Raw Source #1</dd>
-            </div>
-          </dl>
+          <Link
+            href="/funds/10189"
+            className="rounded-full bg-surface-raised px-4 py-2 text-xs font-semibold text-text-primary border border-border hover:bg-surface dark:bg-[#1c1b1d] dark:border-[#2a2a2b]"
+          >
+            Open Fund Workspace #10189
+          </Link>
         </div>
 
-        <MetricGrid min={260}>
+        <div className="panel p-6 mb-6 dark:bg-[#1c1b1d] dark:border-[#2a2a2b]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-4 mb-4 dark:border-[#2a2a2b]">
+            <h3 className="text-base font-bold text-text-primary">
+              HDFC Flexi Cap Fund (Direct Plan · Growth Option)
+            </h3>
+            <span className="font-mono text-xs text-text-tertiary">
+              AMFI 118955 · ISIN INF179K01UT0
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-3 rounded-xl bg-surface-inset dark:bg-[#0e0e0f] dark:border dark:border-[#2a2a2b]">
+              <p className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary">
+                AMFI Scheme Code
+              </p>
+              <p className="font-mono text-sm font-semibold text-text-primary mt-1">118955</p>
+              <p className="font-mono text-[10px] text-text-tertiary mt-0.5">ISIN: INF179K01UT0</p>
+            </div>
+            <div className="p-3 rounded-xl bg-surface-inset dark:bg-[#0e0e0f] dark:border dark:border-[#2a2a2b]">
+              <p className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary">
+                Observation Horizon
+              </p>
+              <p className="font-mono text-sm font-semibold text-text-primary mt-1">5 Full Years</p>
+              <p className="font-mono text-[10px] text-text-tertiary mt-0.5">2019-01-01 → 2024-01-15</p>
+            </div>
+            <div className="p-3 rounded-xl bg-surface-inset dark:bg-[#0e0e0f] dark:border dark:border-[#2a2a2b]">
+              <p className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary">
+                Trading Ledger
+              </p>
+              <p className="font-mono text-sm font-semibold text-text-primary mt-1">1,243 Market Dates</p>
+              <p className="font-mono text-[10px] text-text-tertiary mt-0.5">Zero synthetic gaps</p>
+            </div>
+            <div className="p-3 rounded-xl bg-surface-inset dark:bg-[#0e0e0f] dark:border dark:border-[#2a2a2b]">
+              <p className="font-mono text-[11px] uppercase tracking-widest text-text-tertiary">
+                Cryptographic Hash
+              </p>
+              <p className="font-mono text-xs font-semibold text-text-primary mt-1 truncate" title="SHA-256: 900508f8bf137cb8ba02adae70a0eb6a0be7318389e9b3943f0bee738f3be259">
+                900508f8bf13…
+              </p>
+              <p className="font-mono text-[10px] text-text-tertiary mt-0.5">AMFI Raw Source #1</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
               code: "RET-02",
@@ -213,123 +238,135 @@ export default function HomePage() {
               risk: true,
             },
           ].map((m) => (
-            <div key={m.code} className={m.risk ? "metric-tile metric-risk-rule" : "metric-tile"}>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="eyebrow">{m.name}</span>
-                <span className="mono-meta shrink-0">{m.code}</span>
+            <div
+              key={m.code}
+              className="p-5 rounded-2xl bg-surface border border-border flex flex-col justify-between dark:bg-[#1c1b1d] dark:border-[#2a2a2b]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs uppercase tracking-widest text-text-tertiary">{m.name}</span>
+                <span className="font-mono text-xs text-accent font-semibold dark:text-[#50d8e9]">{m.code}</span>
               </div>
-              <div className="metric-rule" />
-              <p className="data-value-lg">{m.value}</p>
-              <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">{m.note}</p>
+              <div className="my-3 text-3xl font-bold font-mono tracking-tight text-text-primary">
+                {m.value}
+              </div>
+              <div className="font-mono text-[11px] text-text-tertiary">{m.note}</div>
             </div>
           ))}
-        </MetricGrid>
-
-        <p className="mt-3 font-mono text-[11px] leading-[1.6] text-text-tertiary">
-          Verified canonical analytical metrics, evaluated 2024-01-15 with knowledge cutoff
-          2024-01-31.
-        </p>
+        </div>
       </section>
 
-      {/* Progressive disclosure framework */}
-      <section className="mb-10 scroll-mt-20" id="framework">
-        <div className="mb-4">
-          <SectionHeading
-            ordinal="02"
-            title="Progressive Disclosure Architecture"
-            description="Every analytical page adheres to a 7-step progressive disclosure framework, presenting immediate clarity at the surface and complete cryptographic provenance one level deeper."
-          />
+      {/* Progressive Disclosure Architecture */}
+      <section className="mb-12" id="framework">
+        <div className="mb-6">
+          <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+            02 · Information Architecture
+          </p>
+          <h2 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+            7-Step Progressive Disclosure Architecture
+          </h2>
+          <p className="mt-2 text-sm text-text-secondary">
+            Every analytical page presents immediate clarity at the surface and complete cryptographic provenance one level deeper.
+          </p>
         </div>
 
-        <ol className="grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {SEVEN_STEPS.map((step) => (
-            <li key={step.ordinal} className="bg-surface p-4">
-              <span className="tab-ordinal">{step.ordinal}</span>
-              <h3 className="mt-1.5 text-[13px] font-semibold leading-[1.4] text-text-primary">
+            <div
+              key={step.ordinal}
+              className="p-5 rounded-2xl bg-surface border border-border dark:bg-[#1c1b1d] dark:border-[#2a2a2b]"
+            >
+              <span className="font-mono text-xs font-bold text-accent dark:text-[#50d8e9]">
+                {step.ordinal}
+              </span>
+              <h3 className="mt-2 text-sm font-bold text-text-primary">
                 {step.title}
               </h3>
-              <p className="mt-1.5 text-[12px] leading-[1.55] text-text-secondary">{step.body}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* Epistemic principles */}
-      <section className="mb-10 scroll-mt-20" id="philosophy">
-        <div className="mb-4">
-          <SectionHeading
-            ordinal="03"
-            title="Epistemic Architecture"
-            description="Mathematical discipline, deterministic execution, and complete lineage replace fintech marketing promises."
-          />
-        </div>
-
-        <MetricGrid min={320}>
-          {PRINCIPLES.map((p) => (
-            <div key={p.ordinal} className="panel">
-              <div className="panel-header">
-                <span className="tab-ordinal">{p.ordinal}</span>
-              </div>
-              <div className="px-4 py-4">
-                <h3 className="text-[14px] font-semibold leading-[1.35] text-text-primary">
-                  {p.title}
-                </h3>
-                <p className="mt-2 text-[12.5px] leading-[1.6] text-text-secondary">
-                  {p.body}
-                  {p.code?.map((c) => (
-                    <code key={c} className="field-mono mx-0.5 inline-block align-baseline">
-                      {c}
-                    </code>
-                  ))}
-                </p>
-              </div>
+              <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+                {step.body}
+              </p>
             </div>
           ))}
-        </MetricGrid>
+        </div>
       </section>
 
-      {/* Continuing investigation — a task list, not a marketing CTA */}
-      <section className="mb-4">
-        <div className="mb-4">
-          <SectionHeading
-            ordinal="04"
-            title="Continue The Verification"
-            description="Inspect authentic mutual fund records, examine point-in-time calculation runs, and explore methodology specifications."
-          />
+      {/* Epistemic Architecture */}
+      <section className="mb-12" id="philosophy">
+        <div className="mb-6">
+          <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+            03 · Foundational Rules
+          </p>
+          <h2 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+            Epistemic Architecture & Invariants
+          </h2>
         </div>
 
-        <div className="panel">
-          <ul className="divide-y divide-border">
-            {[
-              {
-                href: "/funds",
-                title: "Open Fund Discovery Catalog",
-                note: "Search the canonical scheme universe by AMC, plan, option, and AMFI code.",
-              },
-              {
-                href: "/funds/1",
-                title: "Review the Institutional Analytical Profile",
-                note: "Sixteen metrics across return, risk, ratio, market, and relative dimensions.",
-              },
-              {
-                href: "/methodology",
-                title: "Review Governance Specifications",
-                note: "Methodology lifecycle, approval state, and frozen Phase 2H contract.",
-              },
-            ].map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-surface-raised sm:flex-row sm:items-center sm:justify-between sm:gap-6"
-                >
-                  <span className="text-[13.5px] font-medium text-text-primary">{item.title}</span>
-                  <span className="min-w-0 flex-1 text-[12px] leading-[1.5] text-text-tertiary sm:text-right">
-                    {item.note}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PRINCIPLES.map((p) => (
+            <div
+              key={p.ordinal}
+              className="p-6 rounded-2xl bg-surface border border-border dark:bg-[#1c1b1d] dark:border-[#2a2a2b]"
+            >
+              <div className="font-mono text-xs font-bold text-accent dark:text-[#50d8e9] mb-2">
+                {p.ordinal}
+              </div>
+              <h3 className="text-base font-bold text-text-primary">
+                {p.title}
+              </h3>
+              <p className="mt-2 text-xs leading-relaxed text-text-secondary">
+                {p.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Next Verification Steps */}
+      <section className="mb-10">
+        <div className="mb-6">
+          <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
+            04 · Continue Verification
+          </p>
+          <h2 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+            Verification Workflows
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            {
+              href: "/funds",
+              title: "Open Fund Discovery Catalog",
+              note: "Search canonical scheme universe by AMC, plan, option, and AMFI code.",
+            },
+            {
+              href: "/funds/10189",
+              title: "Review Analytical Profile",
+              note: "Sixteen metrics across return, risk, ratio, and market dimensions.",
+            },
+            {
+              href: "/methodology",
+              title: "Governance Specifications",
+              note: "Methodology lifecycle, approval state, and frozen Phase 2H contract.",
+            },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="p-6 rounded-2xl bg-surface border border-border hover:border-text-primary transition-all flex flex-col justify-between dark:bg-[#1c1b1d] dark:border-[#2a2a2b] dark:hover:border-[#50d8e9]"
+            >
+              <div>
+                <h3 className="text-base font-bold text-text-primary">
+                  {item.title}
+                </h3>
+                <p className="mt-2 text-xs text-text-secondary leading-relaxed">
+                  {item.note}
+                </p>
+              </div>
+              <div className="mt-4 font-mono text-xs font-semibold text-accent dark:text-[#50d8e9] flex items-center gap-1">
+                Open workflow &rarr;
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </PageContainer>

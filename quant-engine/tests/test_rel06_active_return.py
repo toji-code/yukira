@@ -1,7 +1,7 @@
 """
-YUKIRA REL-06 Dispatcher & Kernel Tests (Annualized Mean Active Return, 3Y).
+YUKIRA REL-03 Dispatcher & Kernel Tests (Annualized Mean Active Return, 3Y).
 
-REL-06 is the paired-return decomposition required by the Benchmark
+REL-03 is the paired-return decomposition required by the Benchmark
 Relationship panel: it reports the annualised mean of the synchronous
 daily active return series (R_p - R_b).
 
@@ -10,7 +10,7 @@ Scope covered here:
 2. Annualisation is a LINEAR multiplier on the mean, deliberately NOT the
    sqrt(periods_per_year) dispersion scaling used by tracking error.
 3. A zero active return is a VALID measurement (0.0), not a zero-division
-   error and not "insufficient data". REL-06 has no denominator.
+   error and not "insufficient data". REL-03 has no denominator.
 4. Dispatcher normal case, and exact equality with the pure kernel.
 5. INSUFFICIENT_DATA below the 700 paired-observation gate; numeric_value
    is NULL and is never fabricated as 0.0.
@@ -18,13 +18,13 @@ Scope covered here:
    rather than a positionally mis-aligned number.
 7. Alignment: date-keyed intersection (synchronous pairing), not
    positional zip; order-independent.
-8. Resolution contract: REL-06 consumes the exact same aligned pair as
-   REL-02 (Tracking Error) and REL-03 (Jensen's Alpha), so it adds no
+8. Resolution contract: REL-03 consumes the exact same aligned pair as
+   REL-01 (Tracking Error) and REL-02 (Jensen's Alpha), so it adds no
    separate or looser data-resolution path.
-9. Non-regression: REL-02 (Tracking Error) / REL-03 (Jensen's Alpha)
-   values are unchanged by REL-06's presence in the same request. These
-   are the Phase 2S scope-lock / CR-04 registry identities; REL-02 and
-   REL-03 must never dispatch Pearson correlation or R-squared.
+9. Non-regression: REL-01 (Tracking Error) / REL-02 (Jensen's Alpha)
+   values are unchanged by REL-03's presence in the same request. These
+   are the Phase 2S scope-lock / CR-04 registry identities; REL-01 and
+   REL-02 must never dispatch Pearson correlation or R-squared.
 
 All metrics here remain CANDIDATE methodology. Implementation is not
 validation and is not approval.
@@ -96,7 +96,7 @@ def _request(nav_series, bench_series=None, metric_codes=None, **kwargs) -> Calc
         "request_id": "REQ-REL06",
         "as_of_date": as_of,
         "knowledge_cutoff_time": f"{as_of}T23:59:59+05:30",
-        "metric_codes": metric_codes or ["REL-06"],
+        "metric_codes": metric_codes or ["REL-03"],
         "nav_series": nav_series,
     }
     if bench_series is not None:
@@ -178,7 +178,7 @@ def test_zero_active_return_is_valid_zero_not_an_error():
     benchmark = list(portfolio)
 
     assert active_return_mod.mean_active_return(portfolio, benchmark) == 0.0
-    # Unlike the Information Ratio, REL-06 has no denominator: a fund that
+    # Unlike the Information Ratio, REL-03 has no denominator: a fund that
     # exactly tracks its benchmark yields a measurable 0.0, not a division
     # by zero and not a "not available" state.
     assert (
@@ -243,7 +243,7 @@ def test_rel06_dispatch_normal_case_matches_pure_kernel_exactly():
     assert len(items) == 1
     item = items[0]
 
-    assert item.metric_code == "REL-06"
+    assert item.metric_code == "REL-03"
     assert item.status == CalculationStatus.CALCULATED
     assert item.period_type == "3Y"
     assert item.units == "PERCENTAGE"
@@ -424,7 +424,7 @@ def test_rel06_is_independent_of_input_series_ordering():
 
 
 def test_rel06_consumes_the_same_aligned_pair_as_rel02_and_rel03():
-    """REL-06 must not introduce a separate or looser resolution path."""
+    """REL-03 must not introduce a separate or looser resolution path."""
     dates = _dates(740)
     nav_values = _default_nav(740)
     bench_values = _default_bench(740)
@@ -432,35 +432,35 @@ def test_rel06_consumes_the_same_aligned_pair_as_rel02_and_rel03():
     bench_series = [_obs(d, v) for d, v in zip(dates, bench_values)]
 
     items = dispatch_calculation(
-        _request(nav_series, bench_series, metric_codes=["REL-02", "REL-03", "REL-06"])
+        _request(nav_series, bench_series, metric_codes=["REL-01", "REL-02", "REL-03"])
     )
     code_map = {i.metric_code: i for i in items}
-    assert set(code_map) == {"REL-02", "REL-03", "REL-06"}
+    assert set(code_map) == {"REL-01", "REL-02", "REL-03"}
 
     fund_returns = _periodic(nav_values)
     bench_returns = _periodic(bench_values)
 
     # Identical aligned observation set across the two paired-gated metrics.
-    assert code_map["REL-02"].diagnostics["paired_count"] == 739
-    assert code_map["REL-06"].diagnostics["paired_count"] == 739
+    assert code_map["REL-01"].diagnostics["paired_count"] == 739
+    assert code_map["REL-03"].diagnostics["paired_count"] == 739
     assert (
-        code_map["REL-02"].diagnostics["paired_count"]
-        == code_map["REL-06"].diagnostics["paired_count"]
+        code_map["REL-01"].diagnostics["paired_count"]
+        == code_map["REL-03"].diagnostics["paired_count"]
     )
 
-    # REL-02 (Tracking Error) round-trips against the pure kernel on the same
-    # aligned pair, and its active-return diagnostics must equal REL-06's,
+    # REL-01 (Tracking Error) round-trips against the pure kernel on the same
+    # aligned pair, and its active-return diagnostics must equal REL-03's,
     # proving both consumed the identical synchronous pairing.
     expected_te = te_mod.tracking_error(fund_returns, bench_returns, 252.0)
-    assert code_map["REL-02"].numeric_value == pytest.approx(expected_te, abs=1e-12)
-    assert code_map["REL-02"].diagnostics["mean_daily_active_return"] == pytest.approx(
-        code_map["REL-06"].diagnostics["mean_daily_active_return"], abs=1e-15
+    assert code_map["REL-01"].numeric_value == pytest.approx(expected_te, abs=1e-12)
+    assert code_map["REL-01"].diagnostics["mean_daily_active_return"] == pytest.approx(
+        code_map["REL-03"].diagnostics["mean_daily_active_return"], abs=1e-15
     )
-    assert code_map["REL-02"].diagnostics["annualized_mean_active_return"] == pytest.approx(
-        code_map["REL-06"].numeric_value, abs=1e-12
+    assert code_map["REL-01"].diagnostics["annualized_mean_active_return"] == pytest.approx(
+        code_map["REL-03"].numeric_value, abs=1e-12
     )
 
-    # REL-03 (Jensen's Alpha) round-trips against the pure OLS kernel on the
+    # REL-02 (Jensen's Alpha) round-trips against the pure OLS kernel on the
     # same aligned pair (no risk-free series supplied -> raw-return model).
     beta_value = beta_mod.beta(fund_returns, bench_returns, risk_free_rates=None)
     expected_ja = alpha_mod.jensens_alpha_ols(
@@ -470,10 +470,10 @@ def test_rel06_consumes_the_same_aligned_pair_as_rel02_and_rel03():
         portfolio_beta=beta_value,
         periods_per_year=252.0,
     )
-    assert code_map["REL-03"].numeric_value == pytest.approx(expected_ja, abs=1e-12)
-    assert code_map["REL-03"].diagnostics["beta"] == pytest.approx(beta_value, abs=1e-12)
+    assert code_map["REL-02"].numeric_value == pytest.approx(expected_ja, abs=1e-12)
+    assert code_map["REL-02"].diagnostics["beta"] == pytest.approx(beta_value, abs=1e-12)
 
-    assert code_map["REL-06"].numeric_value == pytest.approx(
+    assert code_map["REL-03"].numeric_value == pytest.approx(
         active_return_mod.annualized_mean_active_return(fund_returns, bench_returns, 252.0),
         abs=1e-12,
     )
@@ -490,7 +490,7 @@ def test_rel06_does_not_require_a_risk_free_series():
 
 
 def test_rel06_presence_does_not_change_existing_relative_metric_values():
-    """Non-regression: REL-02 / REL-03 are identical with and without REL-06."""
+    """Non-regression: REL-01 / REL-02 are identical with and without REL-03."""
     nav_series = [_obs(d, v) for d, v in zip(
         _dates(5), [100.0, 102.0, 101.0, 103.0, 106.0]
     )]
@@ -505,7 +505,7 @@ def test_rel06_presence_does_not_change_existing_relative_metric_values():
             _request(
                 nav_series,
                 bench_series,
-                metric_codes=["REL-02", "REL-03"],
+                metric_codes=["REL-01", "REL-02"],
                 parameters=dict(params),
             )
         )
@@ -516,14 +516,14 @@ def test_rel06_presence_does_not_change_existing_relative_metric_values():
             _request(
                 nav_series,
                 bench_series,
-                metric_codes=["REL-02", "REL-03", "REL-06"],
+                metric_codes=["REL-01", "REL-02", "REL-03"],
                 parameters=dict(params),
             )
         )
     }
 
-    # Values fixed by the restored registry identities: REL-02 = Tracking
-    # Error and REL-03 = Jensen's Alpha, each round-tripped against its pure
+    # Values fixed by the restored registry identities: REL-01 = Tracking
+    # Error and REL-02 = Jensen's Alpha, each round-tripped against its pure
     # kernel on the identical 4-pair aligned returns (gate lowered to 4 only
     # for this fixture; the frozen default floor is 700).
     fund_returns = _periodic([o.value for o in nav_series])
@@ -537,17 +537,17 @@ def test_rel06_presence_does_not_change_existing_relative_metric_values():
         portfolio_beta=beta_value,
         periods_per_year=252.0,
     )
-    assert without["REL-02"].numeric_value == pytest.approx(expected_te, abs=1e-12)
-    assert without["REL-03"].numeric_value == pytest.approx(expected_ja, abs=1e-12)
-    # REL-02 must never regress to a correlation ratio in this request either.
+    assert without["REL-01"].numeric_value == pytest.approx(expected_te, abs=1e-12)
+    assert without["REL-02"].numeric_value == pytest.approx(expected_ja, abs=1e-12)
+    # REL-01 must never regress to a correlation ratio in this request either.
+    assert without["REL-01"].units == "PERCENTAGE"
     assert without["REL-02"].units == "PERCENTAGE"
-    assert without["REL-03"].units == "PERCENTAGE"
-    for code in ("REL-02", "REL-03"):
+    for code in ("REL-01", "REL-02"):
         assert with_rel06[code].numeric_value == without[code].numeric_value
         assert with_rel06[code].status == without[code].status
         assert with_rel06[code].units == without[code].units
         assert with_rel06[code].diagnostics == without[code].diagnostics
 
-    assert with_rel06["REL-06"].numeric_value == pytest.approx(
+    assert with_rel06["REL-03"].numeric_value == pytest.approx(
         1.5399412423832328, abs=1e-12
     )

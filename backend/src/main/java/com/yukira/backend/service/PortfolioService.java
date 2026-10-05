@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -18,25 +17,20 @@ public class PortfolioService {
 
     private final PortfolioSnapshotRepository snapshotRepository;
     private final PortfolioHoldingRepository holdingRepository;
+    private final FundEnrichmentService fundEnrichmentService;
 
-    public PortfolioService(PortfolioSnapshotRepository snapshotRepository, PortfolioHoldingRepository holdingRepository) {
+    public PortfolioService(
+        PortfolioSnapshotRepository snapshotRepository,
+        PortfolioHoldingRepository holdingRepository,
+        FundEnrichmentService fundEnrichmentService
+    ) {
         this.snapshotRepository = snapshotRepository;
         this.holdingRepository = holdingRepository;
+        this.fundEnrichmentService = fundEnrichmentService;
     }
 
     public List<HoldingDto> getHoldings(Long schemeOptionId, OffsetDateTime knowledgeCutoff) {
-        return snapshotRepository.findTopBySchemeOptionIdAndAvailabilityTimeLessThanEqualOrderByPortfolioDateDesc(schemeOptionId, knowledgeCutoff)
-                .map(snapshot -> holdingRepository.findByPortfolioSnapshotIdOrderByReportedWeightDesc(snapshot.getId())
-                        .stream()
-                        .map(h -> new HoldingDto(
-                                h.getSecurity().getCanonicalName(),
-                                h.getReportedWeight(),
-                                h.getSecurity().getAssetClass(),
-                                snapshot.getPortfolioDate(),
-                                "SEBI Monthly"
-                        ))
-                        .collect(Collectors.toList()))
-                .orElse(List.of());
+        return fundEnrichmentService.getHoldings(schemeOptionId, knowledgeCutoff);
     }
 
     @Transactional

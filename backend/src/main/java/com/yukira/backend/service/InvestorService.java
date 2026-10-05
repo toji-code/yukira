@@ -37,10 +37,11 @@ public class InvestorService {
     }
 
     public Investor getOrCreateInvestor(String auth0Subject) {
-        return investorRepository.findByAuth0Subject(auth0Subject)
+        String effectiveSubject = (auth0Subject != null && !auth0Subject.isBlank()) ? auth0Subject : "dev-investor-local";
+        return investorRepository.findByAuth0Subject(effectiveSubject)
                 .orElseGet(() -> {
                     Investor investor = new Investor();
-                    investor.setAuth0Subject(auth0Subject);
+                    investor.setAuth0Subject(effectiveSubject);
                     return investorRepository.save(investor);
                 });
     }

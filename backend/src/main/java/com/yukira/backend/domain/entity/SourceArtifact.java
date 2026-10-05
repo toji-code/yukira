@@ -31,6 +31,7 @@ public class SourceArtifact implements Serializable {
     @Column(name = "storage_uri", length = 500)
     private String storageUri;
 
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "payload_blob")
     private byte[] payloadBlob;
 

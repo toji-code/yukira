@@ -14,7 +14,7 @@ def test_health_endpoint():
     assert data["status"] == "UP"
     assert data["engine_version"] == "0.1.0-alpha"
     assert "RET-01" in data["candidate_metrics"]
-    assert "RAT-03" in data["candidate_metrics"]
+    assert "RAT-02" in data["candidate_metrics"]
     assert data["methodology_status"] == "STRICTLY EMPTY"
     assert data["empirical_findings"] == "EXACTLY ZERO"
 
@@ -63,7 +63,7 @@ def test_calculate_candidate_sortino_conflict_metadata():
         "request_id": "REQ-SORTINO-001",
         "as_of_date": "2026-01-05",
         "knowledge_cutoff_time": "2026-01-05T23:59:59+05:30",
-        "metric_codes": ["RAT-03"],
+        "metric_codes": ["RAT-02"],
         "nav_series": [
             {"effective_date": "2025-01-01", "value": 100.0, "availability_time": "2025-01-01T23:00:00+05:30"},
             {"effective_date": "2025-02-01", "value": 98.0, "availability_time": "2025-02-01T23:00:00+05:30"},
@@ -76,7 +76,7 @@ def test_calculate_candidate_sortino_conflict_metadata():
     data = response.json()
     assert len(data["results"]) == 1
     sortino_res = data["results"][0]
-    assert sortino_res["metric_code"] == "RAT-03"
+    assert sortino_res["metric_code"] == "RAT-02"
     assert sortino_res["status"] == "CALCULATED"
     assert sortino_res["diagnostics"]["convention"] == "downside_deviation_divisor_N"
     assert sortino_res["diagnostics"]["methodology_status"] == "CANDIDATE_UNRECONCILED_DIVISOR_CONFLICT"
@@ -87,7 +87,7 @@ def test_calculate_relative_metrics_with_benchmark():
         "request_id": "REQ-BETA-001",
         "as_of_date": "2026-01-05",
         "knowledge_cutoff_time": "2026-01-05T23:59:59+05:30",
-        "metric_codes": ["REL-01", "REL-02"],
+        "metric_codes": ["REL-01", "REL-01"],
         "nav_series": [
             {"effective_date": "2025-01-01", "value": 100.0, "availability_time": "2025-01-01T23:00:00+05:30"},
             {"effective_date": "2025-01-02", "value": 101.0, "availability_time": "2025-01-02T23:00:00+05:30"},
@@ -109,13 +109,13 @@ def test_calculate_relative_metrics_with_benchmark():
     assert results_map["REL-01"]["numeric_value"] is None
     assert results_map["REL-01"]["diagnostics"]["paired_count"] == 2
     assert results_map["REL-01"]["diagnostics"]["min_paired_observations"] == 700
-    # REL-02 is Tracking Error (Phase 2R / Phase 2S scope-lock registry identity).
+    # REL-01 is Tracking Error (Phase 2R / Phase 2S scope-lock registry identity).
     # Its frozen registry floor is 700 paired trading days, so 2 pairs are insufficient.
-    assert results_map["REL-02"]["status"] == "INSUFFICIENT_DATA"
-    assert results_map["REL-02"]["numeric_value"] is None
-    assert results_map["REL-02"]["units"] == "PERCENTAGE"
-    assert results_map["REL-02"]["diagnostics"]["paired_count"] == 2
-    assert results_map["REL-02"]["diagnostics"]["min_paired_observations"] == 700
+    assert results_map["REL-01"]["status"] == "INSUFFICIENT_DATA"
+    assert results_map["REL-01"]["numeric_value"] is None
+    assert results_map["REL-01"]["units"] == "PERCENTAGE"
+    assert results_map["REL-01"]["diagnostics"]["paired_count"] == 2
+    assert results_map["REL-01"]["diagnostics"]["min_paired_observations"] == 700
 
 
 def test_calculate_insufficient_data():
@@ -157,8 +157,8 @@ def test_calculate_with_risk_free_series():
     nav_series = []
     benchmark_series = []
     risk_free_series = []
-    # 720 observations -> 719 paired returns, satisfying the M2N-06 >= 700 floor for REL-01
-    # and the >= 100 down-day floor for REL-04 on this monotonically declining series.
+    # 720 observations -> 719 paired returns, satisfying the M2N-06 >= 700 floor for MKT-01
+    # and the >= 100 down-day floor for MKT-02 on this monotonically declining series.
     for i in range(720):
         d_str = (start_date + datetime.timedelta(days=i)).isoformat()
         nav_series.append({"effective_date": d_str, "value": 100.0 - 0.05 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
@@ -170,7 +170,7 @@ def test_calculate_with_risk_free_series():
         "request_id": "REQ-RF-001",
         "as_of_date": as_of,
         "knowledge_cutoff_time": f"{as_of}T23:59:59+05:30",
-        "metric_codes": ["RAT-01", "REL-01", "REL-04", "RAT-02"],
+        "metric_codes": ["RAT-01", "MKT-01", "MKT-02", "RAT-03"],
         "nav_series": nav_series,
         "benchmark_series": benchmark_series,
         "risk_free_series": risk_free_series,
@@ -181,11 +181,11 @@ def test_calculate_with_risk_free_series():
     assert data["status"] == "SUCCESS"
     results_map = {r["metric_code"]: r for r in data["results"]}
     assert results_map["RAT-01"]["status"] == "CALCULATED"
-    assert results_map["REL-01"]["status"] == "CALCULATED"
-    assert results_map["REL-04"]["status"] == "CALCULATED"
-    assert results_map["RAT-02"]["status"] == "CALCULATED"
-    assert results_map["REL-01"]["diagnostics"]["risk_free_aligned"] is True
-    assert results_map["REL-04"]["diagnostics"]["risk_free_required"] is False
+    assert results_map["MKT-01"]["status"] == "CALCULATED"
+    assert results_map["MKT-02"]["status"] == "CALCULATED"
+    assert results_map["RAT-03"]["status"] == "CALCULATED"
+    assert results_map["MKT-01"]["diagnostics"]["risk_free_aligned"] is True
+    assert results_map["MKT-02"]["diagnostics"]["risk_free_required"] is False
 
 
 def test_calculate_active_return_ret07():
@@ -193,7 +193,7 @@ def test_calculate_active_return_ret07():
         "request_id": "REQ-RET07-001",
         "as_of_date": "2024-01-15",
         "knowledge_cutoff_time": "2024-01-31T23:59:59+05:30",
-        "metric_codes": ["RET-07", "REL-02", "REL-03"],
+        "metric_codes": ["RET-07", "MKT-01", "REL-02"],
         "nav_series": [
             {"effective_date": "2021-01-15", "value": 100.0, "availability_time": "2024-01-31T23:59:59+05:30"},
             {"effective_date": "2024-01-15", "value": 200.0, "availability_time": "2024-01-31T23:59:59+05:30"},

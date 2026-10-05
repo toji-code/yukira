@@ -28,6 +28,9 @@ public class SchemeOption implements Serializable {
     @Column(name = "status", nullable = false, length = 30)
     private String status = "ACTIVE";
 
+    @Transient
+    private com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore;
+
     public SchemeOption() {}
 
     public SchemeOption(SchemePlan plan, String optionType, String amfiCode, String isin) {
@@ -54,4 +57,7 @@ public class SchemeOption implements Serializable {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public com.yukira.backend.scoring.dto.YukiraScoreSummary getYukiraScore() { return yukiraScore; }
+    public void setYukiraScore(com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore) { this.yukiraScore = yukiraScore; }
 }

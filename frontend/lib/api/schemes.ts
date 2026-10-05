@@ -10,7 +10,10 @@ export async function fetchSchemeById(id: number): Promise<Scheme> {
 }
 
 export async function fetchAllSchemeOptions(): Promise<SchemeOption[]> {
-  return apiFetch<SchemeOption[]>('/api/v1/schemes/options');
+  // The full expanded-universe share-class payload is ~9.5 MB across 14k+ options, which
+  // legitimately exceeds the shared 8s client default. Give this call an explicit budget
+  // rather than raising the global default for every other endpoint.
+  return apiFetch<SchemeOption[]>('/api/v1/schemes/options', undefined, 45000);
 }
 
 export async function fetchSchemeOptionsBySchemeId(schemeId: number): Promise<SchemeOption[]> {
@@ -25,4 +28,9 @@ export async function fetchSchemeOptionsBySchemeId(schemeId: number): Promise<Sc
 
 export async function fetchSchemeHoldings(schemeOptionId: number): Promise<Holding[]> {
   return apiFetch<Holding[]>(`/api/v1/schemes/options/${schemeOptionId}/holdings`);
+}
+
+export async function searchSchemeOptions(query: string): Promise<SchemeOption[]> {
+  if (!query || query.trim().length === 0) return [];
+  return apiFetch<SchemeOption[]>(`/api/v1/schemes/options?search=${encodeURIComponent(query.trim())}`);
 }

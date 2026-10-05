@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
+
 
 @Repository
 public interface BenchmarkObservationRepository extends JpaRepository<BenchmarkObservation, Long> {
@@ -23,6 +25,15 @@ public interface BenchmarkObservationRepository extends JpaRepository<BenchmarkO
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    @Query("SELECT MAX(b.effectiveDate) FROM BenchmarkObservation b WHERE b.benchmark.id = :benchmarkId")
+    Optional<LocalDate> findMaxEffectiveDateByBenchmarkId(@Param("benchmarkId") Long benchmarkId);
+
+    @Query("SELECT MIN(b.effectiveDate) FROM BenchmarkObservation b WHERE b.benchmark.id = :benchmarkId")
+    Optional<LocalDate> findMinEffectiveDateByBenchmarkId(@Param("benchmarkId") Long benchmarkId);
+
+    @Query("SELECT MAX(b.availabilityTime) FROM BenchmarkObservation b WHERE b.benchmark.id = :benchmarkId")
+    Optional<OffsetDateTime> findMaxAvailabilityTimeByBenchmarkId(@Param("benchmarkId") Long benchmarkId);
 
     @Query(value = """
         WITH latest_eligible AS (

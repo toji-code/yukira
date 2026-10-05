@@ -107,7 +107,7 @@ def test_non_numeric_beta_rejected():
 
 
 # ==============================================================================
-# Tests for Option B: Econometric Time-Series OLS Intercept (REL-03)
+# Tests for Option B: Econometric Time-Series OLS Intercept (REL-02)
 # ==============================================================================
 
 from src.alpha import jensens_alpha_ols
@@ -187,4 +187,4 @@ def test_jensens_alpha_ols_non_finite_inputs():
     with pytest.raises(ValueError, match="must be finite"):
         jensens_alpha_ols([0.01, float("nan")], [0.01, 0.02])
     with pytest.raises(ValueError, match="must be finite"):
-        jensens_alpha_ols([0.01, 0.02], [0.01, float("inf")])
+        jensens_alpha_ols([0.01, 0.02], [0.01, float("inf")])

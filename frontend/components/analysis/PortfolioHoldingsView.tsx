@@ -87,7 +87,8 @@ export function PortfolioHoldingsView({ schemeOptionId }: PortfolioHoldingsViewP
           <thead>
             <tr>
               <th scope="col">Security Name</th>
-              <th scope="col">Category/Type</th>
+              <th scope="col">ISIN</th>
+              <th scope="col">Sector / Asset Class</th>
               <th scope="col" className="text-right">Weight</th>
               <th scope="col" className="text-right">As-Of Date</th>
               <th scope="col">Data Quality</th>
@@ -97,18 +98,23 @@ export function PortfolioHoldingsView({ schemeOptionId }: PortfolioHoldingsViewP
             {holdings.map((h, i) => (
               <tr key={h.id ?? i}>
                 <td className="key font-medium">{h.securityName}</td>
-                <td>{h.category || "Not available"}</td>
-                <td className="num">{(h.weight * 100).toFixed(2)}%</td>
+                <td className="font-mono text-[12px] text-text-tertiary">
+                  {h.isin || "Not available"}
+                </td>
+                <td>{h.sector || h.category || h.assetClass || "Not available"}</td>
+                <td className="num font-semibold text-text-primary">
+                  {h.formattedWeight || (h.weight != null ? `${(h.weight * 100).toFixed(2)}%` : "Not available")}
+                </td>
                 <td className="num text-right text-text-tertiary">{h.asOfDate}</td>
                 <td>
                   <span
                     className={`status-badge ${
-                      h.source === "VERIFIED" || h.source === "SOURCE_ARTIFACT_VERIFIED"
+                      h.dataQuality === "VERIFIED" || h.source === "VERIFIED" || h.source === "SOURCE_ARTIFACT_VERIFIED"
                         ? "state-approved"
                         : "state-candidate"
                     }`}
                   >
-                    {h.source || "UNVERIFIED"}
+                    {h.dataQuality || h.source || "UNVERIFIED"}
                   </span>
                 </td>
               </tr>

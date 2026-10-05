@@ -22,6 +22,7 @@ import java.util.Optional;
 public class AmfiSourceClient {
 
     private static final String BASE_URL = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx";
+    public static final String NAV_ALL_URL = "https://portal.amfiindia.com/spages/NAVAll.txt";
     private static final DateTimeFormatter AMFI_URL_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH);
 
     private final DataSourceRepository dataSourceRepository;
@@ -132,32 +133,58 @@ public class AmfiSourceClient {
         return sourceArtifactRepository.save(artifact);
     }
 
+    /**
+     * Fetches the live AMFI daily mutual fund universe (NAVAll.txt) directly from the official portal.
+     * Computes SHA-256 digest across raw bytes and idempotently persists as UNIVERSE_CATALOG_TEXT source artifact.
+     */
+    public SourceArtifact fetchAndPersistUniverseCatalogArtifact() {
+        OffsetDateTime retrievalTimestamp = OffsetDateTime.now();
+        byte[] rawBytes = executeHttpGet(NAV_ALL_URL);
+        String sha256Hash = computeSha256(rawBytes);
+
+        Optional<SourceArtifact> existing = sourceArtifactRepository.findBySha256Hash(sha256Hash);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        DataSource amfiSource = dataSourceRepository.findByCode("AMFI_PORTAL")
+            .orElseGet(() -> dataSourceRepository.save(new DataSource("AMFI_PORTAL", "AMFI NAV Historical Portal", "AMFI")));
+
+        SourceArtifact artifact = new SourceArtifact(
+            amfiSource,
+            retrievalTimestamp,
+            "UNIVERSE_CATALOG_TEXT",
+            sha256Hash,
+            (long) rawBytes.length
+        );
+        artifact.setStorageUri(NAV_ALL_URL);
+        artifact.setPayloadBlob(rawBytes);
+
+        return sourceArtifactRepository.save(artifact);
+    }
+
+    private final java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+        .connectTimeout(java.time.Duration.ofSeconds(30))
+        .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+        .build();
+
     private byte[] executeHttpGet(String urlString) {
-        HttpURLConnection conn = null;
         try {
-            URL url = new java.net.URI(urlString).toURL();
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(30000);
-            conn.setReadTimeout(60000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(new java.net.URI(urlString))
+                .timeout(java.time.Duration.ofSeconds(60))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .GET()
+                .build();
 
-            int responseCode = conn.getResponseCode();
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw new IllegalStateException("AMFI portal returned HTTP status: " + responseCode + " for " + urlString);
+            java.net.http.HttpResponse<byte[]> response = httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+
+            if (response.statusCode() != 200) {
+                throw new IllegalStateException("AMFI portal returned HTTP status: " + response.statusCode() + " for " + urlString);
             }
 
-            byte[] payload;
-            try (InputStream in = conn.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, bytesRead);
-                }
-                payload = out.toByteArray();
-            }
-
+            byte[] payload = response.body();
             String prefix = new String(payload, 0, Math.min(payload.length, 120), java.nio.charset.StandardCharsets.ISO_8859_1).trim();
             if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!DOCTYPE")) {
                 throw new IllegalStateException("AMFI portal returned HTML page instead of NAV text stream for " + urlString);
@@ -166,10 +193,6 @@ public class AmfiSourceClient {
             return payload;
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch raw artifact from AMFI portal: " + e.getMessage(), e);
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
         }
     }
 

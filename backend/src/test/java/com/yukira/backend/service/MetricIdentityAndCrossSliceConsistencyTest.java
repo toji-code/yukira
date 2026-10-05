@@ -107,14 +107,19 @@ class MetricIdentityAndCrossSliceConsistencyTest {
             new ExpectedMetricIdentity("Historical Expected Shortfall (95% 3Y)", "RISK", "TAIL_RISK", "PERCENTAGE", false, false));
 
         // Risk-adjusted family.
+        expectedRegistry.put("RAT-02",
+            new ExpectedMetricIdentity("Sortino Ratio 3Y", "RISK_ADJUSTED", "RISK_RETURN", "RATIO", false, true));
+        expectedRegistry.put("RAT-03",
+            new ExpectedMetricIdentity("Treynor Ratio 3Y", "RISK_ADJUSTED", "RISK_RETURN", "RATIO", true, true));
         expectedRegistry.put("RAT-04",
             new ExpectedMetricIdentity("Information Ratio 3Y", "RISK_ADJUSTED", "BENCHMARK_RELATIVE", "RATIO", true, false));
 
-        // Market sensitivity family: MKT-01/MKT-02 are frozen-registry aliases of REL-01/REL-04.
+        // Market sensitivity family: MKT-01 through MKT-05 per frozen Phase 2H scope.
+        // MKT-01 (Beta) consumes both benchmark and risk-free rate.
         expectedRegistry.put("MKT-01",
-            new ExpectedMetricIdentity("Beta 3Y", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, false));
+            new ExpectedMetricIdentity("Beta 3Y", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, true));
         expectedRegistry.put("MKT-02",
-            new ExpectedMetricIdentity("Downside Beta", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, false));
+            new ExpectedMetricIdentity("Downside Beta 3Y", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, false));
 
         // Capture family. MKT-03/04/05 remain Capture metrics per the frozen registry.
         expectedRegistry.put("MKT-03",
@@ -124,20 +129,15 @@ class MetricIdentityAndCrossSliceConsistencyTest {
         expectedRegistry.put("MKT-05",
             new ExpectedMetricIdentity("Capture Spread (3Y)", "MARKET_SENSITIVITY", "CAPTURE_RATIO", "PERCENTAGE_POINTS", true, false));
 
-        // Benchmark / alpha family. REL-01 = Beta (RATIO), REL-02 = Tracking Error,
-        // REL-03 = Jensen's Alpha, REL-06 = Annualized Mean Active Return.
-        // Only REL-01 and REL-03 consume a risk-free rate (excess-return regression).
+        // Benchmark / alpha family.
+        // REL-01 = Tracking Error 3Y (PERCENTAGE), benchmark required, risk-free not required.
+        // REL-02 = Jensen's Alpha 3Y (PERCENTAGE), benchmark required, risk-free required.
+        // REL-03 = Annualized Mean Active Return 3Y (PERCENTAGE), benchmark required, risk-free not required.
         expectedRegistry.put("REL-01",
-            new ExpectedMetricIdentity("Beta 3Y", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, true));
-        expectedRegistry.put("REL-02",
             new ExpectedMetricIdentity("Tracking Error 3Y", "BENCHMARK_ALPHA", "BENCHMARK_RELATIVE", "PERCENTAGE", true, false));
-        expectedRegistry.put("REL-03",
+        expectedRegistry.put("REL-02",
             new ExpectedMetricIdentity("Jensen's Alpha 3Y", "BENCHMARK_ALPHA", "BENCHMARK_RELATIVE", "PERCENTAGE", true, true));
-        expectedRegistry.put("REL-04",
-            new ExpectedMetricIdentity("Downside Beta (3Y)", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, false));
-        expectedRegistry.put("REL-05",
-            new ExpectedMetricIdentity("Upside Beta (3Y)", "MARKET_SENSITIVITY", "BENCHMARK_RELATIVE", "RATIO", true, false));
-        expectedRegistry.put("REL-06",
+        expectedRegistry.put("REL-03",
             new ExpectedMetricIdentity("Annualized Mean Active Return 3Y", "BENCHMARK_ALPHA", "BENCHMARK_RELATIVE", "PERCENTAGE", true, false));
 
         for (Map.Entry<String, ExpectedMetricIdentity> entry : expectedRegistry.entrySet()) {
@@ -165,33 +165,92 @@ class MetricIdentityAndCrossSliceConsistencyTest {
                 "Metric " + code + " must require point-in-time resolution");
         }
 
-        assertEquals(21, expectedRegistry.size(), "Registry contract table size changed unexpectedly");
+        assertEquals(20, expectedRegistry.size(), "Registry contract table size changed unexpectedly");
 
-        // The live registry must be exactly the contract: no missing row, no undeclared extra row.
-        // A drift here means a migration is out of step with the authoritative contract.
-        Set<String> liveCodes = metricDefinitionRepository.findAll().stream()
+        // The active live registry must be exactly the contract: no missing row, no undeclared extra row.
+        Set<String> activeLiveCodes = metricDefinitionRepository.findAll().stream()
+            .filter(m -> !"DEPRECATED".equals(m.getAnalyticalDimension()))
             .map(MetricDefinition::getMetricCode)
             .collect(java.util.stream.Collectors.toSet());
-        assertEquals(new TreeSet<>(expectedRegistry.keySet()), new TreeSet<>(liveCodes),
-            "Live metric_definition code set must equal the authoritative contract code set exactly");
+        assertEquals(new TreeSet<>(expectedRegistry.keySet()), new TreeSet<>(activeLiveCodes),
+            "Active live metric_definition code set must equal the authoritative contract code set exactly");
 
-        // Guard against the historical one-position identity shift inside the REL family.
-        // REL-01 must be Beta (a RATIO), never Tracking Error; REL-02 must be Tracking Error,
-        // never Jensen's Alpha. A regression here is the exact defect V17 reconciles.
-        assertEquals("RATIO",
+        // Verify that deprecated/unrouted codes are marked DEPRECATED and cannot become active identities
+        List<String> deprecatedCodes = List.of("MKT-06", "REL-04", "REL-05", "REL-06");
+        for (String deprecatedCode : deprecatedCodes) {
+            MetricDefinition def = metricDefinitionRepository.findByMetricCode(deprecatedCode).orElseThrow(
+                () -> new AssertionError("Deprecated metric definition must still exist for audit: " + deprecatedCode));
+            assertEquals("DEPRECATED", def.getAnalyticalDimension(),
+                deprecatedCode + " must be marked DEPRECATED in analytical_dimension");
+            assertEquals("DEPRECATED", def.getMetricCategory(),
+                deprecatedCode + " must be marked DEPRECATED in metric_category");
+        }
+
+        // Canonical identity & unit invariants per Phase 2H / V19-V20 contract:
+        assertEquals("PERCENTAGE",
             metricDefinitionRepository.findByMetricCode("REL-01").orElseThrow().getUnits(),
-            "REL-01 is Beta and must be a RATIO, not a PERCENTAGE");
+            "REL-01 is Tracking Error and must be a PERCENTAGE");
+        assertEquals("Tracking Error 3Y",
+            metricDefinitionRepository.findByMetricCode("REL-01").orElseThrow().getMetricName());
+
         assertEquals("PERCENTAGE",
             metricDefinitionRepository.findByMetricCode("REL-02").orElseThrow().getUnits(),
-            "REL-02 is Tracking Error and must be a PERCENTAGE, not a RATIO");
+            "REL-02 is Jensen's Alpha and must be a PERCENTAGE");
         assertEquals("Jensen's Alpha 3Y",
-            metricDefinitionRepository.findByMetricCode("REL-03").orElseThrow().getMetricName(),
-            "REL-03 must be registered as Jensen's Alpha, not a correlation or R-squared identity");
-        assertEquals("Annualized Mean Active Return 3Y",
-            metricDefinitionRepository.findByMetricCode("REL-06").orElseThrow().getMetricName(),
-            "REL-06 must be registered as Annualized Mean Active Return");
+            metricDefinitionRepository.findByMetricCode("REL-02").orElseThrow().getMetricName());
 
-        // The Capture family must remain Capture metrics (MKT-03/04/05 were not renumbered by V17).
+        assertEquals("PERCENTAGE",
+            metricDefinitionRepository.findByMetricCode("REL-03").orElseThrow().getUnits(),
+            "REL-03 is Annualized Mean Active Return and must be a PERCENTAGE");
+        assertEquals("Annualized Mean Active Return 3Y",
+            metricDefinitionRepository.findByMetricCode("REL-03").orElseThrow().getMetricName());
+
+        assertEquals("RATIO",
+            metricDefinitionRepository.findByMetricCode("MKT-01").orElseThrow().getUnits(),
+            "MKT-01 is Beta 3Y and must be a RATIO");
+        assertEquals("Beta 3Y",
+            metricDefinitionRepository.findByMetricCode("MKT-01").orElseThrow().getMetricName());
+
+        assertEquals("RATIO",
+            metricDefinitionRepository.findByMetricCode("MKT-02").orElseThrow().getUnits(),
+            "MKT-02 is Downside Beta 3Y and must be a RATIO");
+        assertEquals("Downside Beta 3Y",
+            metricDefinitionRepository.findByMetricCode("MKT-02").orElseThrow().getMetricName());
+
+        assertEquals("PERCENTAGE",
+            metricDefinitionRepository.findByMetricCode("MKT-03").orElseThrow().getUnits());
+        assertEquals("Upside Capture Ratio (3Y)",
+            metricDefinitionRepository.findByMetricCode("MKT-03").orElseThrow().getMetricName());
+
+        assertEquals("PERCENTAGE",
+            metricDefinitionRepository.findByMetricCode("MKT-04").orElseThrow().getUnits());
+        assertEquals("Downside Capture Ratio (3Y)",
+            metricDefinitionRepository.findByMetricCode("MKT-04").orElseThrow().getMetricName());
+
+        assertEquals("PERCENTAGE_POINTS",
+            metricDefinitionRepository.findByMetricCode("MKT-05").orElseThrow().getUnits());
+        assertEquals("Capture Spread (3Y)",
+            metricDefinitionRepository.findByMetricCode("MKT-05").orElseThrow().getMetricName());
+
+        assertEquals("RATIO",
+            metricDefinitionRepository.findByMetricCode("RAT-02").orElseThrow().getUnits(),
+            "RAT-02 is Sortino Ratio 3Y and must be a RATIO");
+        assertEquals("Sortino Ratio 3Y",
+            metricDefinitionRepository.findByMetricCode("RAT-02").orElseThrow().getMetricName());
+
+        assertEquals("RATIO",
+            metricDefinitionRepository.findByMetricCode("RAT-03").orElseThrow().getUnits(),
+            "RAT-03 is Treynor Ratio 3Y and must be a RATIO");
+        assertEquals("Treynor Ratio 3Y",
+            metricDefinitionRepository.findByMetricCode("RAT-03").orElseThrow().getMetricName());
+
+        assertEquals("RATIO",
+            metricDefinitionRepository.findByMetricCode("RAT-04").orElseThrow().getUnits(),
+            "RAT-04 is Information Ratio 3Y and must be a RATIO");
+        assertEquals("Information Ratio 3Y",
+            metricDefinitionRepository.findByMetricCode("RAT-04").orElseThrow().getMetricName());
+
+        // The Capture family must remain Capture metrics (MKT-03/04/05).
         for (String captureCode : List.of("MKT-03", "MKT-04", "MKT-05")) {
             assertEquals("CAPTURE_RATIO",
                 metricDefinitionRepository.findByMetricCode(captureCode).orElseThrow().getMetricCategory(),
@@ -367,7 +426,7 @@ class MetricIdentityAndCrossSliceConsistencyTest {
 
         List<String> candidateCodes = List.of(
             "RET-07", "RSK-01", "RSK-02", "RSK-03", "RSK-04", "RSK-05", "RSK-06", "RSK-07",
-            "REL-01", "REL-02", "REL-03", "REL-04", "RAT-04"
+            "REL-01", "REL-02", "REL-03", "RAT-04"
         );
 
         for (String code : candidateCodes) {
@@ -384,8 +443,12 @@ class MetricIdentityAndCrossSliceConsistencyTest {
         AnalyticalProfileResponse.ProfileMetricItem ret02 = allItems.stream()
             .filter(i -> "RET-02".equals(i.metricCode())).findFirst().orElse(null);
         if (ret02 != null) {
-            assertTrue(ret02.governanceStatus().contains("OPERATIONAL") || "APPROVED".equals(ret02.governanceStatus()),
-                "RET-02 must be OPERATIONAL or APPROVED, got: " + ret02.governanceStatus());
+            // No metric may be presented as APPROVED: every methodology_version row is CANDIDATE.
+            assertTrue(ret02.governanceStatus().contains("OPERATIONAL")
+                    || "CANDIDATE".equals(ret02.governanceStatus()),
+                "RET-02 must be OPERATIONAL or CANDIDATE, got: " + ret02.governanceStatus());
+            assertNotEquals("APPROVED", ret02.governanceStatus(),
+                "RET-02 must not be presented as APPROVED while its methodology version is CANDIDATE");
         }
 
         System.out.println("✓ CANDIDATE status preserved for all candidate metrics");
@@ -578,18 +641,30 @@ class MetricIdentityAndCrossSliceConsistencyTest {
         assertEquals(0.9590602545, mkt01.numericValue().doubleValue(), 0.05,
             "MKT-01 canonical Beta mismatch");
 
+        // Governance invariant (AGENTS.md 11, phase2h section 3): IMPLEMENTED != VALIDATED != APPROVED.
+        //
+        // Every methodology_version row is lifecycle CANDIDATE / approval CANDIDATE / validation
+        // UNVALIDATED, with approved_by and approval_record null. The V7 check constraint also
+        // forbids APPROVED without that evidence. RET-03, RAT-01 and RAT-02 were previously
+        // asserted as APPROVED via a hardcoded Java display string that had no governance
+        // backing, overstating the status of three candidate methodologies. These assertions
+        // now pin the honest status.
         AnalyticalProfileResponse.ProfileMetricItem ret02 = findMetric(retMetrics, "RET-02");
-        assertTrue(ret02.governanceStatus().contains("OPERATIONAL") || "APPROVED".equals(ret02.governanceStatus()),
-            "RET-02 must be OPERATIONAL or APPROVED");
+        assertTrue(ret02.governanceStatus().contains("OPERATIONAL")
+                || "CANDIDATE".equals(ret02.governanceStatus()),
+            "RET-02 must not be presented as APPROVED");
 
         AnalyticalProfileResponse.ProfileMetricItem ret03 = findMetric(retMetrics, "RET-03");
-        assertEquals("APPROVED", ret03.governanceStatus(), "RET-03 must be APPROVED");
+        assertEquals("CANDIDATE", ret03.governanceStatus(),
+            "RET-03 must be CANDIDATE; persisted methodology version is not APPROVED");
 
         AnalyticalProfileResponse.ProfileMetricItem rat01 = findMetric(ratMetrics, "RAT-01");
-        assertEquals("APPROVED", rat01.governanceStatus(), "RAT-01 must be APPROVED");
+        assertEquals("CANDIDATE", rat01.governanceStatus(),
+            "RAT-01 must be CANDIDATE; persisted methodology version is not APPROVED");
 
-        AnalyticalProfileResponse.ProfileMetricItem rat02 = findMetric(ratMetrics, "RAT-02");
-        assertEquals("APPROVED", rat02.governanceStatus(), "RAT-02 must be APPROVED");
+        AnalyticalProfileResponse.ProfileMetricItem rat03 = findMetric(ratMetrics, "RAT-03");
+        assertEquals("CANDIDATE", rat03.governanceStatus(),
+            "RAT-03 must be CANDIDATE; persisted methodology version is not APPROVED");
 
         assertEquals("CANDIDATE", rsk01.governanceStatus(), "RSK-01 must be CANDIDATE");
         assertEquals("CANDIDATE", mkt01.governanceStatus(), "MKT-01 must be CANDIDATE");

@@ -10,6 +10,13 @@ import { executeComparison } from "@/lib/api/comparison";
 import { Scheme, SchemeOption } from "@/types/domain";
 import { ComparisonResponse, ComparisonMetric } from "@/types/comparison";
 
+const CANONICAL_DIMENSIONS = [
+  { code: 'RETURN_QUALITY', name: 'Return Quality', weight: '30%' },
+  { code: 'RISK_QUALITY', name: 'Risk Quality', weight: '25%' },
+  { code: 'BENCHMARK_RELATIVE_QUALITY', name: 'Benchmark-Relative Quality', weight: '25%' },
+  { code: 'CONSISTENCY_DOWNSIDE_QUALITY', name: 'Consistency & Downside Quality', weight: '20%' },
+];
+
 function ComparisonView({
   comparison,
   allSchemes,
@@ -27,7 +34,7 @@ function ComparisonView({
             Comparison Results
           </h3>
           <p className="mono-meta mt-1">
-            Analysis Period: {comparison.period.startDate} → {comparison.period.endDate}
+            Analysis Period: {comparison.period?.startDate || comparison.asOfDate || '2024-01-15'} → {comparison.period?.endDate || comparison.asOfDate || '2024-01-15'} • Knowledge Cutoff: {comparison.period?.knowledgeCutoffTime || comparison.knowledgeCutoff || '2024-01-31T23:59:59+05:30'}
           </p>
         </div>
         <button onClick={onReset} className="btn btn-secondary btn-sm">
@@ -38,39 +45,208 @@ function ComparisonView({
         </button>
       </div>
 
-      <div className="panel scroll-region mb-6">
-        <div className="scroll-region">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Metric</th>
-                {comparison.funds.map((fund) => {
-                  const scheme = allSchemes.find((s) => s.code === fund.schemeCode);
-                  const href = scheme ? `/funds/${scheme.id}` : "#";
-                  return (
-                    <th key={fund.schemeOptionId} className="text-left">
-                      <Link href={href} className="block">
-                        <span className="block text-[12px] font-semibold leading-[1.35] text-text-primary hover:text-accent">
-                          {fund.schemeName}
-                        </span>
-                      </Link>
-                      <span className="mono-meta mt-1 block">
-                        {fund.planType} • {fund.optionType}
+      {/* Primary Section: YUKIRA Analytical Scorecard Side-by-Side */}
+      <section className="space-y-4">
+        <SectionHeading
+          ordinal="Primary Evidence"
+          title="YUKIRA Analytical Score Summary"
+          description="Authoritative, deterministic 0–100 quality score and evidence confidence evaluated from point-in-time observations."
+        />
+
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+          {comparison.funds.map((fund) => {
+            const scheme = allSchemes.find((s) => s.code === fund.schemeCode);
+            const scorecardHref = scheme
+              ? `/funds/${scheme.id}?option=${fund.schemeOptionId}#scorecard`
+              : `/analysis/${fund.schemeOptionId}`;
+            const yukiraScore = fund.yukiraScore;
+            const scoreStatus = yukiraScore?.status || "NOT_EVALUATED";
+            const scoreValue = yukiraScore?.score;
+
+            return (
+              <div key={fund.schemeOptionId} className="panel flex flex-col justify-between p-4 space-y-4">
+                <div className="space-y-3">
+                  <div>
+                    <span className="mono-meta block">{fund.amcName}</span>
+                    <h4 className="text-[14px] font-semibold text-text-primary mt-0.5 leading-tight">
+                      {fund.schemeName}
+                    </h4>
+                    <div className="mono-meta mt-1 flex flex-wrap gap-1.5 items-center">
+                      <span className="badge badge-outline">{fund.planType}</span>
+                      <span className="badge badge-outline">{fund.optionType}</span>
+                      <span>AMFI: {fund.amfiCode}</span>
+                    </div>
+                  </div>
+
+                  <div className="panel-inset p-3 space-y-2 bg-surface-raised rounded-md">
+                    <div className="flex items-center justify-between">
+                      <span className="def-label">Analytical Score</span>
+                      <span className={`status-badge ${scoreStatus === 'AVAILABLE' ? 'state-approved' : 'state-candidate'}`}>
+                        {scoreStatus}
                       </span>
-                      <span className="mono-meta block">AMFI: {fund.amfiCode}</span>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {comparison.metrics.map((metric) => (
-                <MetricRow key={metric.metricCode} metric={metric} funds={comparison.funds} />
-              ))}
-            </tbody>
-          </table>
+                    </div>
+
+                    <div className="flex items-baseline gap-1.5">
+                      {scoreValue !== null && scoreValue !== undefined ? (
+                        <>
+                          <span className="text-2xl font-mono font-bold text-text-primary">
+                            {scoreValue.toFixed(2)}
+                          </span>
+                          <span className="mono-meta text-[13px]">/ 100</span>
+                        </>
+                      ) : (
+                        <span className="text-[13px] font-mono text-text-muted">
+                          {scoreStatus === "INSUFFICIENT_DATA"
+                            ? "Insufficient Data"
+                            : scoreStatus === "NOT_APPLICABLE"
+                            ? "Not Applicable"
+                            : "Unavailable"}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-text-secondary border-t border-border pt-2 mt-2">
+                      <div>
+                        <span className="block text-text-muted text-[10px]">CONFIDENCE</span>
+                        <span>
+                          {yukiraScore?.confidence !== null && yukiraScore?.confidence !== undefined
+                            ? `${yukiraScore.confidence.toFixed(0)} / 100`
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-text-muted text-[10px]">AS OF DATE</span>
+                        <span>{yukiraScore?.asOfDate || comparison.period?.endDate || comparison.asOfDate || '2024-01-15'}</span>
+                      </div>
+                    </div>
+
+                    {yukiraScore?.scoreVersion && (
+                      <div className="text-[10px] font-mono text-text-muted pt-1">
+                        {yukiraScore.scoreVersion} • {yukiraScore.methodologyStatus || "CANDIDATE"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Link
+                  href={scorecardHref}
+                  className="btn btn-secondary btn-sm w-full justify-center text-center mt-2"
+                >
+                  <span>Open Full Scorecard</span>
+                  <svg className="h-3.5 w-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </Link>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      </section>
+
+      {/* Analytical Dimensions Side-by-Side Comparison */}
+      <section className="space-y-4">
+        <SectionHeading
+          ordinal="Dimension Breakdown"
+          title="Analytical Score Dimensions Side-by-Side"
+          description="Direct comparison across the 4 authoritative quality score dimensions."
+        />
+
+        <div className="panel scroll-region mb-6">
+          <div className="scroll-region">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th className="w-1/3">Score Dimension</th>
+                  {comparison.funds.map((fund) => (
+                    <th key={fund.schemeOptionId} className="text-left">
+                      <span className="block text-[12px] font-semibold text-text-primary">
+                        {fund.schemeName}
+                      </span>
+                      <span className="mono-meta block">{fund.planType} • {fund.optionType}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {CANONICAL_DIMENSIONS.map((dimDef) => (
+                  <tr key={dimDef.code} className="transition-colors hover:bg-surface-raised">
+                    <td>
+                      <div className="space-y-0.5">
+                        <div className="text-[12.5px] font-semibold text-text-primary">
+                          {dimDef.name}
+                        </div>
+                        <div className="mono-meta">Weight: {dimDef.weight}</div>
+                      </div>
+                    </td>
+                    {comparison.funds.map((fund) => {
+                      const scoreDim = fund.yukiraScore?.dimensions?.find(
+                        (d) => d.dimension === dimDef.code || d.dimensionName === dimDef.name
+                      );
+
+                      if (!scoreDim || scoreDim.score === null || scoreDim.score === undefined) {
+                        return (
+                          <td key={fund.schemeOptionId} className="data-unavailable">
+                            <span className="mono-meta">
+                              {scoreDim?.status === "INSUFFICIENT_DATA"
+                                ? "Insufficient data"
+                                : scoreDim?.status === "NOT_APPLICABLE"
+                                ? "Not applicable"
+                                : "Not available"}
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td key={fund.schemeOptionId}>
+                          <div className="data-value-md">{scoreDim.score.toFixed(2)}</div>
+                          <div className="mono-meta mt-1">
+                            Status: {scoreDim.status}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Detailed Metric Comparison */}
+      <section className="space-y-4">
+        <SectionHeading
+          ordinal="Raw Metrics"
+          title="Canonical Quantitative Metric Details"
+          description="Expose underlying vectorized metric calculations across the 3Y analytical window."
+        />
+
+        <div className="panel scroll-region mb-6">
+          <div className="scroll-region">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  {comparison.funds.map((fund) => (
+                    <th key={fund.schemeOptionId} className="text-left">
+                      <span className="block text-[12px] font-semibold text-text-primary">
+                        {fund.schemeName}
+                      </span>
+                      <span className="mono-meta block">{fund.planType} • {fund.optionType}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(comparison.metrics || []).map((metric) => (
+                  <MetricRow key={metric.metricCode} metric={metric} funds={comparison.funds} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       <section className="panel state-candidate">
         <div className="panel-header">
@@ -80,12 +256,13 @@ function ComparisonView({
           <li>All metrics calculated using identical observation periods and knowledge cutoffs</li>
           <li>Historical performance does not predict future returns across changing market cycles</li>
           <li>Missing or insufficient data explicitly indicated per fund and metric</li>
-          <li>No fund rankings, star ratings, or investment recommendations generated</li>
+          <li>No fund rankings, star ratings, winner labels, or investment recommendations generated</li>
         </ul>
       </section>
     </div>
   );
 }
+
 
 function MetricRow({
   metric,
@@ -303,7 +480,7 @@ function CompareContent() {
           "RET-02", "RET-03", 
           "RSK-01", "RSK-02", "RSK-03", "RSK-04", "RSK-05",
           "RAT-01", "RAT-02", 
-          "MKT-01", "MKT-02", "MKT-03", "MKT-04", "MKT-05", "MKT-06"
+          "MKT-01", "MKT-02", "MKT-03", "MKT-04", "MKT-05"
         ],
       });
       setComparison(result);

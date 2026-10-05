@@ -1,5 +1,7 @@
 package com.yukira.backend.service;
 
+import com.yukira.backend.client.QuantEngineClient;
+import com.yukira.backend.client.dto.CalculationDtos.CalculationRequestDto;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Transactional
@@ -48,6 +53,18 @@ class PeriodReturnCalculationServiceTest {
 
     @Autowired
     private CalculationRunInputObservationRepository inputObsRepository;
+
+    @Autowired
+    private CalculationRunRepository calculationRunRepository;
+
+    @Autowired
+    private PitObservationResolutionService pitResolutionService;
+
+    @Autowired
+    private MethodologyVersionRepository methodologyVersionRepository;
+
+    @Autowired
+    private MethodologyGovernanceService methodologyGovernanceService;
 
     private SchemeOption schemeOption;
 
@@ -219,5 +236,65 @@ class PeriodReturnCalculationServiceTest {
         MetricResult m1 = metricResultRepository.findByCalculationRunId(run1.getId()).get(0);
         MetricResult m2 = metricResultRepository.findByCalculationRunId(run2.getId()).get(0);
         assertEquals(m1.getNumericValue(), m2.getNumericValue(), "Calculated numeric value must be identical");
+    }
+
+    /**
+     * Governance regression (AGENTS.md 6: the Quant Engine is the sole numerical authority).
+     *
+     * PeriodReturnCalculationService previously caught ANY exception from the engine dispatch
+     * and silently recomputed RET-02 in Java (BigDecimal scale 10 / HALF_UP), persisting the
+     * result as CALCULATED. That behaviour:
+     *   - created a second, divergent numerical authority outside the deterministic kernel,
+     *   - masked genuine engine failures as successful calculations, destroying the
+     *     failed-validation data-quality state that the analytical contract must preserve,
+     *   - produced values that differ from the engine's 64-bit IEEE double arithmetic.
+     *
+     * The backend must now fail loudly and never substitute its own arithmetic.
+     */
+    @Test
+    @DisplayName("RET-02 Test 7: Engine failure must surface as FAILED with null value (no backend substitution)")
+    void testEngineFailureDoesNotSubstituteBackendArithmetic() throws Exception {
+        OffsetDateTime t = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        LocalDate start = LocalDate.of(2024, 1, 1);
+        LocalDate end = LocalDate.of(2024, 1, 15);
+
+        navObservationRepository.save(new NavObservation(schemeOption, start, new BigDecimal("100.00000000"), 1, t));
+        navObservationRepository.save(new NavObservation(schemeOption, end, new BigDecimal("110.00000000"), 1, t));
+
+        // Force the engine dispatch to fail deterministically. Every other collaborator is the
+        // real Spring bean so that only the numerical authority is perturbed.
+        QuantEngineClient failingClient = mock(QuantEngineClient.class);
+        when(failingClient.executeCalculation(any(CalculationRequestDto.class)))
+            .thenThrow(new IllegalStateException("simulated engine unavailability"));
+
+        PeriodReturnCalculationService isolated = new PeriodReturnCalculationService(
+            pitResolutionService,
+            schemeOptionRepository,
+            methodologyVersionRepository,
+            calculationRunRepository,
+            metricResultRepository,
+            inputObsRepository,
+            failingClient,
+            methodologyGovernanceService
+        );
+
+        CalculationRun run = isolated.executeRet02Calculation(
+            schemeOption.getId(), start, end, t, "CANDIDATE_V1");
+
+        assertEquals("FAILED", run.getRunStatus(),
+            "A failed engine dispatch must NOT be reported as COMPLETED");
+
+        List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+        assertEquals(1, results.size());
+        MetricResult result = results.get(0);
+        assertEquals("RET-02", result.getMetricCode());
+        assertEquals("FAILED", result.getCalculationStatus());
+        assertNull(result.getNumericValue(),
+            "Backend must never substitute its own arithmetic for the Quant Engine");
+        assertNotNull(result.getErrorMessage());
+        assertTrue(result.getDiagnostics().contains("QUANT_ENGINE_ONLY_NO_BACKEND_SUBSTITUTION"),
+            "Diagnostics must disclose the numerical-authority convention");
+        assertFalse(result.getDiagnostics().contains("local_fallback"),
+            "The local_fallback substitution path must no longer exist");
     }
 }

@@ -1,11 +1,11 @@
 """
-YUKIRA Tracking-Consistency dispatcher tests: REL-02 (Tracking Error) and
+YUKIRA Tracking-Consistency dispatcher tests: REL-01 (Tracking Error) and
 RAT-04 (Information Ratio).
 
 Registry identity: these codes were previously exercised under MKT-01 / MKT-02,
 which the frozen Phase 2H registry defines as Beta 3Y and Downside Beta. The
 Phase 2R analytical profile (PHASE_2S_SCOPE_LOCK.md) and Contradiction Audit
-Record 4 place Tracking Error at REL-02, and the frozen registry places the
+Record 4 place Tracking Error at REL-01, and the frozen registry places the
 Information Ratio at RAT-04. The verified gating / zero-tracking-error behaviour
 below is unchanged; only the authoritative code identities are restored.
 """
@@ -83,7 +83,7 @@ def test_dispatcher_rel02_rat04_normal_calculation():
         request_id="REQ-REL02-RAT04-001",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
     )
@@ -91,10 +91,10 @@ def test_dispatcher_rel02_rat04_normal_calculation():
     results = dispatch_calculation(req)
     res_map = {r.metric_code: r for r in results}
 
-    assert "REL-02" in res_map
+    assert "REL-01" in res_map
     assert "RAT-04" in res_map
 
-    rel02 = res_map["REL-02"]
+    rel02 = res_map["REL-01"]
     assert rel02.status == CalculationStatus.CALCULATED
     assert rel02.units == "PERCENTAGE"
     assert rel02.period_type == "3Y"
@@ -133,7 +133,7 @@ def test_dispatcher_rel02_rat04_insufficient_observations():
         request_id="REQ-INSUFFICIENT-REL02",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
     )
@@ -141,10 +141,10 @@ def test_dispatcher_rel02_rat04_insufficient_observations():
     results = dispatch_calculation(req)
     res_map = {r.metric_code: r for r in results}
 
-    assert res_map["REL-02"].status == CalculationStatus.INSUFFICIENT_DATA
-    assert res_map["REL-02"].numeric_value is None
-    assert "300 provided, minimum 700 required" in res_map["REL-02"].error_message
-    assert res_map["REL-02"].diagnostics["paired_count"] == 300
+    assert res_map["REL-01"].status == CalculationStatus.INSUFFICIENT_DATA
+    assert res_map["REL-01"].numeric_value is None
+    assert "300 provided, minimum 700 required" in res_map["REL-01"].error_message
+    assert res_map["REL-01"].diagnostics["paired_count"] == 300
 
     assert res_map["RAT-04"].status == CalculationStatus.INSUFFICIENT_DATA
     assert res_map["RAT-04"].numeric_value is None
@@ -173,7 +173,7 @@ def test_dispatcher_zero_tracking_error_identical_series():
         request_id="REQ-ZERO-TE",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
     )
@@ -181,9 +181,9 @@ def test_dispatcher_zero_tracking_error_identical_series():
     results = dispatch_calculation(req)
     res_map = {r.metric_code: r for r in results}
 
-    # REL-02 Tracking Error is exactly 0.0
-    assert res_map["REL-02"].status == CalculationStatus.CALCULATED
-    assert res_map["REL-02"].numeric_value == pytest.approx(0.0, abs=1e-12)
+    # REL-01 Tracking Error is exactly 0.0
+    assert res_map["REL-01"].status == CalculationStatus.CALCULATED
+    assert res_map["REL-01"].numeric_value == pytest.approx(0.0, abs=1e-12)
 
     # RAT-04 Information Ratio cannot divide by zero; reports ERROR
     assert res_map["RAT-04"].status == CalculationStatus.ERROR
@@ -216,7 +216,7 @@ def test_dispatcher_zero_tracking_error_constant_spread():
         request_id="REQ-CONST-SPREAD",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
     )
@@ -224,8 +224,8 @@ def test_dispatcher_zero_tracking_error_constant_spread():
     results = dispatch_calculation(req)
     res_map = {r.metric_code: r for r in results}
 
-    assert res_map["REL-02"].status == CalculationStatus.CALCULATED
-    assert res_map["REL-02"].numeric_value == pytest.approx(0.0, abs=1e-12)
+    assert res_map["REL-01"].status == CalculationStatus.CALCULATED
+    assert res_map["REL-01"].numeric_value == pytest.approx(0.0, abs=1e-12)
     assert res_map["RAT-04"].status == CalculationStatus.ERROR
     assert res_map["RAT-04"].diagnostics["zero_tracking_error"] is True
 
@@ -242,7 +242,7 @@ def test_dispatcher_missing_or_misaligned_benchmark():
         request_id="REQ-NO-BENCH",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=None,
     )
@@ -260,7 +260,7 @@ def test_dispatcher_missing_or_misaligned_benchmark():
         request_id="REQ-MISALIGNED",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=misaligned_bench,
     )
@@ -285,7 +285,7 @@ def test_dispatcher_custom_min_paired_parameter():
         request_id="REQ-CUSTOM-PARAM",
         as_of_date="2024-01-15",
         knowledge_cutoff_time="2024-01-31T23:59:59+05:30",
-        metric_codes=["REL-02", "RAT-04"],
+        metric_codes=["REL-01", "RAT-04"],
         nav_series=nav_series,
         benchmark_series=bench_series,
         parameters={"min_paired_observations": 10},
@@ -293,7 +293,7 @@ def test_dispatcher_custom_min_paired_parameter():
 
     results = dispatch_calculation(req)
     res_map = {r.metric_code: r for r in results}
-    assert res_map["REL-02"].status == CalculationStatus.CALCULATED
-    assert res_map["REL-02"].diagnostics["paired_count"] == 10
+    assert res_map["REL-01"].status == CalculationStatus.CALCULATED
+    assert res_map["REL-01"].diagnostics["paired_count"] == 10
     assert res_map["RAT-04"].status == CalculationStatus.CALCULATED
     assert res_map["RAT-04"].diagnostics["paired_count"] == 10

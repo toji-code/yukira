@@ -268,22 +268,22 @@ class BenchmarkRelativeConsistencyIntegrationTest {
         assertEquals(AS_OF_DATE, panel.context().endDate(),
             "Panel must preserve analysis end date");
 
-        // Panel registry codes per the corrected contract (V17): REL-02 = Tracking Error,
-        // RAT-04 = Information Ratio, MKT-01 = Beta. REL-01 is Beta, never Tracking Error.
-        BenchmarkRelationshipPanelResponse.MetricValue panelTE = findMetricValue(panel, "REL-02");
+        // Panel registry codes per canonical contract: REL-01 = Tracking Error,
+        // RAT-04 = Information Ratio, MKT-01 = Beta.
+        BenchmarkRelationshipPanelResponse.MetricValue panelTE = findMetricValue(panel, "REL-01");
         BenchmarkRelationshipPanelResponse.MetricValue panelIR = findMetricValue(panel, "RAT-04");
         BenchmarkRelationshipPanelResponse.MetricValue panelBeta = findMetricValue(panel, "MKT-01");
         BenchmarkRelationshipPanelResponse.MetricValue panelCorr = findMetricValue(panel, null);
         BenchmarkRelationshipPanelResponse.MetricValue panelR2 = panel.metrics().rSquared();
 
-        assertNotNull(panelTE, "Panel must include REL-02");
+        assertNotNull(panelTE, "Panel must include REL-01");
         assertNotNull(panelIR, "Panel must include RAT-04");
         assertNotNull(panelBeta, "Panel must include MKT-01");
         assertNotNull(panelCorr, "Panel must include correlation diagnostic");
         assertNotNull(panelR2, "Panel must include R-Squared diagnostic");
 
         assertEquals(tracking.metrics().trackingErrorStatus(), panelTE.status(),
-            "Panel REL-02 status must match tracking slice");
+            "Panel REL-01 status must match tracking slice");
         assertEquals(tracking.metrics().informationRatioStatus(), panelIR.status(),
             "Panel RAT-04 status must match tracking slice");
         assertEquals(beta.metrics().standardBetaStatus(), panelBeta.status(),
@@ -295,7 +295,7 @@ class BenchmarkRelativeConsistencyIntegrationTest {
 
         if (tracking.metrics().trackingErrorAnnualized() != null) {
             assertEquals(0, tracking.metrics().trackingErrorAnnualized().compareTo(panelTE.value()),
-                "Panel REL-02 (Tracking Error) value must match tracking slice");
+                "Panel REL-01 (Tracking Error) value must match tracking slice");
         }
         if (beta.metrics().standardBeta() != null) {
             assertEquals(0, beta.metrics().standardBeta().compareTo(panelBeta.value()),
@@ -344,7 +344,7 @@ class BenchmarkRelativeConsistencyIntegrationTest {
             return metrics.correlation();
         }
         return switch (metricCode) {
-            case "REL-02" -> metrics.trackingError();
+            case "REL-01" -> metrics.trackingError();
             case "RAT-04" -> metrics.informationRatio();
             case "MKT-01" -> metrics.beta();
             default -> null;

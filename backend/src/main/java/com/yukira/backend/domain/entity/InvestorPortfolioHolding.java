@@ -24,6 +24,9 @@ public class InvestorPortfolioHolding {
     @Column(name = "units", nullable = false, precision = 19, scale = 4)
     private BigDecimal units;
 
+    @Column(name = "cost_basis_amount", precision = 19, scale = 4)
+    private BigDecimal costBasisAmount;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
 
@@ -49,6 +52,8 @@ public class InvestorPortfolioHolding {
     public void setSchemeOption(SchemeOption schemeOption) { this.schemeOption = schemeOption; }
     public BigDecimal getUnits() { return units; }
     public void setUnits(BigDecimal units) { this.units = units; }
+    public BigDecimal getCostBasisAmount() { return costBasisAmount; }
+    public void setCostBasisAmount(BigDecimal costBasisAmount) { this.costBasisAmount = costBasisAmount; }
     public ZonedDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(ZonedDateTime createdAt) { this.createdAt = createdAt; }
     public ZonedDateTime getUpdatedAt() { return updatedAt; }

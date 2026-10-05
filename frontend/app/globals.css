@@ -9,29 +9,29 @@
    ========================================================================== */
 
 :root {
-  /* Surface ladder: background -> surface -> surface-raised -> surface-inset.
-     Containers must not skip levels. */
-  --background: #fbfcfd;
+  /* ==========================================================================
+     AURALIS LIGHT MODE DESIGN SYSTEM (Primary Reference)
+     ========================================================================== */
+  --background: #ffffff;
   --surface: #ffffff;
-  --surface-raised: #f4f6f8;
-  --surface-inset: #eff2f5;
+  --surface-raised: #f6f6f6;
+  --surface-inset: #f1edec;
 
-  --border: #e1e6eb;
-  --border-strong: #c9d2da;
-  --border-focus: #aebac4;
+  --border: #ebebeb;
+  --border-strong: #747878;
+  --border-focus: #111111;
 
-  --text-primary: #0d1114;
-  --text-secondary: #4a565f;
-  --text-tertiary: #6e7a84;
-  --text-disabled: #a3adb6;
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --text-tertiary: #9a9a9a;
+  --text-disabled: #c7c6c6;
 
-  --accent: #0e7c8c;
-  --accent-hover: #0a6673;
-  --accent-muted: #dff2f5;
+  --accent: #111111;
+  --accent-hover: #333333;
+  --accent-muted: #f6f6f6;
   --accent-foreground: #ffffff;
 
-  /* Semantic state — the only permitted hue beyond the accent.
-     approved / candidate / operational / unavailable / risk / critical / info */
+  /* Semantic state colors */
   --approved-fg: #1f7a4d;
   --approved-bg: #e6f4ec;
   --approved-border: #a8d5bd;
@@ -60,14 +60,11 @@
   --info-bg: #f1f3f5;
   --info-border: #dde2e6;
 
-  /* Chart palette — max two series. Subject = series-1, comparator = series-2. */
-  --series-1: #0e7c8c;
-  --series-2: #7c8894;
+  --series-1: #111111;
+  --series-2: #666666;
   --series-neg: #b3362c;
-  --series-muted: #dde3e8;
+  --series-muted: #ebebeb;
 
-  /* Legacy aliases retained so historical class names keep resolving.
-     These map onto the new system — they are not a second palette. */
   --foreground: var(--text-primary);
   --surface-elevated: var(--surface-raised);
   --surface-muted: var(--surface-inset);
@@ -81,61 +78,68 @@
   --warning: var(--candidate-fg);
   --danger: var(--risk-fg);
   --info: var(--operational-fg);
+
+  --font-heading: var(--font-inter);
 }
 
 .dark,
 [data-theme="dark"] {
-  --background: #0a0c0e;
-  --surface: #101316;
-  --surface-raised: #161a1e;
-  --surface-inset: #0c0f11;
+  /* ==========================================================================
+     ROMER DARK MODE DESIGN SYSTEM (Primary Reference)
+     ========================================================================== */
+  --background: #131314;
+  --surface: #1c1b1d;
+  --surface-raised: #201f21;
+  --surface-inset: #0e0e0f;
 
-  --border: #1e2429;
-  --border-strong: #2c343b;
-  --border-focus: #3a444d;
+  --border: #2a2a2b;
+  --border-strong: #353436;
+  --border-focus: #50d8e9;
 
-  --text-primary: #e8ecef;
+  --text-primary: #e5e2e3;
   --text-secondary: #9ba6b0;
-  --text-tertiary: #6b7681;
-  --text-disabled: #454e57;
+  --text-tertiary: #8f8fa1;
+  --text-disabled: #474646;
 
-  --accent: #4cc4d6;
-  --accent-hover: #6ad4e4;
-  --accent-muted: #1a2e33;
-  --accent-foreground: #04191d;
+  --accent: #5e6bff;
+  --accent-hover: #7a85ff;
+  --accent-muted: #1f2bc8;
+  --accent-foreground: #f0f1f2;
 
   --approved-fg: #5bc98c;
   --approved-bg: #0f2a1d;
   --approved-border: #1e4433;
 
-  --candidate-fg: #d9a441;
-  --candidate-bg: #2a2113;
-  --candidate-border: #4a3a1a;
+  --candidate-fg: #ffb689;
+  --candidate-bg: #471e00;
+  --candidate-border: #e0731d;
 
-  --operational-fg: #5aa9d9;
-  --operational-bg: #12232e;
-  --operational-border: #1f3d4f;
+  --operational-fg: #50d8e9;
+  --operational-bg: #00363c;
+  --operational-border: #00b1c2;
 
-  --unavailable-fg: #8a949d;
-  --unavailable-bg: #15191c;
-  --unavailable-border: #242a2f;
+  --unavailable-fg: #8f8fa1;
+  --unavailable-bg: #1c1b1d;
+  --unavailable-border: #2a2a2b;
 
-  --risk-fg: #e0685f;
-  --risk-bg: #2c1513;
-  --risk-border: #4e2622;
+  --risk-fg: #ffb4ab;
+  --risk-bg: #690005;
+  --risk-border: #93000a;
 
-  --critical-fg: #f07167;
-  --critical-bg: #2e1211;
-  --critical-border: #56201c;
+  --critical-fg: #ffb4ab;
+  --critical-bg: #93000a;
+  --critical-border: #ba1a1a;
 
-  --info-fg: #9ba6b0;
-  --info-bg: #15191c;
-  --info-border: #252b30;
+  --info-fg: #bec2ff;
+  --info-bg: #1f2bc8;
+  --info-border: #7a85ff;
 
-  --series-1: #4cc4d6;
-  --series-2: #7c8894;
-  --series-neg: #e0685f;
-  --series-muted: #2a3239;
+  --series-1: #50d8e9;
+  --series-2: #bec2ff;
+  --series-neg: #ffb4ab;
+  --series-muted: #2a2a2b;
+
+  --font-heading: var(--font-inter);
 }
 
 @theme {
@@ -198,16 +202,9 @@
   --color-series-neg: var(--series-neg);
   --color-series-muted: var(--series-muted);
 
-  /* Legacy state aliases */
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --color-info: var(--info);
-
   /* Type families — mono is data, sans is language */
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-heading);
   --font-mono: var(--font-geist-mono);
 
   /* Type scale. Minimum rendered size is 11px. */
@@ -360,16 +357,70 @@
      Panels — depth is border + surface step, never drop shadow.
      Maximum two nesting levels.
      --------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------
+     Panels & Template Utility Classes (Romer & Auralis)
+     --------------------------------------------------------------------- */
   .panel {
     background-color: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 1.25rem;
+  }
+
+  .dark .panel, [data-theme="dark"] .panel {
+    background-color: #1c1b1d;
+    border-color: #2a2a2b;
+    border-radius: 1.25rem;
+    box-shadow: none;
+  }
+
+  .light .panel, [data-theme="light"] .panel {
+    background-color: #ffffff;
+    border-color: #ebebeb;
+    border-radius: 1.25rem;
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.03);
   }
 
   .panel-inset {
     background-color: var(--surface-inset);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 1rem;
+  }
+
+  .dark .panel-inset, [data-theme="dark"] .panel-inset {
+    background-color: #0e0e0f;
+    border-color: #2a2a2b;
+    border-radius: 1rem;
+  }
+
+  .light .panel-inset, [data-theme="light"] .panel-inset {
+    background-color: #f6f6f6;
+    border-color: #ebebeb;
+    border-radius: 1rem;
+  }
+
+  .glass-panel {
+    background: rgba(28, 27, 29, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+  }
+
+  .light .glass-panel, [data-theme="light"] .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid #ebebeb;
+    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.04);
+  }
+
+  .grid-bg {
+    background-image: linear-gradient(to right, rgba(42, 42, 43, 0.4) 1px, transparent 1px), linear-gradient(to bottom, rgba(42, 42, 43, 0.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .light .grid-bg, [data-theme="light"] .grid-bg {
+    background-image: linear-gradient(to right, rgba(235, 235, 235, 0.7) 1px, transparent 1px), linear-gradient(to bottom, rgba(235, 235, 235, 0.7) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
 
   .panel-header {
@@ -496,19 +547,19 @@
   }
 
   /* ---------------------------------------------------------------------
-     Buttons
+     Buttons — Auralis Universal Pill Geometry
      --------------------------------------------------------------------- */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     height: 36px;
-    padding-inline: 12px;
-    border-radius: 4px;
+    padding-inline: 16px;
+    border-radius: 9999px;
     border: 1px solid transparent;
     font-family: var(--font-sans);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     line-height: 1.4;
     font-weight: 500;
     color: var(--text-primary);
@@ -517,11 +568,14 @@
     transition:
       background-color 120ms ease-out,
       border-color 120ms ease-out,
-      color 120ms ease-out;
+      color 120ms ease-out,
+      opacity 120ms ease-out;
   }
 
   .btn-sm {
     height: 32px;
+    padding-inline: 12px;
+    font-size: 0.75rem;
   }
 
   .btn-primary {
@@ -596,10 +650,10 @@
   .field {
     width: 100%;
     height: 36px;
-    padding-inline: 12px;
+    padding-inline: 16px;
     background-color: var(--surface-inset);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 9999px;
     color: var(--text-primary);
     font-size: 0.8125rem;
     font-family: var(--font-sans);
@@ -625,15 +679,15 @@
   }
 
   /* ---------------------------------------------------------------------
-     Status badges — STATE only. Never values, categories or navigation.
+     Status badges — STATE only. Auralis Universal Pill Badge.
      --------------------------------------------------------------------- */
   .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 20px;
-    padding-inline: 6px;
-    border-radius: 2px;
+    height: 22px;
+    padding-inline: 10px;
+    border-radius: 9999px;
     border: 1px solid var(--unavailable-border);
     background-color: var(--unavailable-bg);
     color: var(--unavailable-fg);

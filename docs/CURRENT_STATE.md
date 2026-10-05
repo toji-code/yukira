@@ -163,7 +163,7 @@ All end-to-end integration and verification in Phase 2I/2J use exclusively the c
 
 To prevent misrepresentation or premature assumptions, the following features are explicitly **NOT** implemented:
 
-1. **Remaining Candidate Metrics in Backend:** A meaningful subset of candidate metrics is now wired to the Spring Boot orchestrator (RET-02, RET-03, RSK-01, RSK-02 to RSK-07, RAT metrics, REL-01 to REL-06, and MKT-01/MKT-02). The remaining candidate metrics exist only as standalone Python algorithms and are not yet exposed through the backend execution path.
+1. **Analytical Metrics vs Score Inputs:** A meaningful subset of candidate metrics is wired to the Spring Boot orchestrator and may be persisted as MetricResults. Analytical MetricResults are not automatically score inputs. The current executable YUKIRA_SCORE_V1 score contract is the closed 10-input set documented in section 3.6 below.
 2. **Methodology Validation:** Zero methodologies have been validated or approved for production investment advice.
 3. **Fund Scoring / Star Ratings:** No rating system exists. YUKIRA will never produce opaque 5-star badges.
 4. **Investment Recommendations:** No BUY, HOLD, REDUCE, or AVOID advice is generated.

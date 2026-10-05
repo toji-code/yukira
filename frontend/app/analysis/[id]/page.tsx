@@ -14,6 +14,7 @@ import { fetchAnalysis, executeAnalysis, executeProfileAnalysis } from "@/lib/ap
 import { AnalysisResponse, AnalyticalProfileResponse } from "@/types/analysis";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { InstitutionalProfileView } from "@/components/analysis/InstitutionalProfileView";
+import { YukiraScoreCard } from "@/components/analysis/YukiraScoreCard";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -243,6 +244,15 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         )}
 
         <InstitutionalProfileView data={data} onRerunRequested={() => setShowParamPanel(!showParamPanel)} />
+
+        {data.context.schemeOptionId && (
+          <div className="mt-8">
+            <YukiraScoreCard
+              schemeOptionId={data.context.schemeOptionId}
+              calculationRunId={data.provenance.calculationRunId}
+            />
+          </div>
+        )}
       </PageContainer>
     );
   }
@@ -888,6 +898,12 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
           </div>
         }
       />
+
+      {data.identity.schemeOptionId && (
+        <div className="mt-8">
+          <YukiraScoreCard schemeOptionId={data.identity.schemeOptionId} />
+        </div>
+      )}
     </PageContainer>
   );
 }

@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.dto.analysis.*;
 import com.yukira.backend.repository.*;
+import com.yukira.backend.scoring.dto.AnalyticalScoreResponse;
+import com.yukira.backend.scoring.dto.YukiraScoreSummary;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,14 +36,19 @@ public class AnalysisService {
     private final MethodologyVersionRepository methodologyVersionRepository;
     private final MethodologyGovernanceService methodologyGovernanceService;
     private final PitObservationResolutionService pitObservationResolutionService;
+    private final AnalyticalScoreRepository analyticalScoreRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public static final List<String> CANONICAL_3Y_PROFILE_METRIC_CODES = List.of(
         "RET-02", "RET-03", "RET-07",
         "RSK-01", "RSK-02", "RSK-03", "RSK-04", "RSK-05", "RSK-06", "RSK-07",
-        "RAT-01", "RAT-02",
+        "RAT-01", "RAT-03", "RAT-04",
         "MKT-01", "MKT-02", "MKT-03", "MKT-04", "MKT-05",
-        "REL-02", "REL-03", "RAT-04"
+        "REL-01", "REL-02"
+    );
+
+    public static final List<String> DEFAULT_COMPARISON_METRIC_CODES = List.of(
+        "RET-03", "RSK-01", "RSK-02", "RSK-03", "MKT-01", "MKT-02", "MKT-05", "RAT-04"
     );
 
     public AnalysisService(
@@ -59,7 +67,8 @@ public class AnalysisService {
         NavObservationRepository navObservationRepository,
         MethodologyVersionRepository methodologyVersionRepository,
         MethodologyGovernanceService methodologyGovernanceService,
-        PitObservationResolutionService pitObservationResolutionService
+        PitObservationResolutionService pitObservationResolutionService,
+        @Autowired(required = false) AnalyticalScoreRepository analyticalScoreRepository
     ) {
         this.periodReturnCalculationService = periodReturnCalculationService;
         this.riskCalculationService = riskCalculationService;
@@ -77,7 +86,9 @@ public class AnalysisService {
         this.methodologyVersionRepository = methodologyVersionRepository;
         this.methodologyGovernanceService = methodologyGovernanceService;
         this.pitObservationResolutionService = pitObservationResolutionService;
+        this.analyticalScoreRepository = analyticalScoreRepository;
     }
+
 
     public boolean benchmarkExists(Long benchmarkId) {
         return benchmarkId != null && benchmarkRepository.existsById(benchmarkId);
@@ -292,14 +303,30 @@ public class AnalysisService {
             params
         );
 
-        List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+        List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunId(run.getId()));
         return buildAnalyticalProfileResponse(run, results);
+    }
+
+    /**
+     * Legacy REL-02 Containment Filter
+     * Prevents historical REL-02 (Tracking Error / Pearson correlation) from leaking into
+     * current canonical scoring paths which expect REL-02 to be Jensen's Alpha.
+     */
+    private List<MetricResult> filterLegacyRel02(List<MetricResult> results) {
+        if (results == null) return Collections.emptyList();
+        return results.stream().filter(r -> {
+            if ("REL-02".equals(r.getMetricCode())) {
+                String diag = r.getDiagnostics();
+                return diag != null && diag.contains("OLS intercept");
+            }
+            return true;
+        }).toList();
     }
 
     @Transactional(readOnly = true)
     public Optional<Object> getAnalysisByRunId(Long runId) {
         return calculationRunRepository.findById(runId).map(run -> {
-            List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+            List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunId(run.getId()));
             if (results.size() > 1) {
                 return buildAnalyticalProfileResponse(run, results);
             }
@@ -393,7 +420,7 @@ public class AnalysisService {
             option != null ? option.getIsin() : null
         );
 
-        List<MetricResult> results = metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-02");
+        List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-02"));
         MetricResult metricResult = results.isEmpty() ? null : results.get(0);
 
         Map<String, Object> diagnostics = Collections.emptyMap();
@@ -646,7 +673,7 @@ public class AnalysisService {
             option != null ? option.getIsin() : null
         );
 
-        List<MetricResult> results = metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-03");
+        List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), "RET-03"));
         MetricResult metricResult = results.isEmpty() ? null : results.get(0);
 
         Map<String, Object> diagnostics = Collections.emptyMap();
@@ -968,7 +995,7 @@ public class AnalysisService {
         );
 
         String metricCode = defaultMetricCode;
-        List<MetricResult> allResults = metricResultRepository.findByCalculationRunId(run.getId());
+        List<MetricResult> allResults = filterLegacyRel02(metricResultRepository.findByCalculationRunId(run.getId()));
         MetricResult metricResult = null;
         if (defaultMetricCode != null) {
             for (MetricResult mr : allResults) {
@@ -1277,18 +1304,37 @@ public class AnalysisService {
         );
     }
 
-    private record MetricMetadata(
+    public record MetricMetadata(
 
         String name,
         String category,
         String defaultUnits,
         String defaultPeriod,
+        /**
+         * Display-only governance label.
+         *
+         * <p>AGENTS.md section 11: IMPLEMENTED != VALIDATED != APPROVED. Every persisted
+         * {@code methodology_version} row is lifecycle CANDIDATE / approval CANDIDATE /
+         * validation UNVALIDATED, with {@code approved_by} and {@code approval_record} null,
+         * and the V7 check constraint forbids APPROVED without that evidence. No metric may
+         * therefore be labelled APPROVED here.
+         *
+         * <p>This value previously hardcoded "APPROVED" for RET-03, RAT-01 and RAT-02 with no
+         * governance backing, overstating the status of three candidate methodologies.
+         */
         String governanceStatus,
         String formula,
         String interpretation,
         String limitations
     ) {}
 
+    public static MetricMetadata comparisonMetricMetadata(String metricCode) {
+        return METRIC_METADATA.get(metricCode);
+    }
+
+    public static boolean isSupportedComparisonMetricCode(String metricCode) {
+        return METRIC_METADATA.containsKey(metricCode);
+    }
     private static final Map<String, MetricMetadata> METRIC_METADATA = Map.ofEntries(
         Map.entry("RET-02", new MetricMetadata(
             "Simple Period Return", "RETURN_BENCHMARK", "PERCENTAGE", "REFERENCE", "OPERATIONAL BASELINE",
@@ -1297,7 +1343,7 @@ public class AnalysisService {
             "Sensitive to boundary date selection and unannualized unless period is exactly 1 year."
         )),
         Map.entry("RET-03", new MetricMetadata(
-            "Compound Annual Growth Rate (3Y CAGR)", "RETURN_BENCHMARK", "PERCENTAGE", "3Y", "APPROVED",
+            "Compound Annual Growth Rate (3Y CAGR)", "RETURN_BENCHMARK", "PERCENTAGE", "3Y", "CANDIDATE",
             "(NAV_end / NAV_start)^(365.25 / calendar_days) - 1.0",
             "3-year compound annual growth rate normalized over leap-adjusted Julian trading years.",
             "Conceals sub-period volatility, drawdowns, and timing of cash flows."
@@ -1351,13 +1397,19 @@ public class AnalysisService {
             "Tail sample size is small (~37 observations); sensitive to single-day extreme outliers."
         )),
         Map.entry("RAT-01", new MetricMetadata(
-            "Sharpe Ratio (3Y)", "RISK_ADJUSTED", "RATIO", "3Y", "APPROVED",
+            "Sharpe Ratio (3Y)", "RISK_ADJUSTED", "RATIO", "3Y", "CANDIDATE",
             "(Mean(R_p - R_f) * 252) / (Stdev(R_p) * sqrt(252))",
             "Risk-adjusted excess return per unit of total risk relative to FBIL 91-Day T-Bill.",
             "Penalizes upside volatility; relies on normality assumptions."
         )),
         Map.entry("RAT-02", new MetricMetadata(
-            "Treynor Ratio (3Y)", "RISK_ADJUSTED", "RATIO", "3Y", "APPROVED",
+            "Sortino Ratio (3Y)", "RISK_ADJUSTED", "RATIO", "3Y", "CANDIDATE",
+            "(Annualized Return - MAR) / Downside Semideviation",
+            "Excess return per unit of downside risk (semideviation).",
+            "Sensitive to downside semideviation convention; unapproved candidate convention."
+        )),
+        Map.entry("RAT-03", new MetricMetadata(
+            "Treynor Ratio (3Y)", "RISK_ADJUSTED", "RATIO", "3Y", "CANDIDATE",
             "(Mean(R_p - R_f) * 252) / Beta_p",
             "Annualized excess return earned per unit of systematic market risk (Beta).",
             "Meaningful only for diversified equity portfolios with Beta > 0; ignores idiosyncratic risk."
@@ -1382,39 +1434,39 @@ public class AnalysisService {
         )),
         Map.entry("MKT-03", new MetricMetadata(
             "Upside Capture Ratio (3Y)", "MARKET_SENSITIVITY_ALPHA", "PERCENTAGE", "3Y", "CANDIDATE",
-            "Sum(R_p | R_b > 0) / Sum(R_b | R_b > 0)",
+            "Prod(1 + R_p | R_b > 0) / Prod(1 + R_b | R_b > 0)  [compounded subset, M2N-08 DEFERRED]",
             "Fund participation in benchmark up-market days.",
             "Conditioned on historical positive benchmark days; not predictive."
         )),
         Map.entry("MKT-04", new MetricMetadata(
             "Downside Capture Ratio (3Y)", "MARKET_SENSITIVITY_ALPHA", "PERCENTAGE", "3Y", "CANDIDATE",
-            "Sum(R_p | R_b < 0) / Sum(R_b | R_b < 0)",
+            "Prod(1 + R_p | R_b < 0) / Prod(1 + R_b | R_b < 0)  [compounded subset, M2N-08 DEFERRED]",
             "Fund participation in benchmark down-market days.",
             "Conditioned on historical negative benchmark days; not predictive."
         )),
         Map.entry("MKT-05", new MetricMetadata(
             "Capture Spread (3Y)", "MARKET_SENSITIVITY_ALPHA", "PERCENTAGE_POINTS", "3Y", "CANDIDATE",
-            "Upside Capture - Downside Capture",
+            "Upside Capture - Downside Capture  [M2N-09 DEFERRED]",
             "Difference between up-market and down-market capture behavior.",
             "Combines two conditioned historical estimates and can be sample-sensitive."
         )),
         Map.entry("REL-01", new MetricMetadata(
-            "Beta (3Y)", "MARKET_SENSITIVITY_ALPHA", "RATIO", "3Y", "CANDIDATE",
-            "Cov(R_p - R_f, R_b - R_f) / Var(R_b - R_f) [Excess-Return OLS]",
-            "Linear sensitivity of portfolio excess returns to benchmark excess returns.",
-            "Assumes stationary linear covariance; beta changes during market stress regimes."
-        )),
-        Map.entry("REL-02", new MetricMetadata(
             "Tracking Error (3Y Annualized)", "BENCHMARK_ALPHA", "PERCENTAGE", "3Y", "CANDIDATE",
             "Stdev(R_p - R_b) * sqrt(252)",
             "Annualized volatility of daily active returns versus the benchmark.",
             "Treats upside and downside benchmark-relative deviations symmetrically."
         )),
-        Map.entry("REL-03", new MetricMetadata(
+        Map.entry("REL-02", new MetricMetadata(
             "Jensen's Alpha (3Y Annualized)", "BENCHMARK_ALPHA", "PERCENTAGE", "3Y", "CANDIDATE",
-            "R_p - [R_f + Beta * (R_m - R_f)]",
+            "OLS intercept of (R_p - R_f) on (R_b - R_f), annualized x252  [M2N-06]",
             "CAPM residual return after accounting for market exposure and risk-free return.",
-            "Candidate specification; not implemented in this panel."
+            "Single-index CAPM residual; sensitive to the risk-free proxy and to beta estimation error."
+        )),
+        Map.entry("REL-03", new MetricMetadata(
+            "Annualized Mean Active Return (3Y)", "BENCHMARK_ALPHA", "PERCENTAGE", "3Y", "CANDIDATE",
+            "mean(R_p - R_b) * periods_per_year",
+            "Mean daily active return relative to benchmark, linearly annualized.",
+            "Unadjusted for risk or volatility."
         ))
     );
 
@@ -1623,7 +1675,13 @@ public class AnalysisService {
 
         List<String> metricCodes = request.metricCodes() != null && !request.metricCodes().isEmpty()
             ? request.metricCodes()
-            : List.of("RET-03", "RSK-01", "RSK-03");
+            : DEFAULT_COMPARISON_METRIC_CODES;
+        List<String> invalidMetricCodes = metricCodes.stream()
+            .filter(code -> !METRIC_METADATA.containsKey(code))
+            .toList();
+        if (!invalidMetricCodes.isEmpty()) {
+            throw new IllegalArgumentException("Unsupported comparison metric code(s): " + String.join(", ", invalidMetricCodes));
+        }
 
         List<ComparisonResponse.ComparisonFund> funds = new ArrayList<>();
         Map<String, List<ComparisonResponse.ComparisonMetricResult>> metricResults = new HashMap<>();
@@ -1633,6 +1691,48 @@ public class AnalysisService {
             SchemePlan plan = option.getPlan();
             Scheme scheme = plan.getScheme();
 
+            YukiraScoreSummary yukiraScore = null;
+            if (analyticalScoreRepository != null) {
+                List<AnalyticalScore> latestScores = analyticalScoreRepository.findLatestBySchemeOptionId(schemeOptionId);
+                if (!latestScores.isEmpty()) {
+                    AnalyticalScore entity = latestScores.get(0);
+                    List<AnalyticalScoreResponse.DimensionScoreDto> dimDtos = new ArrayList<>();
+                    if (entity.getDimensions() != null) {
+                        for (ScoreDimension sd : entity.getDimensions()) {
+                            if ("EVIDENCE_CONFIDENCE".equalsIgnoreCase(sd.getDimension())) {
+                                continue;
+                            }
+                            dimDtos.add(new AnalyticalScoreResponse.DimensionScoreDto(
+                                sd.getId(),
+                                sd.getDimension(),
+                                sd.getDimensionName(),
+                                sd.getScore(),
+                                sd.getWeight(),
+                                sd.getWeight(),
+                                null,
+                                sd.getStatus(),
+                                sd.getConfidence(),
+                                sd.getEligibleMetricCount(),
+                                sd.getTotalMetricCount(),
+                                null
+                            ));
+                        }
+                    }
+                    yukiraScore = new YukiraScoreSummary(
+                        entity.getId(),
+                        schemeOptionId,
+                        entity.getScore(),
+                        entity.getConfidence(),
+                        entity.getStatus(),
+                        entity.getScoreVersion(),
+                        entity.getMethodologyStatus(),
+                        entity.getAsOfDate(),
+                        entity.getSummary(),
+                        dimDtos
+                    );
+                }
+            }
+
             funds.add(new ComparisonResponse.ComparisonFund(
                 schemeOptionId,
                 scheme.getName(),
@@ -1641,42 +1741,40 @@ public class AnalysisService {
                 option.getAmfiCode(),
                 option.getIsin(),
                 plan.getPlanType(),
-                option.getOptionType()
+                option.getOptionType(),
+                yukiraScore
             ));
+
+            Map<String, MetricResult> resultMap = new HashMap<>();
+            List<CalculationRun> existingRuns = calculationRunRepository.findBySchemeOptionIdAndAsOfDateOrderByExecutionStartedAtDesc(schemeOptionId, request.asOfDate());
+            if (existingRuns.isEmpty()) {
+                existingRuns = calculationRunRepository.findBySchemeOptionId(schemeOptionId);
+            }
+
+            if (!existingRuns.isEmpty()) {
+                CalculationRun latestRun = existingRuns.get(0);
+                List<MetricResult> runResults = filterLegacyRel02(metricResultRepository.findByCalculationRunId(latestRun.getId()));
+                for (MetricResult mr : runResults) {
+                    resultMap.put(mr.getMetricCode(), mr);
+                }
+            }
 
             for (String metricCode : metricCodes) {
                 List<ComparisonResponse.ComparisonMetricResult> results = metricResults
                     .computeIfAbsent(metricCode, k -> new ArrayList<>());
 
-                try {
-                    CalculationRun run = switch (metricCode) {
-                        case "RET-03" -> periodReturnCalculationService.executeRet03Calculation(
-                            schemeOptionId,
-                            request.asOfDate(),
-                            request.knowledgeCutoffTime(),
-                            "CANDIDATE_V1"
-                        );
-                        case "RSK-01" -> riskCalculationService.executeRsk01Calculation(
-                            schemeOptionId,
-                            request.asOfDate(),
-                            request.knowledgeCutoffTime(),
-                            "CANDIDATE_V1"
-                        );
-                        case "RSK-03" -> riskCalculationService.executeRsk03Calculation(
-                            schemeOptionId,
-                            request.asOfDate(),
-                            request.knowledgeCutoffTime(),
-                            "CANDIDATE_V1"
-                        );
-                        default -> throw new IllegalArgumentException("Unknown metric: " + metricCode);
-                    };
-
-                    List<MetricResult> resultsList = metricResultRepository.findByCalculationRunIdAndMetricCode(run.getId(), metricCode);
-                    if (resultsList.isEmpty()) {
-                        throw new RuntimeException("Metric result not found");
-                    }
-                    MetricResult metricResult = resultsList.get(0);
-
+                MetricResult metricResult = resultMap.get(metricCode);
+                if (metricResult == null) {
+                    results.add(new ComparisonResponse.ComparisonMetricResult(
+                        schemeOptionId,
+                        null,
+                        null,
+                        "",
+                        "INSUFFICIENT_DATA",
+                        "No observation data for metric " + metricCode,
+                        null
+                    ));
+                } else {
                     results.add(new ComparisonResponse.ComparisonMetricResult(
                         schemeOptionId,
                         metricResult.getNumericValue() != null ? metricResult.getNumericValue().doubleValue() : null,
@@ -1686,44 +1784,32 @@ public class AnalysisService {
                         metricResult.getErrorMessage(),
                         null
                     ));
-                } catch (Exception e) {
-                    results.add(new ComparisonResponse.ComparisonMetricResult(
-                        schemeOptionId,
-                        null,
-                        null,
-                        "",
-                        "FAILED",
-                        e.getMessage(),
-                        null
-                    ));
                 }
             }
         }
 
         List<ComparisonResponse.ComparisonMetric> metrics = new ArrayList<>();
-        Map<String, String> metricMetadata = Map.of(
-            "RET-03", "3-Year Compound Annual Growth Rate (3Y CAGR)|annualized compound return over 36-month lookback|normalizes cumulative multi-year growth onto annualized basis|past annualized return does not predict future returns",
-            "RSK-01", "Annualized Volatility (3Y)|annualized sample standard deviation of daily returns|measures total dispersion of returns around mean|treats upside and downside with equal penalty",
-            "RSK-03", "Maximum Drawdown (3Y)|worst peak-to-trough percentage decline|quantifies maximum capital loss from historical peak|historical worst-case does not bound future drawdowns"
-        );
 
         for (String metricCode : metricCodes) {
-            String[] metadata = metricMetadata.get(metricCode).split("\\|");
-            String metricName = metadata[0];
-            String description = metadata[1];
-            String interpretation = metadata[2];
-            String limitations = metadata[3];
+            MetricMetadata meta = METRIC_METADATA.get(metricCode);
+            String metricName = meta != null ? meta.name() : metricCode;
+            String category = meta != null ? meta.category() : (metricCode.startsWith("RET") ? "RETURN_BENCHMARK" : "RISK_TAIL");
+            String governanceStatus = meta != null ? meta.governanceStatus().toLowerCase() : "candidate";
+            String period = meta != null ? meta.defaultPeriod() : "3Y";
+            String description = meta != null ? meta.formula() : "";
+            String interpretation = meta != null ? meta.interpretation() : "";
+            String limitations = meta != null ? meta.limitations() : "";
 
             metrics.add(new ComparisonResponse.ComparisonMetric(
                 metricCode,
                 metricName,
-                metricCode.startsWith("RET") ? "return" : "risk",
-                "approved",
-                "36 Calendar Months (â‰¥ 700 trading days)",
+                category,
+                governanceStatus,
+                period,
                 description,
                 interpretation,
                 limitations,
-                metricResults.get(metricCode)
+                metricResults.get(metricCode) != null ? metricResults.get(metricCode) : Collections.emptyList()
             ));
         }
 
@@ -2018,7 +2104,7 @@ public class AnalysisService {
         LocalDate firstFundDate = fundNavMap.isEmpty() ? null : Collections.min(fundNavMap.keySet());
         LocalDate lastFundDate = fundNavMap.isEmpty() ? null : Collections.max(fundNavMap.keySet());
 
-        // 3. Compute 3-Year Rolling Horizon (Primary Â§RET-05 & Â§RET-06)
+        // 3. Compute 3-Year Rolling Horizon (Primary Ã‚Â§RET-05 & Ã‚Â§RET-06)
         List<InternalRollingWindow> fund3YWins = calculateRollingWindows(fundNavMap, 3, 4);
         List<InternalRollingWindow> bench3YWins = calculateRollingWindows(benchNavMap, 3, 4);
         RollingConsistencyResponse.RollingHorizonResult primary3Y = buildHorizonResult(
@@ -2230,7 +2316,7 @@ public class AnalysisService {
                 double bRet = benchMap.get(fw.endDate());
                 double excess = fw.cagr() - bRet;
                 excessSum += excess;
-                // Strict inequality per Â§RET-06: no ties count as outperformance
+                // Strict inequality per Ã‚Â§RET-06: no ties count as outperformance
                 if (fw.cagr() > bRet) {
                     outperformCount++;
                 }
@@ -2587,7 +2673,7 @@ public class AnalysisService {
     }
 
     /**
-     * Executes real Market-Relative Tracking Consistency & Information Ratio Analysis (Â§MKT-01 / Â§MKT-02).
+     * Executes real Market-Relative Tracking Consistency & Information Ratio Analysis (Ã‚Â§MKT-01 / Ã‚Â§MKT-02).
      * Synchronously aligned pairing vs NIFTY 500 TRI, strict PIT enforcement, minimum N >= 700 threshold.
      */
     @Transactional
@@ -2724,14 +2810,14 @@ public class AnalysisService {
                 benchmark.getId(),
                 asOfDate,
                 cutoff,
-                List.of("REL-02", "RAT-04"),
+                List.of("REL-01", "RAT-04"),
                 "CANDIDATE_V1",
                 params
             );
             calculationRunId = run.getId();
 
-            List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
-            MetricResult mkt01 = results.stream().filter(r -> "REL-02".equals(r.getMetricCode())).findFirst().orElse(null);
+            List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunId(run.getId()));
+            MetricResult mkt01 = results.stream().filter(r -> "REL-01".equals(r.getMetricCode())).findFirst().orElse(null);
             MetricResult mkt02 = results.stream().filter(r -> "RAT-04".equals(r.getMetricCode())).findFirst().orElse(null);
             Map<String, Object> d01 = readDiagnostics(mkt01);
             Map<String, Object> d02 = readDiagnostics(mkt02);
@@ -2889,7 +2975,7 @@ public class AnalysisService {
 
         BenchmarkRelationshipPanelResponse.PanelMetrics metrics = new BenchmarkRelationshipPanelResponse.PanelMetrics(
             metricValue("RET-07", "Annualized Active Return", tracking.metrics().annualizedMeanActiveReturn(), "PERCENTAGE", tracking.metrics().annualizedMeanActiveReturn() != null ? tracking.metrics().informationRatioStatus() : "INSUFFICIENT_DATA", "Active return is the fund's annualized average daily excess return over the benchmark in the paired observation window.", "It shows whether the fund historically added or lost return versus its benchmark before considering the volatility of that excess return.", "This is an arithmetic annualization of historical daily excess returns; it is not a forecast and can be regime-sensitive."),
-            metricValue("REL-02", "Tracking Error", tracking.metrics().trackingErrorAnnualized(), "PERCENTAGE", tracking.metrics().trackingErrorStatus(), "Tracking error is the annualized volatility of the fund's daily excess returns versus the benchmark.", "It indicates how actively the fund's path has diverged from the benchmark's path.", tracking.epistemic().limitation()),
+            metricValue("REL-01", "Tracking Error", tracking.metrics().trackingErrorAnnualized(), "PERCENTAGE", tracking.metrics().trackingErrorStatus(), "Tracking error is the annualized volatility of the fund's daily excess returns versus the benchmark.", "It indicates how actively the fund's path has diverged from the benchmark's path.", tracking.epistemic().limitation()),
             metricValue("RAT-04", "Information Ratio", tracking.metrics().informationRatio(), "RATIO", tracking.metrics().informationRatioStatus(), "Information ratio compares active return with active risk.", "It helps investors assess whether benchmark-relative return was delivered consistently for the tracking risk taken.", tracking.epistemic().limitation()),
             metricValue(null, "Benchmark Correlation", relationship.metrics().correlation(), "RATIO", relationship.metrics().correlationStatus(), "Correlation measures the direction and strength of daily co-movement between the fund and benchmark.", "A higher positive correlation means the fund has historically moved more closely with the benchmark day to day.", relationship.epistemic().limitation()),
             metricValue("MKT-01", "Beta", beta.metrics().standardBeta(), "RATIO", beta.metrics().standardBetaStatus(), "Beta measures the fund's systematic sensitivity to benchmark excess returns.", "A beta near 1.0 indicates the fund has historically moved about one-for-one with benchmark excess returns.", beta.epistemic().limitation()),
@@ -2907,7 +2993,7 @@ public class AnalysisService {
             panelDataQualityStatus(tracking.epistemic().dataQualityStatus(), beta.epistemic().dataQualityStatus(), relationship.epistemic().dataQualityStatus()),
             relationship.epistemic().benchmarkLineage(),
             List.of(
-                new BenchmarkRelationshipPanelResponse.CalculationEvidence("TRACKING_CONSISTENCY", List.of("REL-02", "RAT-04"), tracking.epistemic().calculationRunId(), tracking.epistemic().dataQualityStatus(), tracking.epistemic().sourceArtifactSha256(), tracking.epistemic().benchmarkLineage()),
+                new BenchmarkRelationshipPanelResponse.CalculationEvidence("TRACKING_CONSISTENCY", List.of("REL-01", "RAT-04"), tracking.epistemic().calculationRunId(), tracking.epistemic().dataQualityStatus(), tracking.epistemic().sourceArtifactSha256(), tracking.epistemic().benchmarkLineage()),
                 new BenchmarkRelationshipPanelResponse.CalculationEvidence("BETA_DYNAMICS", List.of("MKT-01", "MKT-02"), beta.epistemic().calculationRunId(), beta.epistemic().dataQualityStatus(), beta.epistemic().sourceArtifactSha256(), beta.epistemic().benchmarkLineage()),
                 new BenchmarkRelationshipPanelResponse.CalculationEvidence("BENCHMARK_RELATIONSHIP", List.of(), relationship.epistemic().calculationRunId(), relationship.epistemic().dataQualityStatus(), relationship.epistemic().sourceArtifactSha256(), relationship.epistemic().benchmarkLineage())
             )
@@ -3083,7 +3169,7 @@ public class AnalysisService {
     }
     /**
      * Executes Benchmark Beta Dynamics & Systematic Covariance Analysis
-     * (Â§REL-01 Standard Beta, Â§REL-04 Downside Beta, Â§REL-05 Upside Beta).
+     * (Ã‚Â§REL-01 Standard Beta, Ã‚Â§REL-04 Downside Beta, Ã‚Â§REL-05 Upside Beta).
      * Synchronous pairing vs NIFTY 500 TRI, strict PIT, no interpolation.
      * All math is delegated to the quant engine; this method only orchestrates.
      */
@@ -3119,9 +3205,8 @@ public class AnalysisService {
         params.put("periods_per_year", 252.0);
         params.put("min_paired_observations", 700);
         params.put("min_downside_observations", 100);
-        params.put("min_upside_observations", 150);
 
-        List<String> metricCodes = List.of("MKT-01", "MKT-02", "REL-05");
+        List<String> metricCodes = List.of("MKT-01", "MKT-02");
         String tag = "CANDIDATE_V1";
 
         CalculationRun run = null;
@@ -3137,11 +3222,9 @@ public class AnalysisService {
 
         MetricResult rel01 = results.stream().filter(r -> "MKT-01".equals(r.getMetricCode())).findFirst().orElse(null);
         MetricResult rel04 = results.stream().filter(r -> "MKT-02".equals(r.getMetricCode())).findFirst().orElse(null);
-        MetricResult rel05 = results.stream().filter(r -> "REL-05".equals(r.getMetricCode())).findFirst().orElse(null);
 
         Map<String, Object> d01 = readDiagnostics(rel01);
         Map<String, Object> d04 = readDiagnostics(rel04);
-        Map<String, Object> d05 = readDiagnostics(rel05);
 
         // The authoritative ledger column is numeric(30,10): JDBC rounds on insert while the
         // managed entity retains full precision. Normalize to the ledger scale so the API
@@ -3150,27 +3233,23 @@ public class AnalysisService {
         String standardStatus = rel01 != null ? rel01.getCalculationStatus() : "INSUFFICIENT_DATA";
         BigDecimal downsideBeta = persistedValue(rel04);
         String downsideStatus = rel04 != null ? rel04.getCalculationStatus() : "INSUFFICIENT_DATA";
-        BigDecimal upsideBeta = persistedValue(rel05);
-        String upsideStatus = rel05 != null ? rel05.getCalculationStatus() : "INSUFFICIENT_DATA";
+        BigDecimal upsideBeta = null;
+        String upsideStatus = "NOT_AVAILABLE";
 
         Integer pairedCount = intDiag(d01, "paired_count", 0);
         Integer minPaired = intDiag(d01, "min_paired_observations", 700);
         Integer downCount = intDiag(d04, "downside_count", 0);
         Integer minDown = intDiag(d04, "min_downside_observations", 100);
-        Integer upCount = intDiag(d05, "upside_count", 0);
-        Integer minUp = intDiag(d05, "min_upside_observations", 150);
-        Integer flatCount = Math.max(0, pairedCount - upCount - downCount);
+        Integer upCount = 0;
+        Integer minUp = 0;
+        Integer flatCount = Math.max(0, pairedCount - downCount);
 
         boolean isStdSufficient = "CALCULATED".equals(standardStatus) && standardBeta != null;
         boolean isDownSufficient = "CALCULATED".equals(downsideStatus) && downsideBeta != null;
-        boolean isUpSufficient = "CALCULATED".equals(upsideStatus) && upsideBeta != null;
+        boolean isUpSufficient = false;
 
         BigDecimal asymmetry = null;
-        String asymmetryStatus = "INSUFFICIENT_DATA";
-        if (isUpSufficient && isDownSufficient) {
-            asymmetry = upsideBeta.subtract(downsideBeta).setScale(4, java.math.RoundingMode.HALF_UP);
-            asymmetryStatus = "CALCULATED";
-        }
+        String asymmetryStatus = "NOT_AVAILABLE";
 
         boolean rfAligned = boolDiag(d01, "risk_free_aligned", false);
         String rfProxy = strDiag(d01, "risk_free_proxy", rfAligned ? "FBIL_91D_TBILL" : "NONE");
@@ -3204,24 +3283,22 @@ public class AnalysisService {
 
         String stdFmt = standardBeta != null ? String.format("%.4f", standardBeta) : "Insufficient Data";
         String downFmt = downsideBeta != null ? String.format("%.4f", downsideBeta) : "Insufficient Data";
-        String upFmt = upsideBeta != null ? String.format("%.4f", upsideBeta) : "Insufficient Data";
-        String spreadFmt = asymmetry != null
-            ? ((asymmetry.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + String.format("%.4f", asymmetry))
-            : "N/A";
+        String upFmt = "N/A";
+        String spreadFmt = "N/A";
 
         String obsText = String.format(
-            "Over %d paired trading days from %s to %s against %s, the fund recorded a Standard Beta of %s (excess-return OLS vs FBIL 91-Day T-Bill), a Downside Beta of %s (%d negative benchmark days, threshold â‰¥%d), and an Upside Beta of %s (%d positive benchmark days, threshold â‰¥%d). Beta asymmetry (upside âˆ’ downside) is %s.",
+            "Over %d paired trading days from %s to %s against %s, the fund recorded a Standard Beta of %s (excess-return OLS vs FBIL 91-Day T-Bill) and a Downside Beta of %s (%d negative benchmark days, threshold >= %d).",
             pairedCount, startDate, endDate, bmName,
-            stdFmt, downFmt, downCount, minDown, upFmt, upCount, minUp, spreadFmt
+            stdFmt, downFmt, downCount, minDown
         );
 
-        String interpText = "Standard beta measures linear sensitivity of portfolio excess returns to benchmark excess returns across the full sample. Downside beta measures co-movement only on days when the benchmark declined, isolating sell-off sensitivity. Upside beta measures co-movement only on days when the benchmark rose. A downside beta above standard beta indicates amplified participation in market declines; an upside beta below standard beta indicates muted participation in advances.";
+        String interpText = "Standard beta measures linear sensitivity of portfolio excess returns to benchmark excess returns across the full sample. Downside beta measures co-movement only on days when the benchmark declined, isolating sell-off sensitivity. A downside beta above standard beta indicates amplified participation in market declines.";
 
-        String limitText = "Standard beta assumes a stationary linear covariance across all regimes and does not capture non-linear or crisis-specific sensitivity. Downside and upside beta are estimated on disjoint subsets, reducing sample size and increasing estimation error. Past beta does not predict future systematic exposure. Zero interpolation is applied; missing paired dates are excluded synchronously.";
+        String limitText = "Standard beta assumes a stationary linear covariance across all regimes and does not capture non-linear or crisis-specific sensitivity. Downside beta is estimated on negative benchmark subsets, reducing sample size and increasing estimation error. Past beta does not predict future systematic exposure. Zero interpolation is applied; missing paired dates are excluded synchronously.";
 
         String bmLineageText = String.format(
-            "Benchmark observations for %s are matched synchronously on identical calendar trading days. Out of %d paired return observations (%d minimum required for standard beta), %d were positive (%d required for upside beta), %d were negative (%d required for downside beta), and %d were flat (Rb = 0, excluded from both conditioned betas). Missing dates are excluded without date substitution or synthetic interpolation.",
-            bmName, pairedCount, minPaired, upCount, minUp, downCount, minDown, flatCount
+            "Benchmark observations for %s are matched synchronously on identical calendar trading days. Out of %d paired return observations (%d minimum required for standard beta), %d were negative (%d required for downside beta), and %d were non-negative. Missing dates are excluded without date substitution or synthetic interpolation.",
+            bmName, pairedCount, minPaired, downCount, minDown, flatCount
         );
 
         return new BetaDynamicsResponse(

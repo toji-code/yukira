@@ -50,6 +50,9 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
 
     List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
     List<NavObservation> findBySchemeOptionId(Long schemeOptionId);
+    java.util.Optional<com.yukira.backend.domain.entity.NavObservation> findTopBySchemeOptionIdOrderByEffectiveDateDesc(Long schemeOptionId);
+    long countBySchemeOptionId(Long schemeOptionId);
+    List<NavObservation> findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(Long schemeOptionId, LocalDate startDate, LocalDate endDate);
 
     @Query("SELECT COUNT(n) FROM NavObservation n WHERE n.schemeOption.id = :schemeOptionId AND n.effectiveDate >= :startDate AND n.effectiveDate <= :endDate")
     long countBySchemeOptionIdAndDateRange(
@@ -57,4 +60,16 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    @Query("SELECT n.schemeOption.id, COUNT(n) FROM NavObservation n WHERE n.effectiveDate >= :startDate AND n.effectiveDate <= :endDate GROUP BY n.schemeOption.id")
+    List<Object[]> countByDateRangeGroupedBySchemeOption(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    @Query("SELECT MAX(n.effectiveDate) FROM NavObservation n")
+    java.util.Optional<LocalDate> findMaxEffectiveDate();
+
+    @Query("SELECT MAX(n.ingestionTime) FROM NavObservation n")
+    java.util.Optional<OffsetDateTime> findMaxIngestionTime();
 }

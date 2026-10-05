@@ -10,10 +10,10 @@ import {
  * `status-badge` state vocabulary used across metric tiles: hue encodes
  * epistemic state only, never metric category.
  */
-type GovernanceState = "Approved Standard" | "Candidate Spec" | "Awaiting Holdings Feed";
+type GovernanceState = "Implemented Analytical" | "Candidate Spec" | "Awaiting Holdings Feed";
 
 const GOVERNANCE_STATE_CLASS: Record<GovernanceState, string> = {
-  "Approved Standard": "status-badge state-approved",
+  "Implemented Analytical": "status-badge state-candidate",
   "Candidate Spec": "status-badge state-candidate",
   "Awaiting Holdings Feed": "status-badge state-unavailable",
 };
@@ -51,7 +51,7 @@ const DIMENSIONS: DimensionSpec[] = [
     },
     metrics: [
       { name: "1Y CAGR", code: "RET-01", definition: "12-Month Compound Annual Growth Rate", state: "Candidate Spec" },
-      { name: "3Y CAGR", code: "RET-03", definition: "36-Month Compound Annual Growth Rate", state: "Approved Standard" },
+      { name: "3Y CAGR", code: "RET-03", definition: "36-Month Compound Annual Growth Rate", state: "Implemented Analytical" },
       { name: "5Y CAGR", code: "RET-04", definition: "60-Month Compound Annual Growth Rate", state: "Candidate Spec" },
       { name: "Rolling Return Mean", code: "RET-05", definition: "3Y Rolling CAGR Mean Distribution", state: "Candidate Spec" },
       { name: "Outperformance %", code: "RET-06", definition: "Percentage of Rolling Windows Beating TRI", state: "Candidate Spec" },
@@ -64,7 +64,7 @@ const DIMENSIONS: DimensionSpec[] = [
     scope: "Volatility • Semideviation • Drawdowns • VaR",
     open: true,
     metrics: [
-      { name: "Volatility", code: "RSK-01", definition: "Annualized Return Dispersion (√252, N-1)", state: "Approved Standard" },
+      { name: "Volatility", code: "RSK-01", definition: "Annualized Return Dispersion (√252, N-1)", state: "Implemented Analytical" },
       { name: "Semideviation", code: "RSK-02", definition: "Downside Deviation (MAR = 0.0%)", state: "Candidate Spec" },
       { name: "Max Drawdown", code: "RSK-03", definition: "Peak-to-Trough Worst Impairment", state: "Candidate Spec" },
       { name: "Drawdown Days", code: "RSK-04", definition: "Max Duration Peak to Prior High", state: "Candidate Spec" },
@@ -79,9 +79,9 @@ const DIMENSIONS: DimensionSpec[] = [
     scope: "Sharpe • Sortino • Treynor • Information Ratio",
     open: false,
     metrics: [
-      { name: "Sharpe Ratio", code: "RAT-01", definition: "Excess Return per Unit of Total Risk", state: "Approved Standard" },
+      { name: "Sharpe Ratio", code: "RAT-01", definition: "Excess Return per Unit of Total Risk", state: "Implemented Analytical" },
       { name: "Sortino Ratio", code: "RAT-02", definition: "Excess Return per Downside Risk", state: "Candidate Spec" },
-      { name: "Treynor Ratio", code: "RAT-03", definition: "Excess Return per Systematic Beta", state: "Approved Standard" },
+      { name: "Treynor Ratio", code: "RAT-03", definition: "Excess Return per Systematic Beta", state: "Implemented Analytical" },
       { name: "Information Ratio", code: "RAT-04", definition: "Active Alpha per Tracking Error", state: "Candidate Spec" },
     ],
   },
@@ -91,11 +91,11 @@ const DIMENSIONS: DimensionSpec[] = [
     scope: "Beta • Downside Beta • Capture Ratios",
     open: false,
     metrics: [
-      { name: "Portfolio Beta", code: "MKT-01", definition: "OLS Regression Slope vs NIFTY 50", state: "Approved Standard" },
-      { name: "Downside Beta", code: "MKT-02", definition: "Sensitivity When Market Declines", state: "Approved Standard" },
+      { name: "Portfolio Beta", code: "MKT-01", definition: "OLS Regression Slope vs NIFTY 50", state: "Implemented Analytical" },
+      { name: "Downside Beta", code: "MKT-02", definition: "Sensitivity When Market Declines", state: "Implemented Analytical" },
       { name: "Upside Capture", code: "MKT-03", definition: "Benchmark Gain Participation", state: "Candidate Spec" },
       { name: "Downside Capture", code: "MKT-04", definition: "Benchmark Loss Participation", state: "Candidate Spec" },
-      { name: "Capture Spread", code: "MKT-05", definition: "Upside Ratio Minus Downside Ratio", state: "Candidate Spec" },
+      { name: "Capture Spread 3Y", code: "MKT-05", definition: "Upside Ratio Minus Downside Ratio", state: "Candidate Spec" },
     ],
   },
   {
@@ -122,13 +122,13 @@ const DIMENSIONS: DimensionSpec[] = [
   },
 ];
 
-const APPROVED_SLICES: Array<[string, string]> = [
-  ["Compound Growth Rate (RET-03):", "Governed by approved 365.25/D annualization convention."],
-  ["Annualized Volatility (RSK-01):", "Governed by approved √252, N-1 sample variance standard."],
-  ["Sharpe Ratio (RAT-01):", "Governed by approved standard using FBIL 91-day T-Bill risk-free benchmark."],
-  ["Treynor Ratio (RAT-03):", "Governed by approved excess-return and systematic beta standards."],
-  ["Portfolio Beta (MKT-01):", "Governed by approved excess-return OLS regression against NIFTY 50 TRI."],
-  ["Downside Beta (MKT-02):", "Governed by approved negative benchmark trading day conditioning."],
+const IMPLEMENTED_SLICES: Array<[string, string]> = [
+  ["Compound Growth Rate (RET-03):", "Implemented with 365.25/D annualization convention."],
+  ["Annualized Volatility (RSK-01):", "Implemented with √252, N-1 sample variance standard."],
+  ["Sharpe Ratio (RAT-01):", "Implemented with standard using FBIL 91-day T-Bill risk-free benchmark."],
+  ["Treynor Ratio (RAT-03):", "Implemented with excess-return and systematic beta standards."],
+  ["Portfolio Beta (MKT-01):", "Implemented with excess-return OLS regression against NIFTY 50 TRI."],
+  ["Downside Beta (MKT-02):", "Implemented with negative benchmark trading day conditioning."],
 ];
 
 const CANDIDATE_SLICES: Array<[string, string]> = [
@@ -183,8 +183,8 @@ const LIFECYCLE_TIERS: Array<{
   {
     tier: "Tier 3: Approved",
     headline: "Governance Authorization",
-    body: "Formally authorized by governance review for live decision support. Approved standards define explicit annualization, denominator, and benchmark conventions.",
-    status: "Status: 5 Approved Core Standards",
+    body: "Formally authorized by governance review for live decision support. At this tier, standards define explicit annualization, denominator, and benchmark conventions.",
+    status: "Status: No score methodology approved for production",
     badge: "state-approved",
   },
 ];
@@ -253,9 +253,9 @@ export default function MethodologyPage() {
             <p className="mono-meta mt-1">Return, Volatility, Drawdown, VaR, Alpha</p>
           </div>
           <div className="metric-tile">
-            <p className="def-label">Approved Standards</p>
-            <p className="data-value-md text-approved-fg">5 Foundation Specs</p>
-            <p className="mono-meta mt-1">CAGR, Volatility, Sharpe, Treynor, Beta</p>
+            <p className="def-label">Implemented Standards</p>
+            <p className="data-value-md text-candidate-fg">Candidate / Provisional</p>
+            <p className="mono-meta mt-1">No approved score methodology</p>
           </div>
           <div className="metric-tile">
             <p className="def-label">Candidate / Deferred</p>
@@ -359,7 +359,7 @@ export default function MethodologyPage() {
         <SectionHeading
           ordinal="04"
           title="Governance Status of 13 Implemented Analytical Slices"
-          description="Implemented vertical slices do not share one identical governance state. They map to approved, candidate, or deferred methodologies."
+          description="Implemented vertical slices do not share one identical governance state. They remain separate from the active YUKIRA_SCORE_V1 score-input contract."
           action={
             <span className="status-badge state-accent shrink-0">
               Standard Governance Alignment
@@ -367,20 +367,20 @@ export default function MethodologyPage() {
           }
         />
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="panel state-approved p-4">
+          <div className="panel state-candidate p-4">
             <div className="flex items-center gap-2">
-              <span className="status-badge state-approved">
+              <span className="status-badge state-candidate">
                 <span className="status-dot" aria-hidden />
-                Approved
+                Implemented
               </span>
-              <p className="eyebrow">Slices Executing Approved Methodologies</p>
+              <p className="eyebrow">Implemented Analytical Slices</p>
             </div>
             <p className="mt-2 text-[13px] leading-[1.5] text-text-secondary">
-              These analytical vertical slices execute algorithms governed by approved
+              These analytical vertical slices execute deterministic algorithms with explicit
               methodology standards:
             </p>
             <div className="mt-3">
-              <RuleList items={APPROVED_SLICES} />
+              <RuleList items={IMPLEMENTED_SLICES} />
             </div>
           </div>
 

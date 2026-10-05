@@ -24,11 +24,20 @@ public class Scheme implements Serializable {
     @Column(name = "code", nullable = false, unique = true, length = 100)
     private String code;
 
-    @Column(name = "inception_date", nullable = false)
+    @Column(name = "inception_date", nullable = true)
     private LocalDate inceptionDate;
+
+    @Column(name = "category", length = 100)
+    private String category;
+
+    @Column(name = "subcategory", length = 100)
+    private String subcategory;
 
     @Column(name = "status", nullable = false, length = 30)
     private String status = "ACTIVE";
+
+    @Transient
+    private com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore;
 
     public Scheme() {}
 
@@ -37,6 +46,15 @@ public class Scheme implements Serializable {
         this.name = name;
         this.code = code;
         this.inceptionDate = inceptionDate;
+    }
+
+    public Scheme(Amc amc, String name, String code, LocalDate inceptionDate, String category, String subcategory) {
+        this.amc = amc;
+        this.name = name;
+        this.code = code;
+        this.inceptionDate = inceptionDate;
+        this.category = category;
+        this.subcategory = subcategory;
     }
 
     public Long getId() { return id; }
@@ -54,6 +72,15 @@ public class Scheme implements Serializable {
     public LocalDate getInceptionDate() { return inceptionDate; }
     public void setInceptionDate(LocalDate inceptionDate) { this.inceptionDate = inceptionDate; }
 
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+
+    public String getSubcategory() { return subcategory; }
+    public void setSubcategory(String subcategory) { this.subcategory = subcategory; }
+
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public com.yukira.backend.scoring.dto.YukiraScoreSummary getYukiraScore() { return yukiraScore; }
+    public void setYukiraScore(com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore) { this.yukiraScore = yukiraScore; }
 }

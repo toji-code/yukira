@@ -3,6 +3,7 @@ package com.yukira.backend.controller;
 import com.yukira.backend.dto.analysis.*;
 import com.yukira.backend.repository.SchemeOptionRepository;
 import com.yukira.backend.service.AnalysisService;
+import com.yukira.backend.service.portfolio.PortfolioComparisonQueryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +18,12 @@ public class AnalysisController {
 
     private final AnalysisService analysisService;
     private final SchemeOptionRepository schemeOptionRepository;
+    private final PortfolioComparisonQueryService portfolioComparisonQueryService;
 
-    public AnalysisController(AnalysisService analysisService, SchemeOptionRepository schemeOptionRepository) {
+    public AnalysisController(AnalysisService analysisService, SchemeOptionRepository schemeOptionRepository, PortfolioComparisonQueryService portfolioComparisonQueryService) {
         this.analysisService = analysisService;
         this.schemeOptionRepository = schemeOptionRepository;
+        this.portfolioComparisonQueryService = portfolioComparisonQueryService;
     }
 
     /**
@@ -451,7 +454,7 @@ public class AnalysisController {
             }
         }
 
-        ComparisonResponse response = analysisService.executeComparison(request);
+        ComparisonResponse response = portfolioComparisonQueryService.executeComparison(request);
         return ResponseEntity.ok(response);
     }
 
@@ -543,7 +546,7 @@ public class AnalysisController {
     }
 
     /**
-     * Executes real Market-Relative Tracking Consistency & Information Ratio Analysis (Â§MKT-01 / Â§MKT-02).
+     * Executes real Market-Relative Tracking Consistency & Information Ratio Analysis (Ã‚Â§MKT-01 / Ã‚Â§MKT-02).
      * Synchronously aligned pairing vs NIFTY 500 TRI, strict PIT enforcement, minimum N >= 700 threshold.
      */
     @GetMapping({"/tracking-consistency/{schemeOptionId}", "/tracking/{schemeOptionId}"})
@@ -687,7 +690,7 @@ public class AnalysisController {
     }
     /**
      * Executes Benchmark Beta Dynamics & Systematic Covariance Analysis
-     * (Â§REL-01 Standard Beta / Â§REL-04 Downside Beta / Â§REL-05 Upside Beta).
+     * (Ã‚Â§REL-01 Standard Beta / Ã‚Â§REL-04 Downside Beta / Ã‚Â§REL-05 Upside Beta).
      * Synchronously aligned pairing vs NIFTY 500 TRI, strict PIT enforcement.
      */
     @GetMapping({"/beta/{schemeOptionId}", "/beta-dynamics/{schemeOptionId}"})

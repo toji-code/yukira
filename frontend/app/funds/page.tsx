@@ -10,6 +10,7 @@ import { FundCard } from "@/components/primitives/FundCard";
 import { useWatchlist } from "@/lib/hooks/useWatchlist";
 
 type SortOption = "name_asc" | "name_desc" | "inception_asc" | "inception_desc";
+type ScoreFilterOption = "ALL" | "SCORE_AVAILABLE" | "SCORE_UNAVAILABLE";
 
 export default function FundsCatalogPage() {
   const [schemes, setSchemes] = useState<Scheme[]>([]);
@@ -17,6 +18,7 @@ export default function FundsCatalogPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("name_asc");
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilterOption>("ALL");
   const { watchlistedIds, toggleWatchlist } = useWatchlist();
 
   const refreshCatalog = () => {
@@ -68,6 +70,24 @@ export default function FundsCatalogPage() {
       );
     }
 
+    if (scoreFilter === "SCORE_AVAILABLE") {
+      result = result.filter(
+        (s) =>
+          s.yukiraScore &&
+          s.yukiraScore.score !== null &&
+          s.yukiraScore.score !== undefined &&
+          s.yukiraScore.status !== "INSUFFICIENT_DATA"
+      );
+    } else if (scoreFilter === "SCORE_UNAVAILABLE") {
+      result = result.filter(
+        (s) =>
+          !s.yukiraScore ||
+          s.yukiraScore.score === null ||
+          s.yukiraScore.score === undefined ||
+          s.yukiraScore.status === "INSUFFICIENT_DATA"
+      );
+    }
+
     return [...result].sort((a, b) => {
       if (sortBy === "name_asc") return a.name.localeCompare(b.name);
       if (sortBy === "name_desc") return b.name.localeCompare(a.name);
@@ -83,7 +103,7 @@ export default function FundsCatalogPage() {
       }
       return 0;
     });
-  }, [schemes, searchQuery, sortBy]);
+  }, [schemes, searchQuery, sortBy, scoreFilter]);
 
   return (
     <PageContainer
@@ -134,9 +154,9 @@ export default function FundsCatalogPage() {
         </p>
       </div>
 
-      {/* Search / sort / result count */}
+      {/* Search / sort / filter / result count */}
       <div className="panel mb-5">
-        <div className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
+        <div className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_auto] lg:items-end">
           <div>
             <label htmlFor="fund-search" className="field-label">
               Search
@@ -150,6 +170,23 @@ export default function FundsCatalogPage() {
               className="field field-mono"
               aria-label="Search mutual funds"
             />
+          </div>
+
+          <div>
+            <label htmlFor="score-filter" className="field-label">
+              YUKIRA Score
+            </label>
+            <select
+              id="score-filter"
+              value={scoreFilter}
+              onChange={(e) => setScoreFilter(e.target.value as ScoreFilterOption)}
+              className="field field-mono"
+              aria-label="Filter schemes by YUKIRA score availability"
+            >
+              <option value="ALL">All Schemes</option>
+              <option value="SCORE_AVAILABLE">Score Available</option>
+              <option value="SCORE_UNAVAILABLE">Score Unavailable</option>
+            </select>
           </div>
 
           <div>
@@ -179,10 +216,16 @@ export default function FundsCatalogPage() {
           </div>
         </div>
 
-        {searchQuery && (
-          <div className="border-t border-border px-4 py-2">
-            <button onClick={() => setSearchQuery("")} className="btn btn-ghost btn-sm">
-              Clear search filter
+        {(searchQuery || scoreFilter !== "ALL") && (
+          <div className="border-t border-border px-4 py-2 flex items-center gap-2">
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setScoreFilter("ALL");
+              }}
+              className="btn btn-ghost btn-sm"
+            >
+              Clear filters
             </button>
           </div>
         )}

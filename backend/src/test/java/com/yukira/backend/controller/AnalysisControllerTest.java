@@ -4,6 +4,7 @@ import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.dto.analysis.Ret02CalculationRequest;
 import com.yukira.backend.repository.*;
 import com.yukira.backend.service.AnalysisService;
+import com.yukira.backend.service.portfolio.PortfolioComparisonQueryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,9 @@ class AnalysisControllerTest {
     private SchemeOptionRepository schemeOptionRepository;
 
     @Autowired
+    private PortfolioComparisonQueryService portfolioComparisonQueryService;
+
+    @Autowired
     private SchemeRepository schemeRepository;
 
     @Autowired
@@ -63,7 +67,7 @@ class AnalysisControllerTest {
 
     @BeforeEach
     void setUp() {
-        AnalysisController controller = new AnalysisController(analysisService, schemeOptionRepository);
+        AnalysisController controller = new AnalysisController(analysisService, schemeOptionRepository, portfolioComparisonQueryService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         Amc amc = amcRepository.findByCode("HDFC_MF")
@@ -855,7 +859,7 @@ class AnalysisControllerTest {
             .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
             .andExpect(jsonPath("$.context.benchmarkName", notNullValue()))
             .andExpect(jsonPath("$.metrics.activeReturn.metricCode", is("RET-07")))
-            .andExpect(jsonPath("$.metrics.trackingError.metricCode", is("REL-02")))
+            .andExpect(jsonPath("$.metrics.trackingError.metricCode", is("REL-01")))
             .andExpect(jsonPath("$.metrics.informationRatio.metricCode", is("RAT-04")))
             .andExpect(jsonPath("$.metrics.correlation.metricCode").doesNotExist())
             .andExpect(jsonPath("$.metrics.beta.metricCode", is("MKT-01")))

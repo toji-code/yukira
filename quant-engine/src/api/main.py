@@ -43,8 +43,8 @@ def health_check() -> HealthResponse:
         candidate_metrics=[
             "RET-01", "RET-02", "RET-03", "RET-04", "RET-05", "RET-06", "RET-07",
             "RSK-01", "RSK-02", "RSK-03", "RSK-04", "RSK-05", "RSK-06", "RSK-07",
-            "RAT-01", "RAT-02", "RAT-03", "RAT-04", "RAT-05",
-            "REL-01", "REL-02", "REL-03", "REL-04", "REL-05", "REL-06",
+            "RAT-01", "RAT-02", "RAT-03", "RAT-04",
+            "REL-01", "REL-02", "REL-03",
             "MKT-01", "MKT-02", "MKT-03", "MKT-04", "MKT-05",
         ],
         methodology_status="STRICTLY EMPTY",

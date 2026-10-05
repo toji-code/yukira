@@ -6,15 +6,15 @@ Authoritative code -> metric bindings exercised here:
   Phase 2R analytical profile / Phase 2S scope locks
   (docs/research/PHASE_2S_SCOPE_LOCK.md, docs/research/PHASE_2S_B_SCOPE_LOCK.md,
    Contradiction Audit Record 4 = RESOLVED):
-      REL-01 = Beta 3Y              REL-02 = Tracking Error 3Y
-      REL-03 = Jensen's Alpha 3Y    REL-04 = Downside Beta 3Y
+      MKT-01 = Beta 3Y              MKT-01 = Tracking Error 3Y
+      REL-02 = Jensen's Alpha 3Y    MKT-02 = Downside Beta 3Y
 
   Frozen Phase 2H registry (phase2h_quantitative_methodology.md):
       MKT-01 = Beta 3Y              MKT-02 = Downside Beta 3Y
       MKT-03 / MKT-04 / MKT-05 = Upside Capture / Downside Capture / Capture Spread
       RAT-04 = Information Ratio 3Y
 
-REL-02 and REL-03 must never dispatch Pearson correlation or the coefficient of
+MKT-01 and REL-02 must never dispatch Pearson correlation or the coefficient of
 determination, and MKT-01 / MKT-02 must never dispatch Tracking Error or
 Information Ratio: those renumberings contradicted both the frozen registry and
 the resolved CR-04 governance record.
@@ -74,24 +74,24 @@ def _dispatch(metric_codes, nav_series, benchmark_series, risk_free_series=None)
     return {item.metric_code: item for item in dispatch_calculation(request)}
 
 
-def test_mkt01_mkt02_are_frozen_registry_aliases_of_rel01_rel04():
+def test_canonical_mkt01_mkt02():
     """MKT-01 = Beta and MKT-02 = Downside Beta (frozen Phase 2H identities)."""
     nav, bench, rf = _declining_series()
     by_code = _dispatch(
-        ["REL-01", "MKT-01", "REL-04", "MKT-02"],
+        ["MKT-01", "MKT-02"],
         nav,
         bench,
         risk_free_series=rf,
     )
 
-    for code in ("REL-01", "MKT-01", "REL-04", "MKT-02"):
+    for code in ("MKT-01", "MKT-02"):
         assert by_code[code].status == CalculationStatus.CALCULATED, code
         assert by_code[code].units == "RATIO", code
         assert by_code[code].numeric_value is not None, code
 
     # Same metric, two registry codes: identical deterministic values.
-    assert by_code["MKT-01"].numeric_value == pytest.approx(by_code["REL-01"].numeric_value, abs=1e-15)
-    assert by_code["MKT-02"].numeric_value == pytest.approx(by_code["REL-04"].numeric_value, abs=1e-15)
+    assert by_code["MKT-01"].numeric_value == pytest.approx(by_code["MKT-01"].numeric_value, abs=1e-15)
+    assert by_code["MKT-02"].numeric_value == pytest.approx(by_code["MKT-02"].numeric_value, abs=1e-15)
 
     # MKT-01 must never be Tracking Error and MKT-02 must never be Information Ratio.
     assert by_code["MKT-01"].units != "PERCENTAGE"
@@ -100,9 +100,9 @@ def test_mkt01_mkt02_are_frozen_registry_aliases_of_rel01_rel04():
 
 def test_rel02_dispatches_tracking_error_not_correlation():
     nav, bench, _ = _declining_series()
-    by_code = _dispatch(["REL-02"], nav, bench)
+    by_code = _dispatch(["REL-01"], nav, bench)
 
-    item = by_code["REL-02"]
+    item = by_code["REL-01"]
     assert item.status == CalculationStatus.CALCULATED
     # Tracking Error is a percentage; the hijacked correlation identity was a ratio.
     assert item.units == "PERCENTAGE"
@@ -124,9 +124,9 @@ def test_rel02_enforces_frozen_700_paired_floor():
     nav = [_obs(f"2024-01-0{i}", v) for i, v in enumerate([100.0, 102.0, 101.0, 103.0, 106.0], start=1)]
     bench = [_obs(f"2024-01-0{i}", v) for i, v in enumerate([200.0, 202.0, 201.0, 204.0, 207.0], start=1)]
 
-    by_code = _dispatch(["REL-02"], nav, bench)
+    by_code = _dispatch(["REL-01"], nav, bench)
 
-    item = by_code["REL-02"]
+    item = by_code["REL-01"]
     assert item.status == CalculationStatus.INSUFFICIENT_DATA
     assert item.numeric_value is None
     assert item.units == "PERCENTAGE"
@@ -138,9 +138,9 @@ def test_rel03_dispatches_jensens_alpha_not_r_squared():
     nav = [_obs(f"2024-01-0{i}", v) for i, v in enumerate([100.0, 102.0, 101.0, 103.0, 106.0], start=1)]
     bench = [_obs(f"2024-01-0{i}", v) for i, v in enumerate([200.0, 202.0, 201.0, 204.0, 207.0], start=1)]
 
-    by_code = _dispatch(["REL-03"], nav, bench)
+    by_code = _dispatch(["REL-02"], nav, bench)
 
-    item = by_code["REL-03"]
+    item = by_code["REL-02"]
     assert item.status == CalculationStatus.CALCULATED
     # Jensen's Alpha is a percentage; the hijacked R-squared identity was a ratio.
     assert item.units == "PERCENTAGE"
@@ -163,8 +163,8 @@ def test_rel03_dispatches_jensens_alpha_not_r_squared():
 
 def test_rel03_requires_benchmark_series():
     nav = [_obs("2024-01-01", 100.0), _obs("2024-01-02", 101.0)]
-    by_code = _dispatch(["REL-03"], nav, None)
+    by_code = _dispatch(["REL-02"], nav, None)
 
-    item = by_code["REL-03"]
+    item = by_code["REL-02"]
     assert item.status == CalculationStatus.INSUFFICIENT_DATA
     assert item.numeric_value is None

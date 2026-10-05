@@ -1,6 +1,7 @@
 "use client";
 
 import { SchemeOption } from "@/types/domain";
+import { InvestmentTermsDto } from "@/types/enrichment";
 
 /**
  * YUKIRA — Investment Mode Information (SIP / Lumpsum)
@@ -236,6 +237,7 @@ export function describeRegistryStatus(raw: string | null | undefined): string {
 interface InvestmentModesViewProps {
   options: readonly SchemeOption[];
   schemeCode: string;
+  investmentTerms?: InvestmentTermsDto | null;
 }
 
 /** Renders a single disclosed data gap as an explicit "Not available" row. */
@@ -251,23 +253,57 @@ function UnavailableTermRow({ term }: { term: UnavailableTerm }) {
   );
 }
 
+function VerifiedTermRow({
+  label,
+  value,
+  asOfDate,
+  sourceTitle,
+}: {
+  label: string;
+  value: string;
+  asOfDate?: string | null;
+  sourceTitle?: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-1 border-b border-border-subtle py-3 last:border-b-0 sm:flex-row sm:items-start sm:gap-3">
+      <dt className="def-label sm:w-44 sm:shrink-0 sm:self-start">{label}</dt>
+      <dd className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
+        <span className="data-value-sm text-text-primary">{value}</span>
+        <span className="status-badge state-approved shrink-0">VERIFIED</span>
+        {asOfDate && (
+          <span className="text-[11px] text-text-tertiary">
+            As of {asOfDate} ({sourceTitle ?? "Official KIM"})
+          </span>
+        )}
+      </dd>
+    </div>
+  );
+}
+
 function RoutePanel({
   route,
   title,
   subtitle,
+  terms,
 }: {
   route: InvestmentRoute;
   title: string;
   subtitle: string;
+  terms?: InvestmentTermsDto | null;
 }) {
-  const terms = INVESTMENT_ROUTE_TERMS[route];
+  const isVerified = terms && terms.status === "AVAILABLE";
+  const unavailableTerms = INVESTMENT_ROUTE_TERMS[route];
 
   return (
     <div className="panel">
       <div className="panel-header flex-wrap border-b border-border pb-3">
         <p className="eyebrow text-accent">{title}</p>
-        <span className="status-badge state-unavailable shrink-0">
-          {terms.length} terms &bull; none verified
+        <span
+          className={`status-badge shrink-0 ${
+            isVerified ? "state-approved" : "state-unavailable"
+          }`}
+        >
+          {isVerified ? "KIM Disclosed Terms" : `${unavailableTerms.length} terms • none verified`}
         </span>
       </div>
 
@@ -276,34 +312,121 @@ function RoutePanel({
       </p>
 
       <dl className="py-1">
-        {terms.map((term) => (
-          <UnavailableTermRow key={term.label} term={term} />
-        ))}
+        {route === "SIP" && isVerified ? (
+          <>
+            <VerifiedTermRow
+              label="Minimum SIP Amount"
+              value={terms.formattedMinSipAmount ?? NOT_AVAILABLE_TOKEN}
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            <VerifiedTermRow
+              label="Permitted SIP Frequencies"
+              value={
+                terms.sipFrequencies && terms.sipFrequencies.length > 0
+                  ? terms.sipFrequencies.join(", ")
+                  : NOT_AVAILABLE_TOKEN
+              }
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            <VerifiedTermRow
+              label="SIP Exit Load / Deduction"
+              value={terms.exitLoadDescription ?? "Nil"}
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            {unavailableTerms
+              .filter(
+                (t) =>
+                  t.label !== "Minimum SIP Amount" &&
+                  t.label !== "Permitted SIP Frequencies" &&
+                  t.label !== "SIP Exit Load / Deduction"
+              )
+              .map((term) => (
+                <UnavailableTermRow key={term.label} term={term} />
+              ))}
+          </>
+        ) : route === "LUMPSUM" && isVerified ? (
+          <>
+            <VerifiedTermRow
+              label="Minimum Lump-sum Amount"
+              value={terms.formattedMinLumpsumAmount ?? NOT_AVAILABLE_TOKEN}
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            <VerifiedTermRow
+              label="Additional Purchase Minimum"
+              value={terms.formattedMinAdditionalAmount ?? NOT_AVAILABLE_TOKEN}
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            <VerifiedTermRow
+              label="Exit Load / Redemption Charge"
+              value={terms.exitLoadDescription ?? "Nil"}
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            <VerifiedTermRow
+              label="Lock-in Period"
+              value={
+                terms.lockInPeriodDays != null
+                  ? `${terms.lockInPeriodDays} days`
+                  : NOT_AVAILABLE_TOKEN
+              }
+              asOfDate={terms.asOfDate}
+              sourceTitle={terms.sourceDocumentTitle}
+            />
+            {unavailableTerms
+              .filter(
+                (t) =>
+                  t.label !== "Minimum Lump-sum Amount" &&
+                  t.label !== "Exit Load / Redemption Charge" &&
+                  t.label !== "Lock-in Period"
+              )
+              .map((term) => (
+                <UnavailableTermRow key={term.label} term={term} />
+              ))}
+          </>
+        ) : (
+          unavailableTerms.map((term) => <UnavailableTermRow key={term.label} term={term} />)
+        )}
       </dl>
     </div>
   );
 }
 
-export function InvestmentModesView({ options, schemeCode }: InvestmentModesViewProps) {
+export function InvestmentModesView({
+  options,
+  schemeCode,
+  investmentTerms,
+}: InvestmentModesViewProps) {
   const coverage = summarizeShareClassCoverage(options);
+  const hasVerifiedTerms = investmentTerms && investmentTerms.status === "AVAILABLE";
 
   return (
     <div className="space-y-5">
-      {/* DATA GAP DISCLOSURE */}
+      {/* DATA GAP / PROVENANCE DISCLOSURE */}
       <section className="panel p-4 md:p-5" aria-label="Data coverage notice">
         <div className="flex items-start gap-3">
           <span
-            className="status-badge state-critical mt-0.5 shrink-0"
+            className={`status-badge mt-0.5 shrink-0 ${
+              hasVerifiedTerms ? "state-approved" : "state-critical"
+            }`}
             aria-hidden="true"
           >
-            !
+            {hasVerifiedTerms ? "✓" : "!"}
           </span>
           <div className="min-w-0">
             <h3 className="text-[14px] font-semibold tracking-[-0.01em] text-text-primary">
-              {INVESTMENT_MODE_DATA_GAP.headline}
+              {hasVerifiedTerms
+                ? "Official Scheme Terms Ingested from Key Information Memorandum (KIM)"
+                : INVESTMENT_MODE_DATA_GAP.headline}
             </h3>
             <p className="mono-meta mt-1.5 font-sans leading-[1.55]">
-              {INVESTMENT_MODE_DATA_GAP.body}
+              {hasVerifiedTerms
+                ? `Authoritative minimum amounts, permitted frequencies, and exit load schedules have been verified against statutory KIM filing (Artifact #${investmentTerms.sourceArtifactId ?? "N/A"}, As-of: ${investmentTerms.asOfDate ?? "Not available"}). Unverified operational terms (such as cut-off times) remain explicitly disclosed as Not available.`
+                : INVESTMENT_MODE_DATA_GAP.body}
             </p>
           </div>
         </div>
@@ -315,11 +438,13 @@ export function InvestmentModesView({ options, schemeCode }: InvestmentModesView
           route="SIP"
           title="SIP — Systematic Investment Plan"
           subtitle="A fixed amount invested on a recurring schedule, so market timing is spread across multiple dates rather than decided on one."
+          terms={investmentTerms}
         />
         <RoutePanel
           route="LUMPSUM"
           title="Lumpsum — One-Time Investment"
           subtitle="The entire amount is invested on a single date, so the outcome depends entirely on the market level on that one date."
+          terms={investmentTerms}
         />
       </div>
 

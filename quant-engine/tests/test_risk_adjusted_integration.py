@@ -3,9 +3,9 @@ YUKIRA Phase 2Q: Risk-Adjusted Metrics Production Integration Tests.
 
 Verifies end-to-end analytical vertical slice across:
 1. Sharpe Ratio 3Y (RAT-01) - M2N-01/M2N-02
-2. Treynor Ratio 3Y (RAT-02 / RAT-05) - M2N-05/M2N-02/M2N-06
-3. Beta 3Y (REL-01 / MKT-01) - M2N-06/M2N-02
-4. Downside Beta 3Y (REL-04 / MKT-02) - M2N-07 (Strictly zero risk-free dependency)
+2. Treynor Ratio 3Y (RAT-03 / RAT-05) - M2N-05/M2N-02/M2N-06
+3. Beta 3Y (MKT-01 / MKT-01) - M2N-06/M2N-02
+4. Downside Beta 3Y (MKT-02 / MKT-02) - M2N-07 (Strictly zero risk-free dependency)
 """
 
 from __future__ import annotations
@@ -59,7 +59,12 @@ def test_sharpe_ratio_with_aligned_fbil_series():
     assert r.period_type == "3Y"
     assert r.diagnostics["risk_free_aligned"] is True
     assert r.diagnostics["risk_free_proxy"] == "FBIL_91D_TBILL"
-    assert r.diagnostics["annualization_convention"] == "SQRT_252_APPROVED"
+    assert r.diagnostics["annualization_convention"] == "SQRT_252_M2N_01"
+    # AGENTS.md 11: IMPLEMENTED != VALIDATED != APPROVED. The convention may be
+    # approved at the methodology level, but the RAT-01 metric itself must never be
+    # reported as APPROVED while methodology_version stays CANDIDATE/UNVALIDATED.
+    assert r.diagnostics["methodology_status"] == "CANDIDATE"
+    assert r.diagnostics["convention_status"] == "M2N_01_M2N_02_APPROVED_METHODOLOGY_LEVEL"
 
     # Verify deterministic numerical precision
     p_returns = [(navs[i] - navs[i - 1]) / navs[i - 1] for i in range(1, len(navs))]
@@ -69,7 +74,7 @@ def test_sharpe_ratio_with_aligned_fbil_series():
 
 
 def test_treynor_and_beta_with_aligned_fbil_series():
-    # Extended to 710 observation dates (709 return intervals) so that REL-01 satisfies
+    # Extended to 710 observation dates (709 return intervals) so that MKT-01 satisfies
     # the M2N-06 >= 700 synchronous paired-day floor while preserving exact
     # numerical equivalence against the pure kernels.
     start = datetime.date(2024, 1, 1)
@@ -97,7 +102,7 @@ def test_treynor_and_beta_with_aligned_fbil_series():
         request_id="REQ-TREYNOR-BETA-01",
         as_of_date=as_of,
         knowledge_cutoff_time=f"{as_of}T23:59:59+05:30",
-        metric_codes=["REL-01", "RAT-02"],
+        metric_codes=["MKT-01", "RAT-03"],
         nav_series=nav_series,
         benchmark_series=bench_series,
         risk_free_series=rf_series,
@@ -107,8 +112,8 @@ def test_treynor_and_beta_with_aligned_fbil_series():
     results = dispatch_calculation(req)
     results_map = {res.metric_code: res for res in results}
 
-    beta_res = results_map["REL-01"]
-    treynor_res = results_map["RAT-02"]
+    beta_res = results_map["MKT-01"]
+    treynor_res = results_map["RAT-03"]
 
     assert beta_res.status == CalculationStatus.CALCULATED
     assert beta_res.period_type == "3Y"
@@ -119,7 +124,14 @@ def test_treynor_and_beta_with_aligned_fbil_series():
     assert treynor_res.status == CalculationStatus.CALCULATED
     assert treynor_res.period_type == "3Y"
     assert treynor_res.diagnostics["risk_free_aligned"] is True
-    assert treynor_res.diagnostics["annualization_convention"] == "252_MULTIPLIER_APPROVED"
+    assert treynor_res.diagnostics["annualization_convention"] == "252_MULTIPLIER_M2N_05"
+    # RAT-03 / RAT-05 remain CANDIDATE even though M2N-05 (numerator) and M2N-06
+    # (beta specification) are approved at the methodology level.
+    assert treynor_res.diagnostics["methodology_status"] == "CANDIDATE"
+    assert treynor_res.diagnostics["beta_convention"] == "EXCESS_RETURN_OLS_WITH_INTERCEPT_M2N_06"
+    assert (
+        treynor_res.diagnostics["convention_status"] == "M2N_05_M2N_06_APPROVED_METHODOLOGY_LEVEL"
+    )
 
     # Verify exact numerical equivalence by reusing the approved kernels.
     p_returns = [(navs[i] - navs[i - 1]) / navs[i - 1] for i in range(1, n)]
@@ -169,7 +181,7 @@ def test_downside_beta_proves_risk_free_independence():
         request_id="REQ-DBETA-NO-RF",
         as_of_date=as_of,
         knowledge_cutoff_time=f"{as_of}T23:59:59+05:30",
-        metric_codes=["REL-04"],
+        metric_codes=["MKT-02"],
         nav_series=nav_series,
         benchmark_series=bench_series,
     )
@@ -184,7 +196,7 @@ def test_downside_beta_proves_risk_free_independence():
         request_id="REQ-DBETA-WITH-RF",
         as_of_date=as_of,
         knowledge_cutoff_time=f"{as_of}T23:59:59+05:30",
-        metric_codes=["REL-04"],
+        metric_codes=["MKT-02"],
         nav_series=nav_series,
         benchmark_series=bench_series,
         risk_free_series=rf_series,
@@ -260,8 +272,8 @@ def test_full_fastapi_endpoint_risk_adjusted_suite():
     nav_series = []
     benchmark_series = []
     risk_free_series = []
-    # 720 observations -> 719 paired returns: satisfies the M2N-06 >= 700 floor for REL-01
-    # and the >= 100 down-day floor for REL-04 on this monotonically declining series.
+    # 720 observations -> 719 paired returns: satisfies the M2N-06 >= 700 floor for MKT-01
+    # and the >= 100 down-day floor for MKT-02 on this monotonically declining series.
     for i in range(720):
         d_str = (start_date + datetime.timedelta(days=i)).isoformat()
         nav_series.append({"effective_date": d_str, "value": 100.0 - 0.05 * i, "availability_time": f"{d_str}T18:00:00+05:30"})
@@ -273,7 +285,7 @@ def test_full_fastapi_endpoint_risk_adjusted_suite():
         "request_id": "REQ-FASTAPI-FULL-SUITE",
         "as_of_date": as_of,
         "knowledge_cutoff_time": f"{as_of}T23:59:59+05:30",
-        "metric_codes": ["RAT-01", "RAT-02", "REL-01", "REL-04"],
+        "metric_codes": ["RAT-01", "RAT-03", "MKT-01", "MKT-02"],
         "nav_series": nav_series,
         "benchmark_series": benchmark_series,
         "risk_free_series": risk_free_series,
@@ -285,6 +297,6 @@ def test_full_fastapi_endpoint_risk_adjusted_suite():
     assert data["status"] == "SUCCESS"
     results = {r["metric_code"]: r for r in data["results"]}
     assert results["RAT-01"]["status"] == "CALCULATED"
-    assert results["RAT-02"]["status"] == "CALCULATED"
-    assert results["REL-01"]["status"] == "CALCULATED"
-    assert results["REL-04"]["status"] == "CALCULATED"
+    assert results["RAT-03"]["status"] == "CALCULATED"
+    assert results["MKT-01"]["status"] == "CALCULATED"
+    assert results["MKT-02"]["status"] == "CALCULATED"

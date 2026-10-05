@@ -63,7 +63,7 @@ export function PageContainer({
           <div className="min-w-0">
             {eyebrow && <p className="eyebrow">{eyebrow}</p>}
             {title && (
-              <h1 className="mt-1.5 text-[clamp(1.5rem,2.6vw,2rem)] font-semibold leading-[1.15] tracking-[-0.02em] text-text-primary">
+              <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl lg:text-4xl">
                 {title}
               </h1>
             )}

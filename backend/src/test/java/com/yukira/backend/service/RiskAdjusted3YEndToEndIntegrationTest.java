@@ -72,7 +72,7 @@ class RiskAdjusted3YEndToEndIntegrationTest {
         // 2. Define strict PIT cutoffs
         LocalDate asOfDate = LocalDate.of(2024, 1, 15);
         OffsetDateTime knowledgeCutoff = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
-        List<String> metricCodes = List.of("RAT-01", "RAT-02", "MKT-01", "MKT-02");
+        List<String> metricCodes = List.of("RAT-01", "RAT-03", "MKT-01", "MKT-02");
 
         // 3. Execute Calculation Run #1
         CalculationRun run1 = calculationOrchestratorService.executeCalculationRun(
@@ -107,7 +107,7 @@ class RiskAdjusted3YEndToEndIntegrationTest {
         assertEquals(4, results1.size(), "Exactly 4 metrics must be computed");
 
         MetricResult sharpe = results1.stream().filter(r -> "RAT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
-        MetricResult treynor = results1.stream().filter(r -> "RAT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
+        MetricResult treynor = results1.stream().filter(r -> "RAT-03".equals(r.getMetricCode())).findFirst().orElseThrow();
         MetricResult beta = results1.stream().filter(r -> "MKT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
         MetricResult downsideBeta = results1.stream().filter(r -> "MKT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
 
@@ -149,7 +149,7 @@ class RiskAdjusted3YEndToEndIntegrationTest {
         List<MetricResult> results2 = metricResultRepository.findByCalculationRunId(run2.getId());
         MetricResult sharpe2 = results2.stream().filter(r -> "RAT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
         MetricResult beta2 = results2.stream().filter(r -> "MKT-01".equals(r.getMetricCode())).findFirst().orElseThrow();
-        MetricResult treynor2 = results2.stream().filter(r -> "RAT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
+        MetricResult treynor2 = results2.stream().filter(r -> "RAT-03".equals(r.getMetricCode())).findFirst().orElseThrow();
         MetricResult downsideBeta2 = results2.stream().filter(r -> "MKT-02".equals(r.getMetricCode())).findFirst().orElseThrow();
 
         assertEquals(sharpe.getNumericValue(), sharpe2.getNumericValue(), "Sharpe ratio must be strictly reproducible");

@@ -36,7 +36,14 @@ public class AmfiNavParser {
         }
 
         Charset charset = WINDOWS_1252;
-        boolean isHistoricalReportFormat = false;
+        int schemeCodeCol = 0;
+        int schemeNameCol = 1;
+        int isinGrowthCol = 4;
+        int isinReinvCol = 5;
+        int navCol = 6;
+        int dateCol = 7;
+        boolean headerDetected = false;
+
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(payloadBytes), charset))) {
             String line;
             int lineNumber = 0;
@@ -47,20 +54,34 @@ public class AmfiNavParser {
                     continue; // Skip purely empty lines
                 }
 
-                // Check for header line: Scheme Code;Scheme Name;... or Scheme Code;NAV Name;Plan;Option;...
-                if (trimmed.startsWith("Scheme Code;")) {
-                    if (trimmed.contains("Plan") && trimmed.contains("Option")) {
-                        isHistoricalReportFormat = true;
+                // Check for header line: Scheme Code;...
+                if (trimmed.toLowerCase().startsWith("scheme code;") || trimmed.toLowerCase().startsWith("scheme code ;")) {
+                    String[] headerTokens = trimmed.split(";", -1);
+                    for (int i = 0; i < headerTokens.length; i++) {
+                        String h = headerTokens[i].toLowerCase().trim();
+                        if (h.contains("scheme code")) {
+                            schemeCodeCol = i;
+                        } else if (h.contains("scheme name") || h.contains("nav name")) {
+                            schemeNameCol = i;
+                        } else if (h.contains("isin div payout") || h.contains("isin growth") || (h.contains("isin") && !h.contains("reinvest"))) {
+                            isinGrowthCol = i;
+                        } else if (h.contains("isin div reinvest") || (h.contains("isin") && h.contains("reinvest"))) {
+                            isinReinvCol = i;
+                        } else if (h.contains("net asset value") || h.equals("nav")) {
+                            navCol = i;
+                        } else if (h.contains("date")) {
+                            dateCol = i;
+                        }
                     }
+                    headerDetected = true;
                     continue;
                 }
 
                 // Semicolon delimited
                 String[] tokens = line.split(";", -1);
                 if (tokens.length < 5) {
-                    // Category banner or malformed line
-                    // If it's a category group banner (e.g. "Open Ended Schemes ( Equity Scheme - Large Cap Fund )")
-                    if (tokens.length == 1 && !isNumeric(tokens[0].trim())) {
+                    // Category banner or non-numeric header line
+                    if (!isNumeric(tokens[0].trim())) {
                         continue; // Structural category banner, not a NAV row
                     }
                     records.add(AmfiNavRecord.malformed(lineNumber, line, "Malformed row: expected at least 5 tokens, found " + tokens.length));
@@ -74,25 +95,11 @@ public class AmfiNavParser {
                     continue;
                 }
 
-                String schemeName = tokens.length > 1 ? tokens[1].trim() : "";
-                String isinGrowth;
-                String isinReinvestment;
-                String navStr;
-                String dateStr;
-
-                if (isHistoricalReportFormat) {
-                    // Format: Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date
-                    isinGrowth = tokens.length > 4 ? tokens[4].trim() : "";
-                    isinReinvestment = tokens.length > 5 ? tokens[5].trim() : "";
-                    navStr = tokens.length > 6 ? tokens[6].trim() : "";
-                    dateStr = tokens.length > 7 ? tokens[7].trim() : "";
-                } else {
-                    // Format: Scheme Code;Scheme Name;ISIN Growth;ISIN Reinv;Net Asset Value;Repurchase;Sale;Date
-                    isinGrowth = tokens.length > 2 ? tokens[2].trim() : "";
-                    isinReinvestment = tokens.length > 3 ? tokens[3].trim() : "";
-                    navStr = tokens.length > 4 ? tokens[4].trim() : "";
-                    dateStr = tokens.length > 7 ? tokens[7].trim() : (tokens.length > 5 ? tokens[tokens.length - 1].trim() : "");
-                }
+                String schemeName = (schemeNameCol < tokens.length) ? tokens[schemeNameCol].trim() : "";
+                String isinGrowth = (isinGrowthCol < tokens.length) ? tokens[isinGrowthCol].trim() : "";
+                String isinReinvestment = (isinReinvCol < tokens.length) ? tokens[isinReinvCol].trim() : "";
+                String navStr = (navCol < tokens.length) ? tokens[navCol].trim() : "";
+                String dateStr = (dateCol < tokens.length) ? tokens[dateCol].trim() : (tokens.length > 5 ? tokens[tokens.length - 1].trim() : "");
 
                 // Validate NAV numeric
                 BigDecimal navValue;
