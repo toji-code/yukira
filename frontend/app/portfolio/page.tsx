@@ -19,6 +19,7 @@ import { PortfolioReportModal } from '@/components/portfolio/PortfolioReportView
 import { PortfolioDriftView } from '@/components/portfolio/PortfolioDriftView';
 import { PortfolioComparisonView } from '@/components/portfolio/PortfolioComparisonView';
 import { PortfolioScoreHistoryView } from '@/components/portfolio/PortfolioScoreHistoryView';
+import { GroundedAiInterpretationPanel } from '@/components/analysis/GroundedAiInterpretationPanel';
 import { DataFreshnessIndicator } from '@/components/portfolio/DataFreshnessIndicator';
 
 export default function PortfolioPage() {
@@ -249,7 +250,10 @@ export default function PortfolioPage() {
       </div>
 
       {summary && summary.holdings.length > 0 && (
-        <PortfolioScoreHistoryView />
+        <div className="space-y-6 mb-6">
+          <GroundedAiInterpretationPanel isPortfolio />
+          <PortfolioScoreHistoryView />
+        </div>
       )}
 
       {error && (

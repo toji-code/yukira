@@ -45,6 +45,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Read stored theme on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     try {
       const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;

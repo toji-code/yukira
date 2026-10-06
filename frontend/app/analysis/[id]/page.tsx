@@ -15,6 +15,7 @@ import { AnalysisResponse, AnalyticalProfileResponse } from "@/types/analysis";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { InstitutionalProfileView } from "@/components/analysis/InstitutionalProfileView";
 import { YukiraScoreCard } from "@/components/analysis/YukiraScoreCard";
+import { GroundedAiInterpretationPanel } from "@/components/analysis/GroundedAiInterpretationPanel";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -253,6 +254,10 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
             />
           </div>
         )}
+
+        <div className="mt-8">
+          <GroundedAiInterpretationPanel runId={runId} />
+        </div>
       </PageContainer>
     );
   }
@@ -904,6 +909,10 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
           <YukiraScoreCard schemeOptionId={data.identity.schemeOptionId} />
         </div>
       )}
+
+      <div className="mt-8">
+        <GroundedAiInterpretationPanel runId={runId} />
+      </div>
     </PageContainer>
   );
 }

@@ -21,6 +21,7 @@ import { InvestmentModesView } from "@/components/analysis/InvestmentModesView";
 import { PortfolioHoldingsView } from "@/components/analysis/PortfolioHoldingsView";
 import { YukiraScoreCard } from "@/components/analysis/YukiraScoreCard";
 import { FundOverviewPanel } from "@/components/analysis/FundOverviewPanel";
+import { GroundedAiInterpretationPanel } from "@/components/analysis/GroundedAiInterpretationPanel";
 import { fetchOptionEnrichment } from "@/lib/api/enrichment";
 import { EnrichedFundProfileDto } from "@/types/enrichment";
 
@@ -396,6 +397,13 @@ export default function FundDetailPage({ params }: PageProps) {
           </div>
         </div>
       </section>
+
+      {/* GROUNDED AI INTERPRETATION LAYER */}
+      {selectedOptionId && (
+        <section className="mb-10 scroll-mt-20" id="ai-interpretation">
+          <GroundedAiInterpretationPanel schemeOptionId={selectedOptionId} />
+        </section>
+      )}
 
       {/* 3. METRIC GROUPS (PROGRESSIVE DISCLOSURE) */}
 
