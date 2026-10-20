@@ -19,3 +19,14 @@ replay_pid*.log
 phase2f_real_data_integration_plan.md
 phase2g_methodology_governance.md
 phase2h_quantitative_methodology.md
+
+# Local scratch & artifacts
+/scratch/
+
+# Local agent configuration & untracked skills (preserves tracked yukira-product-execution)
+/.agents/mcp_config.json
+/.agents/skills/*
+!/.agents/skills/yukira-product-execution/
+
+# Local development utilities
+/scripts/twentyfirst_dev.py
