@@ -10,5 +10,7 @@ import java.util.Optional;
 @Repository
 public interface InvestorWatchlistRepository extends JpaRepository<InvestorWatchlist, Long> {
     List<InvestorWatchlist> findByInvestorId(Long investorId);
-    Optional<InvestorWatchlist> findByInvestorIdAndSchemeId(Long investorId, Long schemeId);
+    List<InvestorWatchlist> findByInvestorIdAndSchemeId(Long investorId, Long schemeId);
+    Optional<InvestorWatchlist> findByInvestorIdAndSchemeOptionId(Long investorId, Long schemeOptionId);
+    Optional<InvestorWatchlist> findByInvestorIdAndSchemeIdAndSchemeOptionIsNull(Long investorId, Long schemeId);
 }

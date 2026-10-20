@@ -398,15 +398,26 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         { label: `Run #${data.provenance.calculationRunId}`, href: `/analysis/${data.provenance.calculationRunId}` },
       ]}
       action={
-        <Link
-          href={`/funds/${data.identity.schemeOptionId || 1}`}
-          className="btn btn-secondary"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Fund Detail Workspace
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/compare?funds=${data.identity.schemeOptionId || 1}`}
+            className="btn btn-secondary"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            <span>Compare Funds</span>
+          </Link>
+          <Link
+            href={`/funds/${data.identity.schemeOptionId || 1}`}
+            className="btn btn-secondary"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span>Fund Detail Workspace</span>
+          </Link>
+        </div>
       }
     >
       {/* 1. TOP STATUS & CONTROLS BAR */}

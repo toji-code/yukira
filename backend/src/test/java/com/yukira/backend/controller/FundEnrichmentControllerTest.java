@@ -33,11 +33,14 @@ class FundEnrichmentControllerTest {
     @Mock
     private SchemeRepository schemeRepository;
 
+    @Mock
+    private com.yukira.backend.service.DataQualityFreshnessService dataQualityFreshnessService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        FundEnrichmentController controller = new FundEnrichmentController(enrichmentService, schemeRepository);
+        FundEnrichmentController controller = new FundEnrichmentController(enrichmentService, schemeRepository, dataQualityFreshnessService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -199,5 +202,94 @@ class FundEnrichmentControllerTest {
                 .andExpect(jsonPath("$.investmentTerms.formattedMinSip").value("₹100"))
                 .andExpect(jsonPath("$.fundManagers[0].name").value("Ms. Roshi Jain"))
                 .andExpect(jsonPath("$.epistemicStatus").value("SCHEME_LEVEL_AGGREGATE"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/schemes/options/{id}/quality-freshness returns DataQualityFreshnessDto")
+    void shouldReturnDataQualityFreshness() throws Exception {
+        com.yukira.backend.dto.analysis.DataQualityFreshnessDto mockDto = new com.yukira.backend.dto.analysis.DataQualityFreshnessDto(
+                1L,
+                "HDFC_FLEXI",
+                "HDFC Flexi Cap Fund",
+                "HDFC Mutual Fund",
+                "DIRECT",
+                "GROWTH",
+                "118955",
+                "INF179K01UT0",
+                LocalDate.of(2024, 1, 15),
+                java.time.OffsetDateTime.parse("2024-01-31T23:59:59+05:30"),
+                new com.yukira.backend.dto.analysis.DataQualityFreshnessDto.NavFreshnessDetailDto(
+                        LocalDate.of(2024, 1, 15),
+                        1243L,
+                        "2019-01-01 to 2024-01-15",
+                        "STALE",
+                        "Daily NAV published by 23:00 IST on trading days. Flagged STALE if > 5 days.",
+                        1000L,
+                        1L,
+                        "900508f8...",
+                        List.of("Historical ledger cutoff"),
+                        "NAV evidence is STALE."
+                ),
+                new com.yukira.backend.dto.analysis.DataQualityFreshnessDto.HoldingsFreshnessDetailDto(
+                        LocalDate.of(2024, 1, 31),
+                        java.time.OffsetDateTime.parse("2024-02-10T18:30:00Z"),
+                        java.time.OffsetDateTime.parse("2024-02-10T18:35:00Z"),
+                        "PARTIAL",
+                        "PARTIAL",
+                        "Monthly portfolio disclosure required within 10 days of calendar month-end.",
+                        980L,
+                        10,
+                        new BigDecimal("0.5482"),
+                        54.82,
+                        45.18,
+                        1,
+                        List.of("2024-01-31"),
+                        2L,
+                        "abcdef123...",
+                        "https://amc.com/factsheet.pdf",
+                        "DISCOVERY_RESTRICTED",
+                        List.of("Only top 10 disclosed"),
+                        "Disclosed holdings cover 54.82%."
+                ),
+                List.of(
+                        new com.yukira.backend.dto.analysis.DataQualityFreshnessDto.MetricEligibilityItemDto(
+                                "RET-02",
+                                "Simple Period Return",
+                                "APPROVED",
+                                "ELIGIBLE",
+                                "Requires >= 2 NAV observations",
+                                "1243 observations available",
+                                "Eligible for computation"
+                        )
+                ),
+                List.of(
+                        new com.yukira.backend.dto.analysis.DataQualityFreshnessDto.DataQualityFindingDto(
+                                "HOLDINGS_DISCLOSURE",
+                                "WARNING",
+                                "Top-10 Disclosure Only",
+                                "Raw disclosed holdings total 54.82%."
+                        )
+                ),
+                new com.yukira.backend.dto.analysis.DataQualityFreshnessDto.SevenQuestionsAnswerDto(
+                        "2024-01-15",
+                        "2024-01-31",
+                        "2024-02-10T18:30:00Z",
+                        "STALE",
+                        "54.82%",
+                        "RET-02 eligible; Drift requires 2 snapshots",
+                        "Top-10 disclosure only"
+                )
+        );
+
+        when(dataQualityFreshnessService.evaluateQualityAndFreshness(eq(1L), any(), any())).thenReturn(mockDto);
+
+        mockMvc.perform(get("/api/v1/schemes/options/1/quality-freshness")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schemeOptionId").value(1))
+                .andExpect(jsonPath("$.navEvidence.freshnessState").value("STALE"))
+                .andExpect(jsonPath("$.holdingsEvidence.coverageState").value("PARTIAL"))
+                .andExpect(jsonPath("$.sevenQuestions.q4IsDataCurrentRelativeToCadence").value("STALE"))
+                .andExpect(jsonPath("$.sevenQuestions.q5CompletenessOfDisclosedHoldings").value("54.82%"));
     }
 }

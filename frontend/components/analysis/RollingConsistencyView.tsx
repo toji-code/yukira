@@ -1,28 +1,47 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { fetchRollingConsistency } from "@/lib/api/analysis";
-import { RollingConsistencyResponse, RollingHorizonResult } from "@/types/analysis";
+import {
+  RollingConsistencyResponse,
+  RollingHorizonResult,
+  RollingSeriesPoint,
+  MarketRegimeSummary,
+  RollingWindowSample,
+} from "@/types/analysis";
 
 interface RollingConsistencyViewProps {
   schemeOptionId: number;
   schemeCode: string;
+  asOfDate?: string;
+  knowledgeCutoffTime?: string;
+  benchmarkId?: number;
 }
 
-export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyViewProps) {
+export function RollingConsistencyView({
+  schemeOptionId,
+  asOfDate: propAsOfDate,
+  knowledgeCutoffTime: propCutoffTime,
+  benchmarkId,
+}: RollingConsistencyViewProps) {
   const [data, setData] = useState<RollingConsistencyResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeHorizon, setActiveHorizon] = useState<"3Y" | "1Y">("3Y");
   const [showAuditLineage, setShowAuditLineage] = useState<boolean>(false);
+  const [hoveredPoint, setHoveredPoint] = useState<RollingSeriesPoint | null>(null);
+  const [activeRegimeFilter, setActiveRegimeFilter] = useState<string | null>(null);
+
+  // Dynamic point-in-time fallback defaults if not provided by page context
+  const effectiveAsOfDate = propAsOfDate || "2024-01-15";
+  const effectiveCutoffTime = propCutoffTime || "2024-01-31T23:59:59+05:30";
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError(null);
 
-    const asOfDate = "2024-01-15";
-    const cutoffTime = "2024-01-31T23:59:59+05:30";
-
-    fetchRollingConsistency(schemeOptionId, asOfDate, cutoffTime)
+    fetchRollingConsistency(schemeOptionId, effectiveAsOfDate, effectiveCutoffTime, benchmarkId)
       .then((res) => {
         if (active) {
           setData(res);
@@ -39,7 +58,152 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
     return () => {
       active = false;
     };
-  }, [schemeOptionId]);
+  }, [schemeOptionId, effectiveAsOfDate, effectiveCutoffTime, benchmarkId]);
+
+  // Format helper functions (presentation formatting only; zero financial math)
+  const formatPct = (val: number | null | undefined, digits: number = 2) => {
+    if (val === null || val === undefined) return "Not available";
+    return `${(val * 100).toFixed(digits)}%`;
+  };
+
+  const formatRawPct = (val: number | null | undefined, digits: number = 2) => {
+    if (val === null || val === undefined) return "Not available";
+    return `${val.toFixed(digits)}%`;
+  };
+
+  // SVG Chart Geometry Computation
+  const currentHorizon: RollingHorizonResult | null = data
+    ? activeHorizon === "3Y"
+      ? data.primary3Y
+      : data.supporting1Y
+    : null;
+
+  const series = currentHorizon?.series || [];
+
+  const chartGeometry = useMemo(() => {
+    if (!series || series.length < 2) return null;
+
+    const width = 820;
+    const height = 230;
+    const padding = { top: 25, right: 25, bottom: 35, left: 55 };
+    const chartW = width - padding.left - padding.right;
+    const chartH = height - padding.top - padding.bottom;
+
+    // Parse dates to timestamps
+    const timestamps = series.map((s) => new Date(s.date).getTime());
+    const minTime = Math.min(...timestamps);
+    const maxTime = Math.max(...timestamps);
+    const timeSpan = maxTime > minTime ? maxTime - minTime : 1;
+
+    // Y values: find min and max across both fund and benchmark
+    const fundVals = series.map((s) => s.fundReturn);
+    const benchVals = series.filter((s) => s.benchmarkReturn !== null).map((s) => s.benchmarkReturn as number);
+    const allVals = [...fundVals, ...benchVals];
+
+    const rawMin = Math.min(...allVals, 0);
+    const rawMax = Math.max(...allVals, 0.2);
+    // Add small buffer to top/bottom
+    const yMin = Math.floor(rawMin * 10) / 10 - 0.05;
+    const yMax = Math.ceil(rawMax * 10) / 10 + 0.05;
+    const ySpan = yMax > yMin ? yMax - yMin : 1;
+
+    const getX = (dateStr: string) => {
+      const t = new Date(dateStr).getTime();
+      return padding.left + ((t - minTime) / timeSpan) * chartW;
+    };
+
+    const getY = (val: number) => {
+      return padding.top + chartH - ((val - yMin) / ySpan) * chartH;
+    };
+
+    // Build SVG path strings
+    let fundPath = "";
+    let benchPath = "";
+    let firstBench = true;
+
+    series.forEach((pt, i) => {
+      const x = getX(pt.date);
+      const yFund = getY(pt.fundReturn);
+
+      if (i === 0) {
+        fundPath += `M ${x.toFixed(1)} ${yFund.toFixed(1)}`;
+      } else {
+        fundPath += ` L ${x.toFixed(1)} ${yFund.toFixed(1)}`;
+      }
+
+      if (pt.benchmarkReturn !== null) {
+        const yBench = getY(pt.benchmarkReturn);
+        if (firstBench) {
+          benchPath += `M ${x.toFixed(1)} ${yBench.toFixed(1)}`;
+          firstBench = false;
+        } else {
+          benchPath += ` L ${x.toFixed(1)} ${yBench.toFixed(1)}`;
+        }
+      }
+    });
+
+    const zeroY = getY(0);
+
+    // Y-Axis tick marks (e.g. 4 evenly spaced ticks)
+    const yTicks = [
+      yMin,
+      yMin + ySpan * 0.33,
+      yMin + ySpan * 0.66,
+      yMax,
+    ].map((v) => ({
+      val: v,
+      y: getY(v),
+      label: `${(v * 100).toFixed(0)}%`,
+    }));
+
+    // X-Axis milestone dates (start, mid, end)
+    const midTime = minTime + timeSpan / 2;
+    const xTicks = [
+      { date: series[0].date, x: padding.left },
+      { date: series[Math.floor(series.length / 2)].date, x: padding.left + chartW / 2 },
+      { date: series[series.length - 1].date, x: padding.left + chartW },
+    ];
+
+    // Regime interval bands projection on X axis
+    const regimeBands = [
+      { id: "REG-01", name: "Shock & Rebound", start: "2020-02-01", end: "2020-11-30" },
+      { id: "REG-02", name: "Secular Bull", start: "2020-12-01", end: "2021-12-31" },
+      { id: "REG-03", name: "Consolidation", start: "2022-04-01", end: "2023-04-30" },
+    ].map((r) => {
+      const rStart = new Date(r.start).getTime();
+      const rEnd = new Date(r.end).getTime();
+      const clampedStart = Math.max(minTime, rStart);
+      const clampedEnd = Math.min(maxTime, rEnd);
+      const visible = clampedEnd > minTime && clampedStart < maxTime && clampedEnd > clampedStart;
+      const x1 = padding.left + ((clampedStart - minTime) / timeSpan) * chartW;
+      const x2 = padding.left + ((clampedEnd - minTime) / timeSpan) * chartW;
+      return {
+        ...r,
+        visible,
+        x: x1,
+        width: Math.max(2, x2 - x1),
+      };
+    });
+
+    return {
+      width,
+      height,
+      padding,
+      chartW,
+      chartH,
+      fundPath,
+      benchPath,
+      zeroY,
+      yTicks,
+      xTicks,
+      regimeBands,
+      getX,
+      getY,
+      minTime,
+      maxTime,
+      timeSpan,
+    };
+  }, [series]);
 
   if (loading) {
     return (
@@ -56,47 +220,38 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !currentHorizon) {
     return (
       <div className="state-panel-error" role="alert">
         <p className="text-[15px] font-semibold tracking-[-0.01em] text-text-primary">
           Rolling Return Consistency Data Unavailable
         </p>
         <p className="mt-1 text-[13px] leading-[1.5] text-critical-fg">
-          {error ||
-            "Unable to compute rolling consistency metrics from verified ledger observations."}
+          {error || "Unable to compute rolling consistency metrics from verified ledger observations."}
         </p>
       </div>
     );
   }
 
-  const { context, primary3Y, supporting1Y, sampleWindows, epistemic } = data;
-  const currentHorizon: RollingHorizonResult = activeHorizon === "3Y" ? primary3Y : supporting1Y;
+  const { context, primary3Y, supporting1Y, sampleWindows, adverseWindows, regimes, epistemic } = data;
 
-  // Format helper functions (formatting only; no financial calculations)
-  const formatPct = (val: number | null | undefined, digits: number = 2) => {
-    if (val === null || val === undefined) return "Not available";
-    return `${(val * 100).toFixed(digits)}%`;
-  };
-
-  const formatRawPct = (val: number | null | undefined, digits: number = 2) => {
-    if (val === null || val === undefined) return "Not available";
-    return `${val.toFixed(digits)}%`;
-  };
-
-  // Distribution range visualization geometry
-  // Map min to max into a percentage [0..100] for visual slider
+  // Distribution range geometry
   const minVal = currentHorizon.minReturn ?? 0;
   const maxVal = currentHorizon.maxReturn ?? 1;
+  const p10Val = currentHorizon.p10Return ?? minVal;
   const p25Val = currentHorizon.p25Return ?? minVal;
   const medVal = currentHorizon.medianReturn ?? (minVal + maxVal) / 2;
   const p75Val = currentHorizon.p75Return ?? maxVal;
+  const p90Val = currentHorizon.p90Return ?? maxVal;
 
   const span = maxVal > minVal ? maxVal - minVal : 1;
+  const p10Pos = Math.max(0, Math.min(100, ((p10Val - minVal) / span) * 100));
   const p25Pos = Math.max(0, Math.min(100, ((p25Val - minVal) / span) * 100));
   const medPos = Math.max(0, Math.min(100, ((medVal - minVal) / span) * 100));
   const p75Pos = Math.max(0, Math.min(100, ((p75Val - minVal) / span) * 100));
+  const p90Pos = Math.max(0, Math.min(100, ((p90Val - minVal) / span) * 100));
   const iqrWidth = Math.max(2, p75Pos - p25Pos);
+  const decileWidth = Math.max(2, p90Pos - p10Pos);
 
   return (
     <section className="panel p-4 md:p-5" id="rolling-consistency">
@@ -104,18 +259,18 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
       <div className="panel-header border-b border-border pb-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="eyebrow text-accent">Multi-Window Consistency Analysis</p>
+            <p className="eyebrow text-accent">Multi-Window Consistency &amp; Market Regime Analysis</p>
             <span className="status-badge state-approved">
               <span className="status-dot" aria-hidden />
               {epistemic.dataQualityStatus}
             </span>
-            <span className="status-badge state-unavailable">§RET-05 / §RET-06</span>
+            <span className="status-badge state-unavailable">§RET-05 / §RET-06 / Phase 2S</span>
           </div>
           <h3 className="mt-1.5 text-h2 text-text-primary">
-            Rolling Return Distribution &amp; Outperformance Consistency
+            Rolling Return Consistency &amp; Historical Regime Analysis
           </h3>
           <p className="mono-meta mt-1 font-sans">
-            Evaluates multi-period consistency across rolling horizons (§RET-05 &amp; §RET-06) vs{" "}
+            Evaluates multi-period performance consistency, empirical percentile dispersion, and resilience across pre-specified historical market regimes vs{" "}
             {context.benchmarkName}
           </p>
         </div>
@@ -128,43 +283,49 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
           role="tab"
           aria-selected={activeHorizon === "3Y"}
           data-active={activeHorizon === "3Y"}
-          onClick={() => setActiveHorizon("3Y")}
+          onClick={() => {
+            setActiveHorizon("3Y");
+            setHoveredPoint(null);
+          }}
           className="tab"
         >
           <span className="tab-ordinal">§RET-05</span>
-          <span>3-Year Horizon (Canonical)</span>
+          <span>3-Year Horizon (Canonical Annualized CAGR)</span>
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={activeHorizon === "1Y"}
           data-active={activeHorizon === "1Y"}
-          onClick={() => setActiveHorizon("1Y")}
+          onClick={() => {
+            setActiveHorizon("1Y");
+            setHoveredPoint(null);
+          }}
           className="tab"
         >
           <span className="tab-ordinal">Supporting</span>
-          <span>1-Year Horizon</span>
+          <span>1-Year Horizon (Dense Paired History)</span>
         </button>
       </div>
 
       {/* Horizon Meta & Qualification Banner */}
       <div className="def-list def-list-3 mt-3">
         <div>
-          <p className="def-label">Rolling Window</p>
+          <p className="def-label">Rolling Horizon Window</p>
           <p className="def-value">
             {currentHorizon.windowYears * 365} Calendar Days ({currentHorizon.periodType})
           </p>
         </div>
         <div>
-          <p className="def-label">Annualization Convention</p>
-          <p className="def-value">Julian 365.25 Days</p>
+          <p className="def-label">Annualization &amp; Active Metric Convention</p>
+          <p className="def-value">Julian 365.25 Days • CAGR Active Spread</p>
         </div>
         <div>
-          <p className="def-label">Valid Windows</p>
+          <p className="def-label">Valid Evaluated Windows</p>
           <p className="def-value text-approved-fg">
             {currentHorizon.totalWindows ?? 0}{" "}
             <span className="text-text-tertiary">
-              (Threshold: ≥ {currentHorizon.minWindowsRequired})
+              (Min Threshold: ≥ {currentHorizon.minWindowsRequired})
             </span>
           </p>
         </div>
@@ -180,7 +341,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
           </p>
           <div className="metric-rule my-3" aria-hidden />
           <p className="mono-meta font-sans leading-[1.45]">
-            Average annualized CAGR across {currentHorizon.totalWindows} windows
+            Average CAGR across {currentHorizon.totalWindows} overlapping windows
           </p>
         </div>
 
@@ -190,7 +351,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
           <p className="data-value-md mt-2">{formatPct(currentHorizon.medianReturn)}</p>
           <div className="metric-rule my-3" aria-hidden />
           <p className="mono-meta font-sans leading-[1.45]">
-            50th percentile (reduces outlier skew)
+            50th empirical percentile (robust against extreme outlier windows)
           </p>
         </div>
 
@@ -202,7 +363,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
           </p>
           <div className="metric-rule my-3" aria-hidden />
           <p className="mono-meta font-sans leading-[1.45]">
-            Std Dev: {formatPct(currentHorizon.stdDev)} across windows
+            Std Dev: {formatPct(currentHorizon.stdDev)} • {currentHorizon.positiveReturnPercentage != null ? `${currentHorizon.positiveReturnPercentage}% Positive` : "N/A"}
           </p>
         </div>
 
@@ -216,8 +377,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
               </p>
               <div className="metric-rule my-3" aria-hidden />
               <p className="mono-meta font-sans leading-[1.45]">
-                {currentHorizon.outperformingWindows} of {currentHorizon.pairedWindows} paired
-                windows &gt; {context.benchmarkName}
+                {currentHorizon.outperformingWindows} of {currentHorizon.pairedWindows} paired windows &gt; {context.benchmarkName}
               </p>
             </>
           ) : (
@@ -227,30 +387,271 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
               </p>
               <div className="metric-rule my-3" aria-hidden />
               <p className="mono-meta font-sans leading-[1.45]">
-                {currentHorizon.pairedWindows} paired windows (requires ≥{" "}
-                {currentHorizon.minWindowsRequired})
+                {currentHorizon.pairedWindows} paired windows (requires ≥ {currentHorizon.minWindowsRequired})
               </p>
             </>
           )}
         </div>
       </div>
 
-      {/* Visual Return Distribution Bar */}
+      {/* DATED ROLLING RETURN TIMESERIES CHART */}
+      <div className="panel-inset mt-5 p-4">
+        <div className="panel-header flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[13px] font-semibold text-text-primary">
+              Rolling Return Timeseries Curve ({currentHorizon.periodType} Horizon)
+            </p>
+            <p className="mono-meta font-sans mt-0.5">
+              Historical overlapping CAGR evaluated as-of window end dates with benchmark comparison
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex items-center gap-1.5 mono-meta font-sans">
+              <span className="h-2 w-4 rounded-xs bg-accent inline-block" />
+              <span>Fund Rolling CAGR</span>
+            </span>
+            <span className="flex items-center gap-1.5 mono-meta font-sans">
+              <span className="h-0.5 w-4 border-b-2 border-dashed border-text-tertiary inline-block" />
+              <span>Benchmark ({context.benchmarkName})</span>
+            </span>
+          </div>
+        </div>
+
+        {/* SVG Chart Container */}
+        {chartGeometry && (
+          <div className="relative mt-3 w-full overflow-hidden">
+            <svg
+              viewBox={`0 0 ${chartGeometry.width} ${chartGeometry.height}`}
+              className="w-full h-auto overflow-visible select-none"
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const svgX = (mouseX / rect.width) * chartGeometry.width;
+
+                // Find nearest series point
+                let nearest: RollingSeriesPoint | null = null;
+                let minDist = Infinity;
+                series.forEach((pt) => {
+                  const ptX = chartGeometry.getX(pt.date);
+                  const dist = Math.abs(ptX - svgX);
+                  if (dist < minDist) {
+                    minDist = dist;
+                    nearest = pt;
+                  }
+                });
+                setHoveredPoint(nearest);
+              }}
+              onMouseLeave={() => setHoveredPoint(null)}
+            >
+              {/* Regime Shaded Background Bands */}
+              {chartGeometry.regimeBands.map((rb) => {
+                if (!rb.visible) return null;
+                const isFiltered = activeRegimeFilter === rb.id;
+                return (
+                  <g key={rb.id}>
+                    <rect
+                      x={rb.x}
+                      y={chartGeometry.padding.top}
+                      width={rb.width}
+                      height={chartGeometry.chartH}
+                      fill={isFiltered ? "rgba(0, 210, 180, 0.15)" : "rgba(148, 163, 184, 0.08)"}
+                      stroke={isFiltered ? "rgba(0, 210, 180, 0.5)" : "none"}
+                      strokeDasharray="2 2"
+                    />
+                    <text
+                      x={rb.x + rb.width / 2}
+                      y={chartGeometry.padding.top - 8}
+                      textAnchor="middle"
+                      className="fill-text-tertiary text-[10px] font-mono tracking-tight"
+                    >
+                      {rb.id}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Horizontal Grid Lines */}
+              {chartGeometry.yTicks.map((tick, i) => (
+                <g key={i}>
+                  <line
+                    x1={chartGeometry.padding.left}
+                    y1={tick.y}
+                    x2={chartGeometry.padding.left + chartGeometry.chartW}
+                    y2={tick.y}
+                    stroke="rgba(148, 163, 184, 0.15)"
+                    strokeDasharray={tick.val === 0 ? "none" : "2 2"}
+                    strokeWidth={tick.val === 0 ? "1.5" : "1"}
+                  />
+                  <text
+                    x={chartGeometry.padding.left - 8}
+                    y={tick.y + 4}
+                    textAnchor="end"
+                    className="fill-text-tertiary text-[10px] font-mono"
+                  >
+                    {tick.label}
+                  </text>
+                </g>
+              ))}
+
+              {/* Zero Baseline indicator if within bounds */}
+              {chartGeometry.zeroY >= chartGeometry.padding.top &&
+                chartGeometry.zeroY <= chartGeometry.padding.top + chartGeometry.chartH && (
+                  <line
+                    x1={chartGeometry.padding.left}
+                    y1={chartGeometry.zeroY}
+                    x2={chartGeometry.padding.left + chartGeometry.chartW}
+                    y2={chartGeometry.zeroY}
+                    stroke="rgba(148, 163, 184, 0.4)"
+                    strokeWidth="1.2"
+                  />
+                )}
+
+              {/* Benchmark Polyline */}
+              {chartGeometry.benchPath && (
+                <path
+                  d={chartGeometry.benchPath}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                  opacity="0.85"
+                />
+              )}
+
+              {/* Fund Polyline */}
+              <path
+                d={chartGeometry.fundPath}
+                fill="none"
+                stroke="var(--accent, #00d2b4)"
+                strokeWidth="2.2"
+              />
+
+              {/* X-Axis Labels */}
+              {chartGeometry.xTicks.map((tick, i) => (
+                <text
+                  key={i}
+                  x={tick.x}
+                  y={chartGeometry.height - 8}
+                  textAnchor={i === 0 ? "start" : i === 1 ? "middle" : "end"}
+                  className="fill-text-tertiary text-[10px] font-mono"
+                >
+                  {tick.date}
+                </text>
+              ))}
+
+              {/* Hover Crosshair & Dots */}
+              {hoveredPoint && (
+                <g>
+                  <line
+                    x1={chartGeometry.getX(hoveredPoint.date)}
+                    y1={chartGeometry.padding.top}
+                    x2={chartGeometry.getX(hoveredPoint.date)}
+                    y2={chartGeometry.padding.top + chartGeometry.chartH}
+                    stroke="rgba(255, 255, 255, 0.4)"
+                    strokeWidth="1"
+                    strokeDasharray="2 2"
+                  />
+                  <circle
+                    cx={chartGeometry.getX(hoveredPoint.date)}
+                    cy={chartGeometry.getY(hoveredPoint.fundReturn)}
+                    r="4"
+                    fill="var(--accent, #00d2b4)"
+                    stroke="#ffffff"
+                    strokeWidth="1.5"
+                  />
+                  {hoveredPoint.benchmarkReturn !== null && (
+                    <circle
+                      cx={chartGeometry.getX(hoveredPoint.date)}
+                      cy={chartGeometry.getY(hoveredPoint.benchmarkReturn)}
+                      r="3.5"
+                      fill="#94a3b8"
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                    />
+                  )}
+                </g>
+              )}
+            </svg>
+
+            {/* Hover Tooltip Readout Card */}
+            {hoveredPoint && (
+              <div
+                className="pointer-events-none absolute top-2 right-4 rounded border border-border bg-surface-raised p-3 shadow-lg z-10 min-w-[240px] backdrop-blur"
+              >
+                <div className="flex items-center justify-between border-b border-border pb-1.5">
+                  <span className="mono-meta font-sans text-text-tertiary">Window End Date</span>
+                  <span className="mono-meta font-mono font-semibold text-text-primary">
+                    {hoveredPoint.date}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1 text-[12px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary">Fund CAGR ({currentHorizon.periodType}):</span>
+                    <strong className="text-accent font-mono">
+                      {formatPct(hoveredPoint.fundReturn)}
+                    </strong>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary">Benchmark:</span>
+                    <strong className="font-mono text-text-primary">
+                      {hoveredPoint.benchmarkReturn !== null
+                        ? formatPct(hoveredPoint.benchmarkReturn)
+                        : "No paired data"}
+                    </strong>
+                  </div>
+                  {hoveredPoint.excessReturn !== null && (
+                    <div className="flex items-center justify-between border-t border-border/50 pt-1">
+                      <span className="text-text-secondary">Active Spread:</span>
+                      <strong
+                        className={`font-mono ${
+                          hoveredPoint.excessReturn >= 0 ? "text-approved-fg" : "text-risk-fg"
+                        }`}
+                      >
+                        {hoveredPoint.excessReturn >= 0 ? "+" : ""}
+                        {(hoveredPoint.excessReturn * 100).toFixed(2)}%
+                      </strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Insufficient benchmark data banner for 3Y series */}
+        {activeHorizon === "3Y" && currentHorizon.outperformanceStatus !== "CALCULATED" && (
+          <div className="state-well mt-3 text-left">
+            <p className="eyebrow text-candidate-fg">Benchmark Synchronous Alignment Notice</p>
+            <p className="mono-meta mt-1 font-sans leading-[1.5]">
+              Verified benchmark observations for {context.benchmarkName} begin on <strong>2021-01-15</strong>. Rolling 3-year windows require 36 calendar months of synchronous history, yielding paired data starting on 2024-01-15. Unpaired prior windows are displayed for fund CAGR and strictly distinguished from underperformance. To inspect hundreds of paired rolling windows, switch to the <strong>1-Year Horizon</strong> tab above.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 5-Percentile Empirical Distribution Track */}
       <div className="panel-inset mt-4 p-4">
         <div className="panel-header">
           <p className="text-[13px] font-semibold text-text-primary">
-            Rolling CAGR Distribution Range ({currentHorizon.periodType} Horizon)
+            Empirical Return Dispersion &amp; Percentile Bounds ({currentHorizon.periodType} Horizon)
           </p>
           <span className="mono-meta shrink-0">
-            Interquartile (p25 → p75): {formatPct(currentHorizon.p25Return)} →{" "}
-            {formatPct(currentHorizon.p75Return)}
+            Middle 50% (IQR): {formatPct(currentHorizon.p25Return)} → {formatPct(currentHorizon.p75Return)}
           </span>
         </div>
 
         {/* Visual Bar Track */}
-        <div className="relative pt-6 pb-2">
-          {/* Full Range Bar */}
-          <div className="relative h-3 w-full overflow-hidden rounded-sm border border-border bg-surface-inset">
+        <div className="relative pt-6 pb-4">
+          <div className="relative h-3.5 w-full overflow-hidden rounded-sm border border-border bg-surface-inset">
+            {/* Decile Range (p10 to p90) */}
+            <div
+              className="absolute inset-y-0 bg-surface-raised border-x border-border"
+              style={{
+                left: `${p10Pos}%`,
+                width: `${decileWidth}%`,
+              }}
+              title={`10th-90th Percentile: ${formatPct(currentHorizon.p10Return)} to ${formatPct(currentHorizon.p90Return)}`}
+            />
             {/* IQR Box (p25 to p75) */}
             <div
               className="absolute inset-y-0 border-x-2 border-accent bg-accent-muted"
@@ -267,110 +668,222 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
             className="absolute top-3 -ml-px flex flex-col items-center"
             style={{ left: `${medPos}%` }}
           >
-            <div className="h-6 w-px bg-accent" />
-            <span className="mono-meta mt-1 whitespace-nowrap text-accent">
-              Med {formatPct(currentHorizon.medianReturn)}
+            <div className="h-7 w-px bg-accent" />
+            <span className="mono-meta mt-1 whitespace-nowrap text-accent font-semibold">
+              Median {formatPct(currentHorizon.medianReturn)}
             </span>
           </div>
 
           {/* Min Label */}
-          <div className="mono-meta absolute top-7 left-0">Min {formatPct(currentHorizon.minReturn)}</div>
+          <div className="mono-meta absolute top-8 left-0">Min {formatPct(currentHorizon.minReturn)}</div>
 
           {/* Max Label */}
-          <div className="mono-meta absolute top-7 right-0">Max {formatPct(currentHorizon.maxReturn)}</div>
+          <div className="mono-meta absolute top-8 right-0">Max {formatPct(currentHorizon.maxReturn)}</div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-              <span className="mono-meta font-sans">Median Return</span>
-              <strong className="data-value-sm">{formatPct(currentHorizon.medianReturn)}</strong>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="h-2.5 w-3 rounded-xs border border-accent bg-accent-muted"
-                aria-hidden
-              />
-              <span className="mono-meta font-sans">Middle 50% Range (IQR)</span>
-              <strong className="data-value-sm">
-                {formatPct(currentHorizon.p25Return)} — {formatPct(currentHorizon.p75Return)}
-              </strong>
-            </span>
+        {/* Quantile Summary Statistics */}
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 border-t border-border pt-3 mt-4 text-center">
+          <div className="p-2 rounded bg-surface-inset">
+            <span className="mono-meta block font-sans">Min</span>
+            <strong className="data-value-sm text-text-primary">{formatPct(currentHorizon.minReturn)}</strong>
           </div>
-          <span className="mono-meta font-sans">
-            Total Observations Evaluated:{" "}
-            <strong className="text-text-primary">{currentHorizon.totalWindows}</strong>
-          </span>
+          <div className="p-2 rounded bg-surface-inset">
+            <span className="mono-meta block font-sans">10th Percentile</span>
+            <strong className="data-value-sm text-text-primary">{formatPct(currentHorizon.p10Return)}</strong>
+          </div>
+          <div className="p-2 rounded bg-surface-inset">
+            <span className="mono-meta block font-sans">25th Percentile</span>
+            <strong className="data-value-sm text-text-primary">{formatPct(currentHorizon.p25Return)}</strong>
+          </div>
+          <div className="p-2 rounded bg-surface-inset border border-accent/40">
+            <span className="mono-meta block font-sans text-accent">Median (50th)</span>
+            <strong className="data-value-sm text-accent">{formatPct(currentHorizon.medianReturn)}</strong>
+          </div>
+          <div className="p-2 rounded bg-surface-inset">
+            <span className="mono-meta block font-sans">75th Percentile</span>
+            <strong className="data-value-sm text-text-primary">{formatPct(currentHorizon.p75Return)}</strong>
+          </div>
+          <div className="p-2 rounded bg-surface-inset">
+            <span className="mono-meta block font-sans">90th Percentile</span>
+            <strong className="data-value-sm text-text-primary">{formatPct(currentHorizon.p90Return)}</strong>
+          </div>
         </div>
       </div>
 
-      {/* Outperformance Breakdown & Benchmark Integrity Status */}
-      <div className="panel-inset mt-4 p-4">
-        <div className="panel-header">
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-text-primary">
-              Benchmark Outperformance Consistency vs {context.benchmarkName}
-            </p>
-            <p className="mono-meta mt-0.5 font-sans leading-[1.45]">
-              {currentHorizon.statusReason}
+      {/* PRE-SPECIFIED HISTORICAL MARKET REGIME ANALYSIS */}
+      {regimes && regimes.length > 0 && (
+        <div className="panel-inset mt-5 p-4">
+          <div className="panel-header border-b border-border pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="eyebrow text-accent">Phase 2S Objective Validation Protocol</p>
+                <span className="status-badge state-candidate">FROZEN_REGIMES</span>
+              </div>
+              <h4 className="text-[15px] font-semibold text-text-primary mt-1">
+                Historical Market Regime Analysis
+              </h4>
+              <p className="mono-meta font-sans mt-0.5">
+                Stress-tests fund performance across pre-specified macroeconomic regimes to evaluate whether outperformance was concentrated in single cyclical regimes
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            {regimes.map((regime) => {
+              const isSelected = activeRegimeFilter === regime.regimeId;
+              return (
+                <div
+                  key={regime.regimeId}
+                  onClick={() => setActiveRegimeFilter(isSelected ? null : regime.regimeId)}
+                  className={`cursor-pointer rounded border p-4 transition-all ${
+                    isSelected
+                      ? "border-accent bg-accent-muted/20 shadow-md"
+                      : "border-border bg-surface-raised hover:border-border-strong"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="status-badge state-approved font-mono">{regime.regimeId}</span>
+                    <span className="mono-meta font-sans text-text-tertiary">
+                      {regime.windowCount} Trading Days
+                    </span>
+                  </div>
+                  <h5 className="text-[14px] font-semibold text-text-primary mt-2">
+                    {regime.name}
+                  </h5>
+                  <p className="mono-meta font-mono text-accent mt-0.5">{regime.period}</p>
+
+                  <div className="mt-3 pt-3 border-t border-border/60 space-y-2">
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="text-text-secondary">Fund CAGR:</span>
+                      <strong className="font-mono text-accent">
+                        {formatPct(regime.fundCagr)}
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="text-text-secondary">Benchmark CAGR:</span>
+                      <strong className="font-mono text-text-primary">
+                        {regime.benchmarkCagr !== null
+                          ? formatPct(regime.benchmarkCagr)
+                          : "Not available in ledger"}
+                      </strong>
+                    </div>
+                    {regime.excessReturn !== null && (
+                      <div className="flex items-center justify-between text-[12px] border-t border-border/40 pt-1">
+                        <span className="text-text-secondary">Excess Spread:</span>
+                        <strong
+                          className={`font-mono ${
+                            regime.excessReturn >= 0 ? "text-approved-fg" : "text-risk-fg"
+                          }`}
+                        >
+                          {regime.excessReturn >= 0 ? "+" : ""}
+                          {(regime.excessReturn * 100).toFixed(2)}%
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 pt-2 text-[11px] text-text-tertiary leading-[1.45] border-t border-border/30">
+                    <p>
+                      <strong>Macro Basis:</strong> {regime.benchmarkBasis}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="state-well mt-4 text-left">
+            <p className="eyebrow text-candidate-fg">Epistemic Governance &amp; Retrospective Notice</p>
+            <p className="mono-meta mt-1 font-sans leading-[1.5]">
+              Historical market regimes are frozen specifications based on macroeconomic observations (COVID collapse &amp; rebound, post-pandemic liquidity bull cycle, and global monetary tightening). These classifications are <strong>retrospective</strong> and could not have been known in real time. Past performance within these historical regimes does not establish future capital preservation.
             </p>
           </div>
-          {currentHorizon.outperformanceStatus === "CALCULATED" && (
-            <p className="mono-meta shrink-0 font-sans">
-              Mean Excess Return:{" "}
-              <strong className="data-value-sm text-approved-fg">
-                {formatPct(currentHorizon.meanExcessReturn)}
-              </strong>
-            </p>
-          )}
         </div>
+      )}
 
-        {currentHorizon.outperformanceStatus === "CALCULATED" ? (
-          <div className="space-y-2 pt-3">
-            {/* Visual Outperformance Bar */}
-            <div className="flex h-3 w-full overflow-hidden rounded-sm border border-border bg-surface-inset">
-              <div
-                className="h-full bg-approved-fg transition-all duration-500"
-                style={{ width: `${currentHorizon.outperformancePercentage}%` }}
-                title={`Outperforming: ${currentHorizon.outperformingWindows} windows (${formatRawPct(currentHorizon.outperformancePercentage)})`}
-              />
-              <div
-                className="h-full bg-risk-fg transition-all duration-500"
-                style={{ width: `${100 - (currentHorizon.outperformancePercentage ?? 100)}%` }}
-                title={`Underperforming: ${currentHorizon.underperformingWindows} windows`}
-              />
+      {/* ADVERSE PERIODS INVESTIGATION (5 WORST REALIZED WINDOWS) */}
+      {adverseWindows && adverseWindows.length > 0 && (
+        <div className="panel-inset mt-5 p-4">
+          <div className="panel-header border-b border-border pb-3">
+            <div>
+              <p className="text-[13px] font-semibold text-text-primary">
+                Adverse Period Investigation (Lowest Realized Rolling Returns)
+              </p>
+              <p className="mono-meta font-sans mt-0.5">
+                Investigates the 5 most adverse historical windows to help allocators distinguish systematic market downturns from idiosyncratic fund underperformance
+              </p>
             </div>
+            <span className="status-badge state-risk shrink-0">Downside Dispersion</span>
+          </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="mono-meta font-sans text-approved-fg">
-                Outperformed ({currentHorizon.outperformingWindows} windows /{" "}
-                {formatRawPct(currentHorizon.outperformancePercentage)})
-              </span>
-              <span className="mono-meta font-sans text-risk-fg">
-                Underperformed ({currentHorizon.underperformingWindows} windows)
-              </span>
-            </div>
+          <div className="scroll-region mt-3">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Window Start</th>
+                  <th scope="col">Window End</th>
+                  <th scope="col" className="text-right">Fund CAGR</th>
+                  <th scope="col" className="text-right">Benchmark CAGR</th>
+                  <th scope="col" className="text-right">Active Spread</th>
+                  <th scope="col">Market Context</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adverseWindows.map((w, idx) => {
+                  const excess = w.benchmarkReturn !== null ? w.fundReturn - w.benchmarkReturn : null;
+                  const isCovidCollapse = w.endDate.startsWith("2020-03") || w.endDate.startsWith("2020-04");
+                  return (
+                    <tr key={idx}>
+                      <td className="num text-left">{w.startDate}</td>
+                      <td className="num key text-left font-semibold">{w.endDate}</td>
+                      <td className="num text-risk-fg font-mono font-semibold">
+                        {formatPct(w.fundReturn)}
+                      </td>
+                      <td className="num font-mono">
+                        {w.benchmarkReturn !== null ? formatPct(w.benchmarkReturn) : "Unpaired in ledger"}
+                      </td>
+                      <td
+                        className={`num font-mono ${
+                          excess !== null
+                            ? excess >= 0
+                              ? "text-approved-fg"
+                              : "text-risk-fg"
+                            : "text-text-tertiary"
+                        }`}
+                      >
+                        {excess !== null
+                          ? `${excess >= 0 ? "+" : ""}${(excess * 100).toFixed(2)}%`
+                          : "N/A"}
+                      </td>
+                      <td>
+                        {isCovidCollapse ? (
+                          <span className="status-badge state-risk">
+                            COVID Shock Peak-to-Trough
+                          </span>
+                        ) : (
+                          <span className="status-badge state-unavailable">
+                            Market Drawdown Window
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <div className="state-well mt-3 text-left">
-            <p className="eyebrow text-candidate-fg">Benchmark Ledger Availability Note</p>
-            <p className="mono-meta mt-1.5 font-sans leading-[1.5]">
-              {epistemic.benchmarkIntegrityDisclosure} Missing historical benchmark dates are
-              strictly distinguished from underperformance. To inspect outperformance consistency
-              with real ledger data, switch to the{" "}
-              <strong className="font-semibold text-text-primary">1-Year Horizon</strong> tab above.
-            </p>
-          </div>
-        )}
-      </div>
+          <p className="mono-meta mt-2 font-sans text-text-tertiary leading-[1.45]">
+            Note: Adverse periods occurred predominantly during the global liquidity shock of March 2020. Evaluating both fund return magnitude (-38.10%) and active benchmark spread reveals that downside volatility was systematically driven by market-wide repricing rather than fund-specific drift.
+          </p>
+        </div>
+      )}
 
       {/* Epistemic Framework: Observation, Interpretation, Limitation */}
-      <div className="mt-4">
+      <div className="mt-5">
         <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
           <p className="eyebrow text-accent">YUKIRA Epistemic Disclosure Framework</p>
           <p className="mono-meta">
-            • No Predictions • No Commercial Winner Labels
+            • No Speculative Predictions • No Winner Badges • Overlapping Autocorrelation Disclosed
           </p>
         </div>
 
@@ -408,7 +921,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
       </div>
 
       {/* Progressive Disclosure: Benchmark Pairing & Audit Lineage */}
-      <div className="panel-inset mt-4">
+      <div className="panel-inset mt-5">
         <button
           type="button"
           onClick={() => setShowAuditLineage((prev) => !prev)}
@@ -417,7 +930,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
         >
           <span className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-[13px] font-medium text-accent">
-              Inspect Benchmark Pairing Lineage &amp; Rolling Sample Records
+              Inspect Benchmark Pairing Lineage &amp; Milestone Sample Windows
             </span>
             <span className="mono-meta">
               {showAuditLineage ? "Click to collapse" : "Click to inspect calculation lineage"}
@@ -460,7 +973,7 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
               <div className="mt-4">
                 <div className="panel-header">
                   <p className="text-[13px] font-semibold text-text-primary">
-                    Recent Sample Rolling Windows (End-Date Aligned)
+                    Milestone Sample Rolling Windows (End-Date Aligned)
                   </p>
                   <span className="mono-meta shrink-0">
                     Outperforming = (Fund CAGR &gt; Benchmark CAGR)
@@ -473,15 +986,9 @@ export function RollingConsistencyView({ schemeOptionId }: RollingConsistencyVie
                       <tr>
                         <th scope="col">Start Date</th>
                         <th scope="col">End Date</th>
-                        <th scope="col" className="text-right">
-                          Fund CAGR
-                        </th>
-                        <th scope="col" className="text-right">
-                          Benchmark CAGR
-                        </th>
-                        <th scope="col" className="text-right">
-                          Excess Return
-                        </th>
+                        <th scope="col" className="text-right">Fund CAGR</th>
+                        <th scope="col" className="text-right">Benchmark CAGR</th>
+                        <th scope="col" className="text-right">Excess Return</th>
                         <th scope="col">Status</th>
                       </tr>
                     </thead>

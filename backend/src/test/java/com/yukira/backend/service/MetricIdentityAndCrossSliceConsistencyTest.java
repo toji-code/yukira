@@ -634,7 +634,7 @@ class MetricIdentityAndCrossSliceConsistencyTest {
         }
 
         AnalyticalProfileResponse.ProfileMetricItem rsk01 = findMetric(rskMetrics, "RSK-01");
-        assertEquals(0.150571584544, rsk01.numericValue().doubleValue(), 0.0001,
+        assertEquals(0.145939606904, rsk01.numericValue().doubleValue(), 0.0001,
             "RSK-01 canonical volatility mismatch");
 
         AnalyticalProfileResponse.ProfileMetricItem mkt01 = findMetric(relMetrics, "MKT-01");

@@ -581,7 +581,7 @@ describe("YUKIRA Analytical Scorecard Tests (YUKIRA_SCORE_V1)", () => {
       scoreId: 68928,
       schemeOptionId: 10189,
       schemeName: "Aditya Birla Sun Life Flexi Cap Fund Direct Growth",
-      amfiCode: "119062",
+      amfiCode: "101890",
       isin: "INF209K01157",
       score: 55.05,
       confidence: 100.0,

@@ -21,6 +21,8 @@ public record RollingConsistencyResponse(
     RollingHorizonResult primary3Y,
     RollingHorizonResult supporting1Y,
     List<RollingWindowSample> sampleWindows,
+    List<RollingWindowSample> adverseWindows,
+    List<MarketRegimeSummary> regimes,
     RollingEpistemic epistemic
 ) {
     public record RollingContext(
@@ -38,6 +40,13 @@ public record RollingConsistencyResponse(
         OffsetDateTime executionCompletedAt
     ) {}
 
+    public record RollingSeriesPoint(
+        String date,
+        BigDecimal fundReturn,
+        BigDecimal benchmarkReturn,
+        BigDecimal excessReturn
+    ) {}
+
     public record RollingHorizonResult(
         String periodType,
         int windowYears,
@@ -49,8 +58,11 @@ public record RollingConsistencyResponse(
         BigDecimal medianReturn,
         BigDecimal minReturn,
         BigDecimal maxReturn,
+        BigDecimal p10Return,
         BigDecimal p25Return,
         BigDecimal p75Return,
+        BigDecimal p90Return,
+        BigDecimal positiveReturnPercentage,
         BigDecimal stdDev,
         String outperformanceStatus,
         Integer pairedWindows,
@@ -58,7 +70,8 @@ public record RollingConsistencyResponse(
         Integer underperformingWindows,
         BigDecimal outperformancePercentage,
         BigDecimal meanExcessReturn,
-        String statusReason
+        String statusReason,
+        List<RollingSeriesPoint> series
     ) {}
 
     public record RollingWindowSample(
@@ -67,6 +80,20 @@ public record RollingConsistencyResponse(
         BigDecimal fundReturn,
         BigDecimal benchmarkReturn,
         Boolean outperforming
+    ) {}
+
+    public record MarketRegimeSummary(
+        String regimeId,
+        String name,
+        String period,
+        String benchmarkBasis,
+        String inclusionRule,
+        BigDecimal fundCagr,
+        BigDecimal benchmarkCagr,
+        BigDecimal excessReturn,
+        Integer windowCount,
+        String dataCoverageStatus,
+        String retrospectiveDisclaimer
     ) {}
 
     public record RollingEpistemic(

@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface SecurityRepository extends JpaRepository<Security, Long> {
 
     Optional<Security> findByCanonicalName(String canonicalName);
+
+    Optional<Security> findTopByCanonicalNameOrderByIdAsc(String canonicalName);
 }

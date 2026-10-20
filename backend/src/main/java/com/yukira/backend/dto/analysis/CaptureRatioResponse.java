@@ -3,16 +3,26 @@ package com.yukira.backend.dto.analysis;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Immutable API response DTO for MKT-03 (Upside Capture), MKT-04 (Downside Capture),
- * and MKT-05 (Capture Spread) analysis against benchmark.
+ * MKT-05 (Capture Spread), and Historical Stress-Event Asymmetry Analysis.
  */
 public record CaptureRatioResponse(
     CaptureContext context,
     CaptureMetrics metrics,
+    List<HistoricalStressEvent> stressEvents,
     CaptureEpistemic epistemic
 ) {
+    public CaptureRatioResponse(
+        CaptureContext context,
+        CaptureMetrics metrics,
+        CaptureEpistemic epistemic
+    ) {
+        this(context, metrics, List.of(), epistemic);
+    }
+
     public record CaptureContext(
         Long schemeOptionId,
         String fundName,
@@ -48,6 +58,31 @@ public record CaptureRatioResponse(
         String spreadStatus,
         Integer totalPairedDays,
         Integer flatDaysCount
+    ) {}
+
+    public record HistoricalStressEvent(
+        String eventId,
+        String name,
+        LocalDate startDate,
+        LocalDate endDate,
+        BigDecimal fundReturn,
+        BigDecimal benchmarkReturn,
+        BigDecimal excessReturn,
+        BigDecimal fundMaxDrawdown,
+        BigDecimal benchmarkMaxDrawdown,
+        Integer tradingDays,
+        String coverageStatus,
+        String classificationBasis,
+        String retrospectiveDisclaimer,
+        List<StressTrajectoryPoint> trajectory
+    ) {}
+
+    public record StressTrajectoryPoint(
+        String date,
+        BigDecimal fundIndexed,
+        BigDecimal benchmarkIndexed,
+        BigDecimal fundDailyReturn,
+        BigDecimal benchmarkDailyReturn
     ) {}
 
     public record CaptureEpistemic(

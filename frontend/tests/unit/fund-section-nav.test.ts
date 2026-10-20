@@ -3,8 +3,8 @@ import assert from "node:assert";
 import { FUND_SECTIONS } from "../../components/analysis/FundSectionNav";
 
 describe("Fund Profile In-Page Section Navigation Configuration", () => {
-  it("defines the expected 13 analytical section anchors for Fund Detail page", () => {
-    assert.strictEqual(FUND_SECTIONS.length, 13, "Fund profile must contain exactly 13 top-level section anchors");
+  it("defines the expected 16 analytical section anchors for Fund Detail page", () => {
+    assert.strictEqual(FUND_SECTIONS.length, 16, "Fund profile must contain exactly 16 top-level section anchors");
 
     const expectedSectionIds = [
       "identity",
@@ -14,8 +14,11 @@ describe("Fund Profile In-Page Section Navigation Configuration", () => {
       "drawdown",
       "tail-risk",
       "risk-adjusted",
+      "beta-dynamics",
       "benchmark-relationship",
       "portfolio",
+      "factor-exposure",
+      "construction-risk",
       "investment-modes",
       "provenance",
       "data-quality",
@@ -48,8 +51,11 @@ describe("Fund Profile In-Page Section Navigation Configuration", () => {
     assert.strictEqual(itemMap.get("drawdown")?.badge, "Dim 3");
     assert.strictEqual(itemMap.get("tail-risk")?.badge, "Dim 4");
     assert.strictEqual(itemMap.get("risk-adjusted")?.badge, "Dim 5");
+    assert.strictEqual(itemMap.get("beta-dynamics")?.badge, "Dim 5.4");
     assert.strictEqual(itemMap.get("benchmark-relationship")?.badge, "Dim 5.5");
     assert.strictEqual(itemMap.get("portfolio")?.badge, "Dim 6");
+    assert.strictEqual(itemMap.get("factor-exposure")?.badge, "Dim 6.5");
+    assert.strictEqual(itemMap.get("construction-risk")?.badge, "Dim 6.6");
     assert.strictEqual(itemMap.get("investment-modes")?.badge, "Sec 3");
   });
 });

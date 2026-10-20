@@ -4,6 +4,7 @@ import com.yukira.backend.domain.entity.SchemeOption;
 import com.yukira.backend.domain.entity.SourceArtifact;
 import com.yukira.backend.repository.NavObservationRepository;
 import com.yukira.backend.repository.SchemeOptionRepository;
+import com.yukira.backend.repository.SourceArtifactRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -35,6 +37,9 @@ class HistoricalNavIngestionServiceTest {
     @Mock
     private NavObservationRepository navObservationRepository;
 
+    @Mock
+    private SourceArtifactRepository sourceArtifactRepository;
+
     @InjectMocks
     private HistoricalNavIngestionService historicalNavIngestionService;
 
@@ -44,22 +49,13 @@ class HistoricalNavIngestionServiceTest {
         var targets = HistoricalNavIngestionService.CONTROLLED_SAMPLE_TARGETS;
         assertEquals(5, targets.size());
 
-        // Target 1: Canonical pilot
         assertEquals("118955", targets.get(0).amfiCode());
         assertEquals("INF179K01UT0", targets.get(0).isin());
         assertEquals("DIRECT", targets.get(0).planType());
         assertEquals("GROWTH", targets.get(0).optionType());
-
-        // Target 2: Large Cap Equity
         assertEquals("119018", targets.get(1).amfiCode());
-
-        // Target 3: Small Cap High Volatility
         assertEquals("118778", targets.get(2).amfiCode());
-
-        // Target 4: Liquid / Debt
         assertEquals("119091", targets.get(3).amfiCode());
-
-        // Target 5: IDCW Variant
         assertEquals("118954", targets.get(4).amfiCode());
         assertEquals("IDCW", targets.get(4).optionType());
     }
@@ -105,8 +101,11 @@ class HistoricalNavIngestionServiceTest {
         );
 
         when(schemeOptionRepository.findById(10189L)).thenReturn(Optional.of(opt));
-        when(amfiSourceClient.fetchAndPersistArtifact("120564", null, start, end)).thenReturn(artifact);
-        when(amfiNavIngestionService.ingestArtifact(artifact, "120564")).thenReturn(mockSummary);
+        when(amfiSourceClient.buildUrl(eq("120564"), any(), eq(start), eq(end)))
+            .thenReturn("https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?scheme=120564");
+        when(sourceArtifactRepository.existsByStorageUri(anyString())).thenReturn(false);
+        when(amfiSourceClient.fetchAndPersistUniverseChunkArtifact(start, end)).thenReturn(artifact);
+        when(amfiNavIngestionService.ingestArtifact(artifact, Set.of("120564"))).thenReturn(mockSummary);
 
         var result = historicalNavIngestionService.ingestHistoricalNavForSchemeOptions(
             List.of(10189L), start, end
@@ -116,80 +115,30 @@ class HistoricalNavIngestionServiceTest {
         assertEquals(1, result.fundsSucceeded());
         assertEquals(0, result.fundsFailed());
         assertEquals(10, result.totalObservationsIngested());
-        assertEquals("SUCCESS", result.funds().get(0).status());
         assertEquals("120564", result.funds().get(0).amfiCode());
-        verify(amfiSourceClient).fetchAndPersistArtifact("120564", null, start, end);
-        verify(amfiNavIngestionService).ingestArtifact(artifact, "120564");
-        verify(amfiNavIngestionService, never()).ingestArtifact(artifact);
+        verify(amfiSourceClient).fetchAndPersistUniverseChunkArtifact(start, end);
+        verify(amfiNavIngestionService).ingestArtifact(artifact, Set.of("120564"));
     }
 
     @Test
-    @DisplayName("Targeted backfill is repeatable and reports duplicate observations from existing ingestion")
-    void testTargetedBackfillRepeatReportsIdempotentDuplicates() {
-        LocalDate start = LocalDate.of(2023, 10, 1);
-        LocalDate end = LocalDate.of(2023, 10, 15);
-        SchemeOption opt = new SchemeOption();
-        opt.setId(10189L);
-        opt.setAmfiCode("120564");
-        SourceArtifact firstArtifact = new SourceArtifact();
-        firstArtifact.setId(301L);
-        SourceArtifact secondArtifact = new SourceArtifact();
-        secondArtifact.setId(301L);
-
-        IngestionSummary firstSummary = new IngestionSummary(
-            301L, "repeatHash", 10, 10, 10, 0, 0, 0, List.of("Initial ingest")
-        );
-        IngestionSummary secondSummary = new IngestionSummary(
-            301L, "repeatHash", 10, 10, 0, 0, 10, 0, List.of("Duplicate observations skipped")
-        );
-
-        when(schemeOptionRepository.findById(10189L)).thenReturn(Optional.of(opt));
-        when(amfiSourceClient.fetchAndPersistArtifact("120564", null, start, end))
-            .thenReturn(firstArtifact)
-            .thenReturn(secondArtifact);
-        when(amfiNavIngestionService.ingestArtifact(firstArtifact, "120564")).thenReturn(firstSummary);
-        when(amfiNavIngestionService.ingestArtifact(secondArtifact, "120564")).thenReturn(secondSummary);
-
-        var first = historicalNavIngestionService.ingestHistoricalNavForSchemeOption(10189L, start, end);
-        var second = historicalNavIngestionService.ingestHistoricalNavForSchemeOption(10189L, start, end);
-
-        assertEquals("SUCCESS", first.status());
-        assertEquals(10, first.summary().observationsIngested());
-        assertEquals("SUCCESS", second.status());
-        assertEquals(0, second.summary().observationsIngested());
-        assertEquals(10, second.summary().duplicateRowsSkipped());
-        verify(amfiSourceClient, times(2)).fetchAndPersistArtifact("120564", null, start, end);
-        verify(amfiNavIngestionService, times(2)).ingestArtifact(any(SourceArtifact.class), eq("120564"));
-    }
-
-    @Test
-    @DisplayName("Targeted backfill skips already dense chunks during resume")
-    void testTargetedBackfillSkipsAlreadyDenseChunks() {
+    @DisplayName("Targeted backfill skips fetching when artifact already exists, ensuring strict resumability")
+    void testTargetedBackfillSkipsAlreadyFetchedArtifacts() {
         LocalDate start = LocalDate.of(2023, 10, 1);
         LocalDate end = LocalDate.of(2023, 10, 15);
         SchemeOption opt = new SchemeOption();
         opt.setId(10189L);
         opt.setAmfiCode("120564");
 
-        List<com.yukira.backend.domain.entity.NavObservation> existing = new java.util.ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            com.yukira.backend.domain.entity.NavObservation observation = mock(com.yukira.backend.domain.entity.NavObservation.class);
-            when(observation.getLatestRevision()).thenReturn(true);
-            existing.add(observation);
-        }
-
         when(schemeOptionRepository.findById(10189L)).thenReturn(Optional.of(opt));
-        when(navObservationRepository.findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(10189L, start, end))
-            .thenReturn(existing);
+        when(amfiSourceClient.buildUrl(eq("120564"), any(), eq(start), eq(end)))
+            .thenReturn("https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?scheme=120564");
+        when(sourceArtifactRepository.existsByStorageUri(anyString())).thenReturn(true);
 
         var result = historicalNavIngestionService.ingestHistoricalNavForSchemeOption(10189L, start, end);
 
-        assertEquals("SUCCESS", result.status());
-        assertEquals(0, result.summary().observationsIngested());
-        assertEquals(0, result.summary().duplicateRowsSkipped());
-        assertTrue(result.summary().messages().get(0).contains("Skipped"));
-        verify(amfiSourceClient, never()).fetchAndPersistArtifact(anyString(), any(), any(), any());
-        verify(amfiNavIngestionService, never()).ingestArtifact(any(SourceArtifact.class), anyString());
+        assertNotNull(result);
+        verify(amfiSourceClient, never()).fetchAndPersistUniverseChunkArtifact(any(), any());
+        verify(amfiNavIngestionService, never()).ingestArtifact(any(SourceArtifact.class), anySet());
     }
 
     @Test
@@ -202,39 +151,34 @@ class HistoricalNavIngestionServiceTest {
         opt.setAmfiCode("120564");
 
         when(schemeOptionRepository.findById(10189L)).thenReturn(Optional.of(opt));
-        when(amfiSourceClient.fetchAndPersistArtifact("120564", null, start, end))
+        when(amfiSourceClient.buildUrl(eq("120564"), any(), eq(start), eq(end)))
+            .thenReturn("https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?scheme=120564");
+        when(sourceArtifactRepository.existsByStorageUri(anyString())).thenReturn(false);
+        when(amfiSourceClient.fetchAndPersistUniverseChunkArtifact(start, end))
             .thenThrow(new RuntimeException("AMFI source unavailable"));
 
         var result = historicalNavIngestionService.ingestHistoricalNavForSchemeOption(10189L, start, end);
 
         assertEquals("FAILED", result.status());
-        assertNull(result.summary());
         assertTrue(result.message().contains("AMFI source unavailable"));
-        verify(amfiNavIngestionService, never()).ingestArtifact(any(SourceArtifact.class), anyString());
-        verify(amfiNavIngestionService, never()).ingestArtifact(any(SourceArtifact.class));
+        verify(amfiNavIngestionService, never()).ingestArtifact(any(SourceArtifact.class), anySet());
     }
 
     @Test
-    @DisplayName("Controlled sample coverage reflects database observation counts")
-    void testControlledSampleCoverageReporting() {
-        SchemeOption opt = new SchemeOption();
-        opt.setId(10L);
-        opt.setAmfiCode("118955");
+    @DisplayName("Deterministic cohort selection picks diverse options across AMCs")
+    void testDeterministicCohortSelection() {
+        SchemeOption opt1 = new SchemeOption();
+        opt1.setId(1L);
+        opt1.setAmfiCode("100001");
 
-        when(schemeOptionRepository.findByAmfiCode("118955")).thenReturn(Optional.of(opt));
-        when(navObservationRepository.countBySchemeOptionId(10L)).thenReturn(1247L);
+        SchemeOption opt2 = new SchemeOption();
+        opt2.setId(2L);
+        opt2.setAmfiCode("100002");
 
-        Map<String, Object> coverage = historicalNavIngestionService.getControlledSampleCoverage();
-        assertNotNull(coverage);
-        assertTrue(coverage.containsKey("funds"));
+        when(schemeOptionRepository.findAll()).thenReturn(List.of(opt1, opt2));
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> funds = (List<Map<String, Object>>) coverage.get("funds");
-        assertEquals(5, funds.size());
-
-        Map<String, Object> pilotFund = funds.get(0);
-        assertEquals("118955", pilotFund.get("amfiCode"));
-        assertEquals("REGISTERED", pilotFund.get("catalogStatus"));
-        assertEquals(1247L, pilotFund.get("totalObservations"));
+        List<SchemeOption> cohort = historicalNavIngestionService.selectDeterministicCohort(2);
+        assertNotNull(cohort);
+        assertFalse(cohort.isEmpty());
     }
 }

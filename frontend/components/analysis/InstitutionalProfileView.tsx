@@ -4,6 +4,10 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { AnalyticalProfileResponse, ProfileMetricItem } from "@/types/analysis";
 import { formatDateTime } from "@/lib/utils/formatters";
+import { MetricEvidencePanel } from "@/components/analysis/MetricEvidencePanel";
+import { ResearchNoteModal } from "@/components/watchlist/ResearchNoteModal";
+import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { WatchlistResponse } from "@/lib/api/investor";
 
 interface InstitutionalProfileViewProps {
   data: AnalyticalProfileResponse;
@@ -49,6 +53,16 @@ export function InstitutionalProfileView({ data, onRerunRequested }: Institution
   const [showProvenance, setShowProvenance] = useState(false);
   const [showQuality, setShowQuality] = useState(false);
 
+  const { watchlistItems, saveResearchNote } = useWatchlist();
+  const [investigationTarget, setInvestigationTarget] = useState<{
+    fund: WatchlistResponse;
+    prefill: {
+      investigationQuestion: string;
+      reasonSaved: string;
+    };
+  } | null>(null);
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+
   const toggleMetricExpand = (code: string) => {
     setExpandedMetric(expandedMetric === code ? null : code);
   };
@@ -57,24 +71,49 @@ export function InstitutionalProfileView({ data, onRerunRequested }: Institution
     return AUTHORITATIVE_METRIC_NAMES[code] || fallbackName;
   };
 
-  /**
-   * Governance state is a SEMANTIC state, so it maps onto a semantic token —
-   * never onto a decorative category colour.
-   */
-  const getGovernanceStateClass = (status: string) => {
-    if (status === "APPROVED") {
-      return "state-approved";
-    }
-    if (status.includes("OPERATIONAL")) {
-      return "state-operational";
-    }
-    return "state-candidate";
+  const handleOpenInvestigation = (
+    inv: { metricCode: string; metricName: string; suggestedQuestion: string; suggestedReason: string }
+  ) => {
+    const existing = watchlistItems.find(
+      (w) =>
+        (context.schemeOptionId && w.schemeOptionId === context.schemeOptionId) ||
+        (context.schemeId ? w.schemeId === context.schemeId : false)
+    );
+
+    const targetFund: WatchlistResponse = {
+      id: existing?.id ?? -(context.schemeOptionId || context.schemeId || 1),
+      schemeId: context.schemeId || context.schemeOptionId || 1,
+      schemeCode: context.amfiCode || `SCHEME_${context.schemeOptionId || 1}`,
+      schemeName: context.schemeName,
+      amcName: "AMC Verified",
+      schemeOptionId: context.schemeOptionId || null,
+      optionType: context.optionType || "GROWTH",
+      planType: context.planType || "DIRECT",
+      amfiCode: context.amfiCode || null,
+      isin: context.isin || null,
+      latestNav: null,
+      latestNavDate: context.asOfDate ? String(context.asOfDate) : null,
+      yukiraScore: null,
+      yukiraScoreStatus: "CANDIDATE",
+      reasonSaved: existing?.reasonSaved || null,
+      investigationQuestion: existing?.investigationQuestion || null,
+      nextStep: existing?.nextStep || null,
+      createdAt: existing?.createdAt || null,
+      updatedAt: existing?.updatedAt || null,
+    };
+
+    setInvestigationTarget({
+      fund: targetFund,
+      prefill: {
+        investigationQuestion: inv.suggestedQuestion,
+        reasonSaved: inv.suggestedReason,
+      },
+    });
+    setIsNoteModalOpen(true);
   };
 
   const renderMetricCard = (item: ProfileMetricItem) => {
     const isExpanded = expandedMetric === item.metricCode;
-    const isCandidate = item.governanceStatus === "CANDIDATE";
-    const governanceState = getGovernanceStateClass(item.governanceStatus);
     const displayName = getMetricDisplayName(item.metricCode, item.metricName);
 
     return (
@@ -109,7 +148,7 @@ export function InstitutionalProfileView({ data, onRerunRequested }: Institution
         {/* Statistical Interpretation */}
         <p className="mono-meta font-sans leading-[1.55]">{item.interpretation}</p>
 
-        {/* Progressive Disclosure: Formula, Diagnostics, Limitations */}
+        {/* Progressive Disclosure: 5-Layer Evidence & Investigation Action */}
         <div className="mt-auto pt-4">
           <div className="border-t border-border pt-3">
             <button
@@ -118,7 +157,7 @@ export function InstitutionalProfileView({ data, onRerunRequested }: Institution
               aria-expanded={isExpanded}
               className="flex w-full items-center justify-between gap-2 text-left text-[12px] font-medium text-accent transition-colors hover:text-accent-hover"
             >
-              <span>{isExpanded ? "Hide Formula & Details" : "View Formula & Details"}</span>
+              <span>{isExpanded ? "Hide Metric Evidence & Details" : "Understand this Metric & Evidence"}</span>
               <span
                 className={`tab-ordinal transition-transform ${isExpanded ? "rotate-180" : ""}`}
                 aria-hidden
@@ -128,47 +167,33 @@ export function InstitutionalProfileView({ data, onRerunRequested }: Institution
             </button>
 
             {isExpanded && (
-              <div className="mt-3 space-y-2.5">
-                {/* Technical Audit Reference */}
-                <div className="panel-inset flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                  <p className="mono-meta font-sans">
-                    Internal Identifier:{" "}
-                    <strong className="text-text-primary">{item.metricCode}</strong>
-                  </p>
-                  <span className={`status-badge ${governanceState}`}>
-                    {item.governanceStatus}
-                  </span>
-                </div>
-
-                <div>
-                  <p className="def-label">Formula</p>
-                  <code className="mt-1 block overflow-x-auto rounded-sm border border-border bg-surface-inset p-2 text-accent">
-                    {item.formulaDisclosure}
-                  </code>
-                </div>
-
-                <div>
-                  <p className="def-label">Methodology Limitations</p>
-                  <p className="mono-meta font-sans leading-[1.5]">{item.limitations}</p>
-                </div>
-
-                {isCandidate && (
-                  <div className="panel-inset px-3 py-2">
-                    <p className="eyebrow text-candidate-fg">Methodology Notice</p>
-                    <p className="mono-meta mt-1 font-sans">
-                      Candidate specification &bull; Subject to empirical regime validation.
-                    </p>
-                  </div>
-                )}
-
-                {item.errorMessage && (
-                  <div className="state-panel-error">
-                    <p className="eyebrow text-critical-fg">Error</p>
-                    <p className="mt-1 text-[12px] leading-[1.5] text-critical-fg">
-                      {item.errorMessage}
-                    </p>
-                  </div>
-                )}
+              <div className="mt-3">
+                <MetricEvidencePanel
+                  metric={item}
+                  context={{
+                    schemeId: context.schemeId || context.schemeOptionId || 1,
+                    schemeCode: context.amfiCode || undefined,
+                    schemeName: context.schemeName,
+                    schemeOptionId: context.schemeOptionId,
+                    optionType: context.optionType,
+                    planType: context.planType,
+                    amfiCode: context.amfiCode,
+                    isin: context.isin,
+                    benchmarkCode: context.benchmarkCode,
+                    benchmarkName: context.benchmarkName,
+                    startDate: context.startDate ? String(context.startDate) : undefined,
+                    endDate: context.asOfDate ? String(context.asOfDate) : undefined,
+                    knowledgeCutoffTime: context.knowledgeCutoffTime ? String(context.knowledgeCutoffTime) : undefined,
+                    observationCount: provenance.navObservationCount,
+                    calculationRunId: provenance.calculationRunId,
+                    methodologyTag: provenance.methodologyTag,
+                    engineSoftwareVersion: provenance.engineSoftwareVersion,
+                    inputSnapshotSha256: provenance.inputSnapshotSha256,
+                  }}
+                  onInvestigate={(inv) => handleOpenInvestigation(inv)}
+                  isCollapsible={false}
+                  defaultExpanded={true}
+                />
               </div>
             )}
           </div>
@@ -446,6 +471,29 @@ export function InstitutionalProfileView({ data, onRerunRequested }: Institution
           Opinion.
         </p>
       </section>
+
+      {investigationTarget && (
+        <ResearchNoteModal
+          isOpen={isNoteModalOpen}
+          onClose={() => {
+            setIsNoteModalOpen(false);
+            setInvestigationTarget(null);
+          }}
+          fund={investigationTarget.fund}
+          prefill={investigationTarget.prefill}
+          onSave={async (schemeId, note, schemeOptionId) => {
+            await saveResearchNote(schemeId, note, schemeOptionId, {
+              schemeCode: investigationTarget.fund.schemeCode,
+              schemeName: investigationTarget.fund.schemeName,
+              amcName: investigationTarget.fund.amcName,
+              optionType: investigationTarget.fund.optionType,
+              planType: investigationTarget.fund.planType,
+            });
+            setIsNoteModalOpen(false);
+            setInvestigationTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

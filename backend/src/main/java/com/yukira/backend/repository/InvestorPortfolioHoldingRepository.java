@@ -12,4 +12,5 @@ public interface InvestorPortfolioHoldingRepository extends JpaRepository<Invest
     List<InvestorPortfolioHolding> findByInvestorId(Long investorId);
     Optional<InvestorPortfolioHolding> findByInvestorIdAndSchemeOptionId(Long investorId, Long schemeOptionId);
     List<InvestorPortfolioHolding> findByInvestorIdAndSchemeOptionIdIn(Long investorId, List<Long> schemeOptionIds);
+    void deleteByInvestorId(Long investorId);
 }

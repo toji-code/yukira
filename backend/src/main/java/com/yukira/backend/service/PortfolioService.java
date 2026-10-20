@@ -33,6 +33,14 @@ public class PortfolioService {
         return fundEnrichmentService.getHoldings(schemeOptionId, knowledgeCutoff);
     }
 
+    public com.yukira.backend.dto.enrichment.PortfolioSnapshotDetailDto getHoldingsSnapshot(Long schemeOptionId, OffsetDateTime knowledgeCutoff) {
+        return fundEnrichmentService.getHoldingsSnapshot(schemeOptionId, knowledgeCutoff);
+    }
+
+    public List<java.time.LocalDate> getAvailableHoldingsDates(Long schemeOptionId) {
+        return fundEnrichmentService.getAvailableHoldingsDates(schemeOptionId);
+    }
+
     @Transactional
     public void ingestHoldings(PortfolioSnapshot snapshot, List<PortfolioHolding> holdings) {
         snapshotRepository.save(snapshot);

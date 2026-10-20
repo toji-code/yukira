@@ -1,6 +1,39 @@
+import { apiFetch } from './client';
+
 export interface WatchlistResponse {
+  id: number;
   schemeId: number;
-  code: string;
+  schemeCode: string;
+  schemeName: string;
+  amcName?: string | null;
+  schemeOptionId?: number | null;
+  optionType?: string | null;
+  planType?: string | null;
+  amfiCode?: string | null;
+  isin?: string | null;
+  latestNav?: number | null;
+  latestNavDate?: string | null;
+  yukiraScore?: number | null;
+  yukiraScoreStatus?: string | null;
+  reasonSaved?: string | null;
+  investigationQuestion?: string | null;
+  nextStep?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface WatchlistRequest {
+  schemeId: number;
+  schemeOptionId?: number;
+  reasonSaved?: string;
+  investigationQuestion?: string;
+  nextStep?: string;
+}
+
+export interface WatchlistNoteRequest {
+  reasonSaved?: string;
+  investigationQuestion?: string;
+  nextStep?: string;
 }
 
 export interface PortfolioResponse {
@@ -8,58 +41,62 @@ export interface PortfolioResponse {
   units: number;
 }
 
-async function nextFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(options?.headers || {}),
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed request to ${path}: ${response.status} ${response.statusText}`);
-  }
-
-  // DELETE might not return JSON
-  if (options?.method === 'DELETE') {
-    return {} as T;
-  }
-  
-  return response.json();
-}
-
 export async function fetchServerWatchlist(): Promise<WatchlistResponse[]> {
-  return nextFetch<WatchlistResponse[]>('/api/proxy/investor/watchlist');
+  return apiFetch<WatchlistResponse[]>('/api/investor/watchlist');
 }
 
-export async function addServerWatchlist(schemeId: number): Promise<WatchlistResponse> {
-  return nextFetch<WatchlistResponse>('/api/proxy/investor/watchlist', {
+export async function addServerWatchlist(req: WatchlistRequest): Promise<WatchlistResponse> {
+  return apiFetch<WatchlistResponse>('/api/investor/watchlist', {
     method: 'POST',
-    body: JSON.stringify({ schemeId }),
+    body: JSON.stringify(req),
+  });
+}
+
+export async function updateServerWatchlistNote(
+  schemeId: number,
+  note: WatchlistNoteRequest
+): Promise<WatchlistResponse> {
+  return apiFetch<WatchlistResponse>(`/api/investor/watchlist/${schemeId}`, {
+    method: 'PUT',
+    body: JSON.stringify(note),
+  });
+}
+
+export async function updateServerWatchlistNoteByOption(
+  schemeOptionId: number,
+  note: WatchlistNoteRequest
+): Promise<WatchlistResponse> {
+  return apiFetch<WatchlistResponse>(`/api/investor/watchlist/option/${schemeOptionId}`, {
+    method: 'PUT',
+    body: JSON.stringify(note),
   });
 }
 
 export async function removeServerWatchlist(schemeId: number): Promise<void> {
-  return nextFetch<void>(`/api/proxy/investor/watchlist/${schemeId}`, {
+  return apiFetch<void>(`/api/investor/watchlist/${schemeId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function removeServerWatchlistByOption(schemeOptionId: number): Promise<void> {
+  return apiFetch<void>(`/api/investor/watchlist/option/${schemeOptionId}`, {
     method: 'DELETE',
   });
 }
 
 export async function fetchServerPortfolio(): Promise<PortfolioResponse[]> {
-  return nextFetch<PortfolioResponse[]>('/api/proxy/investor/portfolio');
+  return apiFetch<PortfolioResponse[]>('/api/investor/portfolio');
 }
 
 export async function addServerPortfolioHolding(schemeOptionId: number, units: number): Promise<PortfolioResponse> {
-  return nextFetch<PortfolioResponse>('/api/proxy/investor/portfolio', {
+  return apiFetch<PortfolioResponse>('/api/investor/portfolio', {
     method: 'POST',
     body: JSON.stringify({ schemeOptionId, units }),
   });
 }
 
 export async function removeServerPortfolioHolding(schemeOptionId: number): Promise<void> {
-  return nextFetch<void>(`/api/proxy/investor/portfolio/${schemeOptionId}`, {
+  return apiFetch<void>(`/api/investor/portfolio/${schemeOptionId}`, {
     method: 'DELETE',
   });
 }

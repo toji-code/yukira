@@ -1,28 +1,88 @@
 import { apiFetch } from './client';
 import { Scheme, SchemeOption, Holding } from '@/types/domain';
 
-export async function fetchAllSchemes(): Promise<Scheme[]> {
-  return apiFetch<Scheme[]>('/api/v1/schemes');
+export interface SchemeFilterParams {
+  search?: string;
+  category?: string;
+  subcategory?: string;
+  amcCode?: string;
+  status?: string;
 }
 
-export async function fetchSchemeById(id: number): Promise<Scheme> {
-  return apiFetch<Scheme>(`/api/v1/schemes/${id}`);
+export interface SchemeOptionFilterParams {
+  search?: string;
+  planType?: string;
+  optionType?: string;
+  category?: string;
+  amcCode?: string;
+  schemeId?: number;
+}
+
+export async function fetchSchemes(params?: SchemeFilterParams): Promise<Scheme[]> {
+  const queryParts: string[] = [];
+  if (params?.search && params.search.trim()) {
+    queryParts.push(`search=${encodeURIComponent(params.search.trim())}`);
+  }
+  if (params?.category && params.category.trim() && params.category !== 'ALL') {
+    queryParts.push(`category=${encodeURIComponent(params.category.trim())}`);
+  }
+  if (params?.subcategory && params.subcategory.trim()) {
+    queryParts.push(`subcategory=${encodeURIComponent(params.subcategory.trim())}`);
+  }
+  if (params?.amcCode && params.amcCode.trim()) {
+    queryParts.push(`amcCode=${encodeURIComponent(params.amcCode.trim())}`);
+  }
+  if (params?.status && params.status.trim()) {
+    queryParts.push(`status=${encodeURIComponent(params.status.trim())}`);
+  }
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return apiFetch<Scheme[]>(`/api/v1/schemes${queryString}`, undefined, 25000);
+}
+
+export async function fetchAllSchemes(): Promise<Scheme[]> {
+  return fetchSchemes();
+}
+
+export async function fetchSchemeById(id: number | string): Promise<Scheme> {
+  return apiFetch<Scheme>(`/api/v1/schemes/${id}`, undefined, 20000);
+}
+
+export async function fetchSchemeOptions(params?: SchemeOptionFilterParams): Promise<SchemeOption[]> {
+  const queryParts: string[] = [];
+  if (params?.search && params.search.trim()) {
+    queryParts.push(`search=${encodeURIComponent(params.search.trim())}`);
+  }
+  if (params?.planType && params.planType !== 'ALL') {
+    queryParts.push(`planType=${encodeURIComponent(params.planType)}`);
+  }
+  if (params?.optionType && params.optionType !== 'ALL') {
+    queryParts.push(`optionType=${encodeURIComponent(params.optionType)}`);
+  }
+  if (params?.category && params.category !== 'ALL') {
+    queryParts.push(`category=${encodeURIComponent(params.category)}`);
+  }
+  if (params?.amcCode && params.amcCode.trim()) {
+    queryParts.push(`amcCode=${encodeURIComponent(params.amcCode.trim())}`);
+  }
+  if (params?.schemeId) {
+    queryParts.push(`schemeId=${params.schemeId}`);
+  }
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return apiFetch<SchemeOption[]>(`/api/v1/schemes/options${queryString}`, undefined, 25000);
 }
 
 export async function fetchAllSchemeOptions(): Promise<SchemeOption[]> {
   // The full expanded-universe share-class payload is ~9.5 MB across 14k+ options, which
-  // legitimately exceeds the shared 8s client default. Give this call an explicit budget
-  // rather than raising the global default for every other endpoint.
+  // legitimately exceeds standard client defaults. Give this call an explicit budget.
   return apiFetch<SchemeOption[]>('/api/v1/schemes/options', undefined, 45000);
 }
 
-export async function fetchSchemeOptionsBySchemeId(schemeId: number): Promise<SchemeOption[]> {
+export async function fetchSchemeOptionsBySchemeId(schemeId: number | string): Promise<SchemeOption[]> {
   try {
-    return await apiFetch<SchemeOption[]>(`/api/v1/schemes/${schemeId}/options`);
-  } catch {
-    // Fallback to filtering all options if specific endpoint is unreachable
-    const allOptions = await fetchAllSchemeOptions();
-    return allOptions.filter((opt) => opt.plan?.scheme?.id === schemeId);
+    return await apiFetch<SchemeOption[]>(`/api/v1/schemes/${schemeId}/options`, undefined, 20000);
+  } catch (err) {
+    console.warn(`Failed to fetch scheme options for scheme ${schemeId}:`, err);
+    return [];
   }
 }
 

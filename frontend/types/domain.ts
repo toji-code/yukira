@@ -34,9 +34,11 @@ export interface YukiraScoreSummary {
 
 export interface Scheme {
   id: number;
-  amc: Amc;
+  amc?: Amc;
   name: string;
   code: string;
+  category?: string;
+  subcategory?: string;
   inceptionDate: string;
   status: string;
   yukiraScore?: YukiraScoreSummary | null;
@@ -53,11 +55,21 @@ export interface SchemePlan {
 export interface SchemeOption {
   id: number;
   plan?: SchemePlan;
-  optionType: 'GROWTH' | 'IDCW_PAYOUT' | 'IDCW_REINVESTMENT' | string;
+  optionType: 'GROWTH' | 'IDCW' | 'IDCW_PAYOUT' | 'IDCW_REINVESTMENT' | string;
   amfiCode: string | null;
   isin: string | null;
   status: string;
   yukiraScore?: YukiraScoreSummary | null;
+  latestNavDate?: string | null;
+  navObservationCount?: number | null;
+  latestHoldingsDate?: string | null;
+  holdingsCount?: number | null;
+  navFreshnessState?: string | null;
+  navFreshnessExplanation?: string | null;
+  holdingsFreshnessState?: string | null;
+  holdingsFreshnessExplanation?: string | null;
+  holdingsRawSumPercentage?: number | null;
+  snapshotCount?: number | null;
 }
 
 export interface Benchmark {

@@ -218,4 +218,132 @@ describe("Benchmark Beta Dynamics API Tests (§REL-01 / §REL-04 / §REL-05)", (
     assert.equal(metrics.riskFreeProxy, "FBIL_91D_TBILL");
     assert.equal(metrics.riskFreeAligned, true);
   });
+
+  it("passes horizon parameter correctly to backend endpoint", async () => {
+    let capturedUrl = "";
+    globalThis.fetch = async (input: RequestInfo | URL) => {
+      capturedUrl = input.toString();
+      return {
+        ok: true,
+        json: async () => mockBetaResponse,
+      } as Response;
+    };
+
+    await fetchBetaDynamics(1, "2024-01-15", "2024-01-31T23:59:59+05:30", 123, "1Y");
+    assert.ok(capturedUrl.includes("horizon=1Y"), `Expected horizon=1Y in URL, got ${capturedUrl}`);
+
+    await fetchBetaDynamics(1, "2024-01-15", "2024-01-31T23:59:59+05:30", 123, "3Y");
+    assert.ok(capturedUrl.includes("horizon=3Y"), `Expected horizon=3Y in URL, got ${capturedUrl}`);
+  });
+
+  it("validates exposure stability metrics structure and mathematical invariants", () => {
+    const fullResponse: BetaDynamicsResponse = {
+      ...mockBetaResponse,
+      context: {
+        ...mockBetaResponse.context,
+        windowHorizon: "3Y",
+      },
+      stability: {
+        totalWindows: 50,
+        validWindows: 48,
+        medianBeta: 1.025,
+        iqrBeta: 0.12,
+        minBeta: 0.88,
+        minBetaDate: "2022-03-15",
+        maxBeta: 1.18,
+        maxBetaDate: "2023-08-20",
+        startBeta: 0.95,
+        startDate: "2021-01-15",
+        endBeta: 1.04,
+        endDate: "2024-01-15",
+        betaChange: 0.09,
+        pctAboveParity: 62.5,
+        pctBelowParity: 37.5,
+        meanDownsideBeta: 1.15,
+        meanUpsideBeta: 0.92,
+        upsideDownsideSpread: -0.23,
+      },
+      rollingSeries: [
+        {
+          windowStart: "2021-01-15",
+          windowEnd: "2024-01-15",
+          pairedDays: 738,
+          beta: 1.02,
+          upsideBeta: 0.88,
+          downsideBeta: 1.22,
+          betaSpread: -0.34,
+          upDays: 417,
+          downDays: 321,
+          status: "CALCULATED",
+        },
+      ],
+      regimes: [
+        {
+          regimeId: "REG-01",
+          regimeName: "COVID-19 Crash & Rebound",
+          startDate: "2020-02-01",
+          endDate: "2020-11-30",
+          description: "Pandemic market shock and initial policy rebound",
+          pairedDays: 0,
+          upDays: 0,
+          downDays: 0,
+          fullPeriodBeta: null,
+          upsideBeta: null,
+          downsideBeta: null,
+          medianRollingBeta: null,
+          minRollingBeta: null,
+          maxRollingBeta: null,
+          coverageStatus: "BENCHMARK_UNAVAILABLE",
+        },
+        {
+          regimeId: "REG-02",
+          regimeName: "Post-COVID Bull Market",
+          startDate: "2021-01-15",
+          endDate: "2021-10-18",
+          description: "Rapid liquidity-driven equity expansion",
+          pairedDays: 185,
+          upDays: 105,
+          downDays: 80,
+          fullPeriodBeta: 1.08,
+          upsideBeta: 0.95,
+          downsideBeta: 1.25,
+          medianRollingBeta: 1.06,
+          minRollingBeta: 1.01,
+          maxRollingBeta: 1.12,
+          coverageStatus: "VERIFIED_COMPLETE_COVERAGE",
+        },
+      ],
+    };
+
+    assert.equal(fullResponse.context.windowHorizon, "3Y");
+    assert.ok(fullResponse.stability);
+    const stab = fullResponse.stability!;
+    assert.equal(stab.totalWindows, 50);
+    assert.equal(stab.validWindows, 48);
+    assert.ok(stab.minBeta! <= stab.medianBeta!);
+    assert.ok(stab.medianBeta! <= stab.maxBeta!);
+    assert.equal(
+      Number((stab.endBeta! - stab.startBeta!).toFixed(4)),
+      stab.betaChange
+    );
+    assert.equal(stab.pctAboveParity! + stab.pctBelowParity!, 100);
+
+    // Rolling points contract
+    assert.equal(fullResponse.rollingSeries?.length, 1);
+    const pt = fullResponse.rollingSeries![0];
+    assert.equal(pt.status, "CALCULATED");
+    assert.equal(pt.pairedDays, pt.upDays + pt.downDays);
+
+    // Pre-specified market regime contract
+    assert.equal(fullResponse.regimes?.length, 2);
+    const reg1 = fullResponse.regimes![0];
+    assert.equal(reg1.regimeId, "REG-01");
+    assert.equal(reg1.coverageStatus, "BENCHMARK_UNAVAILABLE");
+    assert.equal(reg1.fullPeriodBeta, null); // Strictly un-fabricated
+
+    const reg2 = fullResponse.regimes![1];
+    assert.equal(reg2.regimeId, "REG-02");
+    assert.equal(reg2.coverageStatus, "VERIFIED_COMPLETE_COVERAGE");
+    assert.equal(reg2.fullPeriodBeta, 1.08);
+  });
 });

@@ -6,6 +6,8 @@ import com.yukira.backend.dto.analysis.Ret02CalculationRequest;
 import com.yukira.backend.ingestion.amfi.AmfiNavIngestionService;
 import com.yukira.backend.ingestion.amfi.AmfiSourceClient;
 import com.yukira.backend.ingestion.amfi.IngestionSummary;
+import com.yukira.backend.ingestion.holdings.*;
+import com.yukira.backend.ingestion.holdings.MonthlyHoldingsSourceRegistry.RegisteredFundConfig;
 import com.yukira.backend.repository.*;
 import com.yukira.backend.service.AnalysisService;
 import org.slf4j.Logger;
@@ -46,6 +48,30 @@ public class PilotBootstrapService {
     public static final String PILOT_ISIN = "INF179K01UT0";
     public static final String PILOT_AMC_MF_CODE = "9";
 
+    public static final String PPFAS_AMC_CODE = "PPFAS_MF";
+    public static final String PPFAS_AMC_NAME = "PPFAS Mutual Fund";
+    public static final String PPFAS_SCHEME_CODE = "PPFAS_FLEXI";
+    public static final String PPFAS_SCHEME_NAME = "Parag Parikh Flexi Cap Fund";
+    public static final String PPFAS_PLAN_CODE = "PPFAS_FLEXI_DIR";
+    public static final String PPFAS_AMFI_CODE = "122639";
+    public static final String PPFAS_ISIN = "INF879O01027";
+
+    public static final String PPFAS_TAX_AMC_CODE = "PPFAS_MF";
+    public static final String PPFAS_TAX_AMC_NAME = "PPFAS Mutual Fund";
+    public static final String PPFAS_TAX_SCHEME_CODE = "PPFAS_TAX";
+    public static final String PPFAS_TAX_SCHEME_NAME = "Parag Parikh ELSS Tax Saver Fund";
+    public static final String PPFAS_TAX_PLAN_CODE = "PPFAS_TAX_DIR";
+    public static final String PPFAS_TAX_AMFI_CODE = "147481";
+    public static final String PPFAS_TAX_ISIN = "INF879O01100";
+
+    public static final String SBI_AMC_CODE = "SBI_MF";
+    public static final String SBI_AMC_NAME = "SBI Mutual Fund";
+    public static final String SBI_SCHEME_CODE = "SBI_FLEXI";
+    public static final String SBI_SCHEME_NAME = "SBI Flexicap Fund";
+    public static final String SBI_PLAN_CODE = "SBI_FLEXI_DIR";
+    public static final String SBI_AMFI_CODE = "120503";
+    public static final String SBI_ISIN = "INF200KA1UR7";
+
     public static final LocalDate PILOT_START_DATE = LocalDate.of(2024, 1, 1);
     public static final LocalDate PILOT_END_DATE = LocalDate.of(2024, 1, 15);
     public static final OffsetDateTime PILOT_KNOWLEDGE_CUTOFF = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
@@ -77,6 +103,8 @@ public class PilotBootstrapService {
     private final SchemeExpenseRatioRepository expenseRatioRepository;
     private final SchemeInvestmentTermsRepository investmentTermsRepository;
     private final DataSourceRepository dataSourceRepository;
+    private final MonthlyHoldingsSourceRegistry sourceRegistry;
+    private final MonthlyHoldingsIngestionJob holdingsIngestionJob;
 
     public PilotBootstrapService(
         AmcRepository amcRepository,
@@ -101,7 +129,9 @@ public class PilotBootstrapService {
         SchemeManagerHistRepository managerHistRepository,
         SchemeExpenseRatioRepository expenseRatioRepository,
         SchemeInvestmentTermsRepository investmentTermsRepository,
-        DataSourceRepository dataSourceRepository
+        DataSourceRepository dataSourceRepository,
+        MonthlyHoldingsSourceRegistry sourceRegistry,
+        MonthlyHoldingsIngestionJob holdingsIngestionJob
     ) {
         this.amcRepository = amcRepository;
         this.schemeRepository = schemeRepository;
@@ -126,6 +156,8 @@ public class PilotBootstrapService {
         this.expenseRatioRepository = expenseRatioRepository;
         this.investmentTermsRepository = investmentTermsRepository;
         this.dataSourceRepository = dataSourceRepository;
+        this.sourceRegistry = sourceRegistry;
+        this.holdingsIngestionJob = holdingsIngestionJob;
     }
 
     /**
@@ -188,6 +220,90 @@ public class PilotBootstrapService {
 
         return schemeOptionRepository.findByAmfiCode(PILOT_AMFI_CODE)
             .orElseGet(() -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", PILOT_AMFI_CODE, PILOT_ISIN)));
+    }
+
+    /**
+     * Idempotently ensures the master hierarchy for PPFAS Parag Parikh Flexi Cap Fund exists in the database.
+     */
+    @Transactional
+    public SchemeOption ensurePpfasMaster() {
+        Amc amc = amcRepository.findByCode(PPFAS_AMC_CODE)
+            .orElseGet(() -> amcRepository.save(new Amc(PPFAS_AMC_NAME, PPFAS_AMC_CODE)));
+
+        Scheme scheme = schemeRepository.findByCode(PPFAS_SCHEME_CODE)
+            .orElseGet(() -> schemeRepository.save(new Scheme(amc, PPFAS_SCHEME_NAME, PPFAS_SCHEME_CODE, LocalDate.of(2013, 5, 24))));
+
+        SchemePlan plan = schemePlanRepository.findByCode(PPFAS_PLAN_CODE)
+            .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", PPFAS_PLAN_CODE)));
+
+        return schemeOptionRepository.findByAmfiCode(PPFAS_AMFI_CODE)
+            .orElseGet(() -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", PPFAS_AMFI_CODE, PPFAS_ISIN)));
+    }
+
+    /**
+     * Idempotently ensures the master hierarchy for PPFAS ELSS Tax Saver Fund exists in the database.
+     */
+    @Transactional
+    public SchemeOption ensurePpfasTaxSaverMaster() {
+        Optional<SchemeOption> existing = schemeOptionRepository.findByAmfiCode(PPFAS_TAX_AMFI_CODE);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        Amc amc = amcRepository.findByCode(PPFAS_TAX_AMC_CODE)
+            .orElseGet(() -> amcRepository.save(new Amc(PPFAS_TAX_AMC_NAME, PPFAS_TAX_AMC_CODE)));
+
+        Scheme scheme = schemeRepository.findByCode(PPFAS_TAX_SCHEME_CODE)
+            .orElseGet(() -> schemeRepository.save(new Scheme(amc, PPFAS_TAX_SCHEME_NAME, PPFAS_TAX_SCHEME_CODE, LocalDate.of(2019, 7, 24))));
+
+        SchemePlan plan = schemePlanRepository.findByCode(PPFAS_TAX_PLAN_CODE)
+            .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", PPFAS_TAX_PLAN_CODE)));
+
+        return schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", PPFAS_TAX_AMFI_CODE, PPFAS_TAX_ISIN));
+    }
+
+    /**
+     * Idempotently ensures the master hierarchy for SBI Flexicap Fund exists in the database.
+     */
+    @Transactional
+    public SchemeOption ensureSbiMaster() {
+        Amc amc = amcRepository.findByCode(SBI_AMC_CODE)
+            .orElseGet(() -> amcRepository.save(new Amc(SBI_AMC_NAME, SBI_AMC_CODE)));
+
+        Scheme scheme = schemeRepository.findByCode(SBI_SCHEME_CODE)
+            .orElseGet(() -> schemeRepository.save(new Scheme(amc, SBI_SCHEME_NAME, SBI_SCHEME_CODE, LocalDate.of(1999, 9, 29))));
+
+        SchemePlan plan = schemePlanRepository.findByCode(SBI_PLAN_CODE)
+            .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", SBI_PLAN_CODE)));
+
+        return schemeOptionRepository.findByAmfiCode(SBI_AMFI_CODE)
+            .orElseGet(() -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", SBI_AMFI_CODE, SBI_ISIN)));
+    }
+
+    /**
+     * Idempotently ensures master hierarchy for any AMC/scheme/plan/option.
+     */
+    @Transactional
+    public SchemeOption ensureMasterOption(String amcCode, String amcName, String schemeCode, String schemeName, String planCode, String amfiCode, String isin) {
+        Amc amc = amcRepository.findByCode(amcCode)
+            .orElseGet(() -> amcRepository.save(new Amc(amcName, amcCode)));
+
+        Scheme scheme = schemeRepository.findByCode(schemeCode)
+            .orElseGet(() -> schemeRepository.save(new Scheme(amc, schemeName, schemeCode, LocalDate.of(2000, 1, 1))));
+
+        SchemePlan plan = schemePlanRepository.findByCode(planCode)
+            .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", planCode)));
+
+        Optional<SchemeOption> byAmfi = schemeOptionRepository.findByAmfiCode(amfiCode);
+        if (byAmfi.isPresent()) {
+            return byAmfi.get();
+        }
+        Optional<SchemeOption> byIsin = schemeOptionRepository.findByIsin(isin);
+        if (byIsin.isPresent()) {
+            return byIsin.get();
+        }
+
+        return schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", amfiCode, isin));
     }
 
     /**
@@ -268,7 +384,7 @@ public class PilotBootstrapService {
         DataSource hdfcSource = dataSourceRepository.findByCode("HDFC_AMC")
             .orElseGet(() -> dataSourceRepository.save(new DataSource("HDFC_AMC", "HDFC Asset Management Company Ltd", "https://www.hdfcfund.com")));
 
-        OffsetDateTime portfolioRetrievalTime = OffsetDateTime.of(2024, 2, 10, 10, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
+        OffsetDateTime portfolioRetrievalTime = OffsetDateTime.of(2024, 1, 31, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
         OffsetDateTime terRetrievalTime = OffsetDateTime.of(2024, 2, 5, 10, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
         OffsetDateTime managerRetrievalTime = OffsetDateTime.of(2024, 2, 10, 10, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
         OffsetDateTime kimRetrievalTime = OffsetDateTime.of(2024, 1, 5, 10, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
@@ -315,7 +431,13 @@ public class PilotBootstrapService {
         Optional<PortfolioSnapshot> existingSnap = snapshotRepository
             .findBySchemeOptionIdAndPortfolioDate(option.getId(), asOfDate);
 
-        if (existingSnap.isEmpty()) {
+        if (existingSnap.isPresent()) {
+            PortfolioSnapshot snap = existingSnap.get();
+            if (snap.getAvailabilityTime().isAfter(portfolioRetrievalTime)) {
+                snap.setAvailabilityTime(portfolioRetrievalTime);
+                snapshotRepository.save(snap);
+            }
+        } else {
             PortfolioSnapshot snapshot = new PortfolioSnapshot();
             snapshot.setSchemeOption(option);
             snapshot.setPortfolioDate(asOfDate);
@@ -414,6 +536,25 @@ public class PilotBootstrapService {
             terms.setQualityAssessment("VALID");
             investmentTermsRepository.save(terms);
             log.info("Bootstrapped scheme investment terms for scheme #{}", scheme.getId());
+        }
+
+        // 6. Multi-Period Official Holdings Disclosures Ingestion for Pilot Cohort
+        ensurePpfasMaster();
+        ensurePpfasTaxSaverMaster();
+        ensureSbiMaster();
+        for (RegisteredFundConfig fundConfig : sourceRegistry.getAllRegisteredFunds()) {
+            if (fundConfig.state() == MonthlyHoldingsSourceRegistry.FundSourceState.VERIFIED_OFFICIAL) {
+                List<MonthlyHoldingsSourceDescriptor> descriptors = fundConfig.allDescriptors() != null && !fundConfig.allDescriptors().isEmpty()
+                    ? fundConfig.allDescriptors()
+                    : (fundConfig.descriptor() != null ? List.of(fundConfig.descriptor()) : List.of());
+                for (MonthlyHoldingsSourceDescriptor descriptor : descriptors) {
+                    try {
+                        holdingsIngestionJob.execute(descriptor);
+                    } catch (Exception e) {
+                        log.warn("Bootstrap holdings disclosure ingestion skipped/failed for {}: {}", descriptor.schemeName(), e.getMessage());
+                    }
+                }
+            }
         }
     }
 

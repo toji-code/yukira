@@ -6,7 +6,7 @@ const API_BASE_URL =
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit,
-  timeoutMs = 8000
+  timeoutMs = 30000
 ): Promise<T> {
   const url = `${API_BASE_URL.replace(/\/$/, '')}${path}`;
   const controller = new AbortController();

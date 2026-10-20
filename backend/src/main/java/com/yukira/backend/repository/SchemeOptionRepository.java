@@ -14,7 +14,15 @@ import java.util.Optional;
 public interface SchemeOptionRepository extends JpaRepository<SchemeOption, Long>, JpaSpecificationExecutor<SchemeOption> {
     Optional<SchemeOption> findByAmfiCode(String amfiCode);
     Optional<SchemeOption> findByIsin(String isin);
-    List<SchemeOption> findByPlanSchemeId(Long schemeId);
+    @Query("""
+        SELECT DISTINCT o FROM SchemeOption o
+        JOIN FETCH o.plan p
+        JOIN FETCH p.scheme s
+        JOIN FETCH s.amc
+        WHERE s.id = :schemeId
+        ORDER BY o.id ASC
+        """)
+    List<SchemeOption> findByPlanSchemeId(@Param("schemeId") Long schemeId);
 
     long countByStatus(String status);
     long countByPlanPlanType(String planType);

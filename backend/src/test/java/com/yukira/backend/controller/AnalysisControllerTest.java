@@ -67,7 +67,12 @@ class AnalysisControllerTest {
 
     @BeforeEach
     void setUp() {
-        AnalysisController controller = new AnalysisController(analysisService, schemeOptionRepository, portfolioComparisonQueryService);
+        AnalysisController controller = new AnalysisController(
+            analysisService,
+            schemeOptionRepository,
+            portfolioComparisonQueryService,
+            calculationRunRepository
+        );
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         Amc amc = amcRepository.findByCode("HDFC_MF")
@@ -756,6 +761,10 @@ class AnalysisControllerTest {
             .andExpect(jsonPath("$.primary3Y.periodType", is("3Y")))
             .andExpect(jsonPath("$.primary3Y.windowYears", is(3)))
             .andExpect(jsonPath("$.primary3Y.minWindowsRequired", is(450)))
+            .andExpect(jsonPath("$.primary3Y.series", notNullValue()))
+            .andExpect(jsonPath("$.supporting1Y.series", notNullValue()))
+            .andExpect(jsonPath("$.regimes", notNullValue()))
+            .andExpect(jsonPath("$.adverseWindows", notNullValue()))
             .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
             .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
             .andExpect(jsonPath("$.epistemic.limitation", notNullValue()));
@@ -772,6 +781,13 @@ class AnalysisControllerTest {
             .andExpect(jsonPath("$.context.benchmarkName", notNullValue()))
             .andExpect(jsonPath("$.metrics.minUpDaysRequired", is(150)))
             .andExpect(jsonPath("$.metrics.minDownDaysRequired", is(100)))
+            .andExpect(jsonPath("$.stressEvents", hasSize(4)))
+            .andExpect(jsonPath("$.stressEvents[0].eventId", is("STRESS-01")))
+            .andExpect(jsonPath("$.stressEvents[0].coverageStatus", notNullValue()))
+            .andExpect(jsonPath("$.stressEvents[1].eventId", is("STRESS-02")))
+            .andExpect(jsonPath("$.stressEvents[1].coverageStatus", notNullValue()))
+            .andExpect(jsonPath("$.stressEvents[3].eventId", is("STRESS-04")))
+            .andExpect(jsonPath("$.stressEvents[3].coverageStatus", is("OUTSIDE_OBSERVATION_HORIZON")))
             .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
             .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
             .andExpect(jsonPath("$.epistemic.limitation", notNullValue()))
@@ -795,16 +811,27 @@ class AnalysisControllerTest {
     }
 
     @Test
-    @DisplayName("Beta Dynamics API: Exposes real REL-01, REL-04, and REL-05 beta metrics")
+    @DisplayName("Beta Dynamics API: Exposes real MKT-01, MKT-02, upside beta, rolling series, and regimes")
     void testBetaDynamicsEndpoint() throws Exception {
         mockMvc.perform(get("/api/v1/analysis/beta/" + schemeOption.getId())
                 .param("asOfDate", "2024-01-15")
-                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30"))
+                .param("knowledgeCutoffTime", "2024-01-31T23:59:59+05:30")
+                .param("horizon", "3Y"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.context.schemeOptionId", is(schemeOption.getId().intValue())))
+            .andExpect(jsonPath("$.context.windowHorizon", is("3Y")))
             .andExpect(jsonPath("$.metrics.standardBetaStatus", notNullValue()))
             .andExpect(jsonPath("$.metrics.downsideBetaStatus", notNullValue()))
             .andExpect(jsonPath("$.metrics.upsideBetaStatus", notNullValue()))
+            .andExpect(jsonPath("$.rollingSeries", notNullValue()))
+            .andExpect(jsonPath("$.regimes", hasSize(4)))
+            .andExpect(jsonPath("$.regimes[0].regimeId", is("REG-01")))
+            .andExpect(jsonPath("$.regimes[0].coverageStatus", notNullValue()))
+            .andExpect(jsonPath("$.regimes[1].regimeId", is("REG-02")))
+            .andExpect(jsonPath("$.regimes[1].coverageStatus", notNullValue()))
+            .andExpect(jsonPath("$.regimes[2].regimeId", is("REG-03")))
+            .andExpect(jsonPath("$.regimes[2].coverageStatus", notNullValue()))
+            .andExpect(jsonPath("$.regimes[3].regimeId", is("REG-04")))
             .andExpect(jsonPath("$.epistemic.observation", notNullValue()))
             .andExpect(jsonPath("$.epistemic.interpretation", notNullValue()))
             .andExpect(jsonPath("$.epistemic.limitation", notNullValue()))

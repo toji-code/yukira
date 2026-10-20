@@ -15,13 +15,42 @@ public class FundEnrichmentController {
 
     private final FundEnrichmentService fundEnrichmentService;
     private final SchemeRepository schemeRepository;
+    private final com.yukira.backend.service.DataQualityFreshnessService dataQualityFreshnessService;
 
     public FundEnrichmentController(
         FundEnrichmentService fundEnrichmentService,
         SchemeRepository schemeRepository
     ) {
+        this(fundEnrichmentService, schemeRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FundEnrichmentController(
+        FundEnrichmentService fundEnrichmentService,
+        SchemeRepository schemeRepository,
+        @org.springframework.beans.factory.annotation.Autowired(required = false) com.yukira.backend.service.DataQualityFreshnessService dataQualityFreshnessService
+    ) {
         this.fundEnrichmentService = fundEnrichmentService;
         this.schemeRepository = schemeRepository;
+        this.dataQualityFreshnessService = dataQualityFreshnessService;
+    }
+
+    /**
+     * Retrieves factual Data Quality & Freshness evidence for a specific scheme option:
+     * Independent NAV & holdings freshness, cadence policies, raw unnormalized weights,
+     * metric eligibility matrix, and answers to the 7 key investor due diligence questions.
+     */
+    @GetMapping("/options/{id}/quality-freshness")
+    public ResponseEntity<com.yukira.backend.dto.analysis.DataQualityFreshnessDto> getOptionQualityAndFreshness(
+        @PathVariable Long id,
+        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate evaluationDate,
+        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) OffsetDateTime knowledgeCutoff
+    ) {
+        if (dataQualityFreshnessService == null) {
+            return ResponseEntity.status(503).build();
+        }
+        com.yukira.backend.dto.analysis.DataQualityFreshnessDto dto = dataQualityFreshnessService.evaluateQualityAndFreshness(id, evaluationDate, knowledgeCutoff);
+        return ResponseEntity.ok(dto);
     }
 
     /**

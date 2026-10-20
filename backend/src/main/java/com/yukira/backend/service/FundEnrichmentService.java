@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -329,55 +330,134 @@ public class FundEnrichmentService {
 
         return snapshotRepository
             .findTopBySchemeOptionIdAndAvailabilityTimeLessThanEqualOrderByPortfolioDateDesc(schemeOptionId, cutoff)
-            .map(snapshot -> {
-                List<PortfolioHolding> holdings = holdingRepository
-                    .findByPortfolioSnapshotIdOrderByReportedWeightDesc(snapshot.getId());
-
-                if (holdings.isEmpty()) {
-                    return Collections.<HoldingDto>emptyList();
-                }
-
-                // Batch resolve ISIN security identifiers
-                List<Long> secIds = holdings.stream()
-                    .map(h -> h.getSecurity().getId())
-                    .distinct()
-                    .collect(Collectors.toList());
-
-                Map<Long, String> isinMap = securityIdentifierRepository
-                    .findBySecurityIdInAndIdType(secIds, "ISIN")
-                    .stream()
-                    .collect(Collectors.toMap(
-                        si -> si.getSecurity().getId(),
-                        SecurityIdentifier::getIdValue,
-                        (existing, replacement) -> existing
-                    ));
-
-                String sourceUri = snapshot.getSourceArtifact() != null && snapshot.getSourceArtifact().getStorageUri() != null
-                    ? snapshot.getSourceArtifact().getStorageUri()
-                    : "SEBI Monthly Portfolio Disclosure";
-
-                return holdings.stream().map(h -> {
-                    Security sec = h.getSecurity();
-                    BigDecimal weight = h.getReportedWeight();
-                    String formattedWeight = weight != null ? formatPercentage(weight) : "Not available";
-                    String isin = isinMap.get(sec.getId());
-                    String category = sec.getSector() != null ? sec.getSector() : sec.getAssetClass();
-
-                    return new HoldingDto(
-                        sec.getCanonicalName(),
-                        weight,
-                        formattedWeight,
-                        category,
-                        sec.getAssetClass(),
-                        sec.getSector(),
-                        isin,
-                        snapshot.getPortfolioDate(),
-                        sourceUri,
-                        "VERIFIED"
-                    );
-                }).collect(Collectors.toList());
-            })
+            .map(snapshot -> buildHoldingsList(snapshot))
             .orElse(Collections.emptyList());
+    }
+
+    /**
+     * Retrieves complete portfolio snapshot detail with provenance and data limitations.
+     */
+    public PortfolioSnapshotDetailDto getHoldingsSnapshot(Long schemeOptionId, OffsetDateTime knowledgeCutoff) {
+        OffsetDateTime cutoff = knowledgeCutoff != null ? knowledgeCutoff : OffsetDateTime.now();
+
+        SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
+            .orElseThrow(() -> new IllegalArgumentException("Scheme option #" + schemeOptionId + " not found."));
+
+        SchemePlan plan = option.getPlan();
+        Scheme scheme = plan != null ? plan.getScheme() : null;
+        String schemeName = scheme != null ? scheme.getName() : "Mutual Fund Option";
+
+        Optional<PortfolioSnapshot> snapshotOpt = snapshotRepository
+            .findTopBySchemeOptionIdAndAvailabilityTimeLessThanEqualOrderByPortfolioDateDesc(schemeOptionId, cutoff);
+
+        if (snapshotOpt.isEmpty()) {
+            return PortfolioSnapshotDetailDto.missing(schemeOptionId, schemeName);
+        }
+
+        PortfolioSnapshot snapshot = snapshotOpt.get();
+        List<HoldingDto> holdings = buildHoldingsList(snapshot);
+
+        BigDecimal netAssets = snapshot.getReportedTotalNetAssets();
+        String formattedAum = netAssets != null ? formatAumInCrores(netAssets) : "Not available";
+        BigDecimal sumWeights = snapshot.getSumReportedWeights();
+        String formattedCoverage = sumWeights != null ? formatPercentage(sumWeights) : "Not available";
+
+        Long artifactId = snapshot.getSourceArtifact() != null ? snapshot.getSourceArtifact().getId() : null;
+        String artifactHash = snapshot.getSourceArtifact() != null ? snapshot.getSourceArtifact().getSha256Hash() : null;
+        String sourceTitle = snapshot.getSourceArtifact() != null && snapshot.getSourceArtifact().getStorageUri() != null
+            ? snapshot.getSourceArtifact().getStorageUri() : "SEBI Monthly Portfolio Disclosure";
+
+        LocalDate cutoffDate = cutoff.toLocalDate();
+        boolean isStale = snapshot.getPortfolioDate() != null && snapshot.getPortfolioDate().isBefore(cutoffDate.minusDays(60));
+        String freshnessStatus = isStale ? "STALE_HISTORICAL" : "CURRENT";
+
+        List<String> limitations = new ArrayList<>();
+        if (sumWeights != null && sumWeights.compareTo(new BigDecimal("0.90")) < 0) {
+            limitations.add("Partial portfolio disclosure: reported weights cover less than 90% of total portfolio AUM.");
+        }
+        if (isStale) {
+            limitations.add("Historical monthly disclosure snapshot as of " + snapshot.getPortfolioDate() + " (>60 days prior to evaluation cutoff " + cutoffDate + ").");
+        } else {
+            limitations.add("Monthly disclosure snapshot as of " + snapshot.getPortfolioDate() + ". Intraday/daily trading adjustments are not reflected.");
+        }
+
+        return new PortfolioSnapshotDetailDto(
+            schemeOptionId,
+            schemeName,
+            snapshot.getPortfolioDate(),
+            netAssets,
+            formattedAum,
+            snapshot.getReportedHoldingsCount() != null ? snapshot.getReportedHoldingsCount() : holdings.size(),
+            sumWeights,
+            formattedCoverage,
+            artifactId,
+            artifactHash,
+            sourceTitle,
+            "VERIFIED",
+            freshnessStatus,
+            holdings,
+            limitations
+        );
+    }
+
+    /**
+     * Retrieves all available monthly portfolio reporting dates for a scheme option.
+     */
+    public List<LocalDate> getAvailableHoldingsDates(Long schemeOptionId) {
+        return snapshotRepository.findAll().stream()
+            .filter(s -> s.getSchemeOption() != null && s.getSchemeOption().getId().equals(schemeOptionId))
+            .map(PortfolioSnapshot::getPortfolioDate)
+            .distinct()
+            .sorted(Comparator.reverseOrder())
+            .collect(Collectors.toList());
+    }
+
+    private List<HoldingDto> buildHoldingsList(PortfolioSnapshot snapshot) {
+        List<PortfolioHolding> holdings = holdingRepository
+            .findByPortfolioSnapshotIdOrderByReportedWeightDesc(snapshot.getId());
+
+        if (holdings.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> secIds = holdings.stream()
+            .map(h -> h.getSecurity().getId())
+            .distinct()
+            .collect(Collectors.toList());
+
+        Map<Long, String> isinMap = securityIdentifierRepository
+            .findBySecurityIdInAndIdType(secIds, "ISIN")
+            .stream()
+            .collect(Collectors.toMap(
+                si -> si.getSecurity().getId(),
+                SecurityIdentifier::getIdValue,
+                (existing, replacement) -> existing
+            ));
+
+        String sourceUri = snapshot.getSourceArtifact() != null && snapshot.getSourceArtifact().getStorageUri() != null
+            ? snapshot.getSourceArtifact().getStorageUri()
+            : "SEBI Monthly Portfolio Disclosure";
+
+        return holdings.stream().map(h -> {
+            Security sec = h.getSecurity();
+            BigDecimal weight = h.getReportedWeight();
+            String formattedWeight = weight != null ? formatPercentage(weight) : "Not available";
+            String isin = isinMap.get(sec.getId());
+            String category = sec.getSector() != null ? sec.getSector() : sec.getAssetClass();
+
+            return new HoldingDto(
+                sec.getCanonicalName(),
+                weight,
+                formattedWeight,
+                category,
+                sec.getAssetClass(),
+                sec.getSector(),
+                isin,
+                snapshot.getPortfolioDate(),
+                sourceUri,
+                "VERIFIED"
+            );
+        }).collect(Collectors.toList());
     }
 
     // -------------------------------------------------------------------------

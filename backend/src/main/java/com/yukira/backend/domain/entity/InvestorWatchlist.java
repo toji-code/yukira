@@ -20,12 +20,34 @@ public class InvestorWatchlist {
     @JoinColumn(name = "scheme_id", nullable = false)
     private Scheme scheme;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scheme_option_id")
+    private SchemeOption schemeOption;
+
+    @Column(name = "reason_saved")
+    private String reasonSaved;
+
+    @Column(name = "investigation_question")
+    private String investigationQuestion;
+
+    @Column(name = "next_step")
+    private String nextStep;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private ZonedDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
         createdAt = ZonedDateTime.now();
+        updatedAt = ZonedDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = ZonedDateTime.now();
     }
 
     public Long getId() { return id; }
@@ -34,8 +56,18 @@ public class InvestorWatchlist {
     public void setInvestor(Investor investor) { this.investor = investor; }
     public Scheme getScheme() { return scheme; }
     public void setScheme(Scheme scheme) { this.scheme = scheme; }
+    public SchemeOption getSchemeOption() { return schemeOption; }
+    public void setSchemeOption(SchemeOption schemeOption) { this.schemeOption = schemeOption; }
+    public String getReasonSaved() { return reasonSaved; }
+    public void setReasonSaved(String reasonSaved) { this.reasonSaved = reasonSaved; }
+    public String getInvestigationQuestion() { return investigationQuestion; }
+    public void setInvestigationQuestion(String investigationQuestion) { this.investigationQuestion = investigationQuestion; }
+    public String getNextStep() { return nextStep; }
+    public void setNextStep(String nextStep) { this.nextStep = nextStep; }
     public ZonedDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(ZonedDateTime createdAt) { this.createdAt = createdAt; }
+    public ZonedDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(ZonedDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     @Override
     public boolean equals(Object o) {

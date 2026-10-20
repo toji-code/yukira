@@ -22,6 +22,7 @@ public record AnalyticalProfileResponse(
 ) {
     public record ProfileContext(
         Long runId,
+        Long schemeId,
         Long schemeOptionId,
         String schemeName,
         String amfiCode,
@@ -36,7 +37,28 @@ public record AnalyticalProfileResponse(
         LocalDate asOfDate,
         OffsetDateTime knowledgeCutoffTime,
         String runStatus
-    ) {}
+    ) {
+        public ProfileContext(
+            Long runId,
+            Long schemeOptionId,
+            String schemeName,
+            String amfiCode,
+            String isin,
+            String optionType,
+            String planType,
+            Long benchmarkId,
+            String benchmarkName,
+            String benchmarkCode,
+            String riskFreeProxy,
+            LocalDate startDate,
+            LocalDate asOfDate,
+            OffsetDateTime knowledgeCutoffTime,
+            String runStatus
+        ) {
+            this(runId, null, schemeOptionId, schemeName, amfiCode, isin, optionType, planType,
+                 benchmarkId, benchmarkName, benchmarkCode, riskFreeProxy, startDate, asOfDate, knowledgeCutoffTime, runStatus);
+        }
+    }
 
     public record ProfileMetricItem(
         String metricCode,
@@ -52,8 +74,29 @@ public record AnalyticalProfileResponse(
         String interpretation,
         String limitations,
         String errorMessage,
-        Map<String, Object> diagnostics
-    ) {}
+        Map<String, Object> diagnostics,
+        String investigationQuestion
+    ) {
+        public ProfileMetricItem(
+            String metricCode,
+            String metricName,
+            String category,
+            BigDecimal numericValue,
+            String formattedValue,
+            String units,
+            String periodType,
+            String calculationStatus,
+            String governanceStatus,
+            String formulaDisclosure,
+            String interpretation,
+            String limitations,
+            String errorMessage,
+            Map<String, Object> diagnostics
+        ) {
+            this(metricCode, metricName, category, numericValue, formattedValue, units, periodType,
+                 calculationStatus, governanceStatus, formulaDisclosure, interpretation, limitations, errorMessage, diagnostics, null);
+        }
+    }
 
     public record ProfileProvenance(
         Long calculationRunId,

@@ -53,20 +53,26 @@ public class AmfiNavIngestionService {
      */
     @Transactional
     public IngestionSummary ingestArtifact(SourceArtifact artifact) {
-        return ingestArtifact(artifact, null);
+        return ingestArtifact(artifact, (Set<String>) null);
+    }
+
+    @Transactional
+    public IngestionSummary ingestArtifact(SourceArtifact artifact, String targetAmfiCode) {
+        Set<String> targetSet = (targetAmfiCode != null && !targetAmfiCode.isBlank()) ? Set.of(targetAmfiCode.trim()) : null;
+        return ingestArtifact(artifact, targetSet);
     }
 
     /**
      * Ingests parsed AMFI records from a SourceArtifact into the bitemporal nav_observation ledger,
-     * optionally target-scoped to a specific AMFI scheme code to prevent unmapped DB issues during targeted backfills.
+     * optionally target-scoped to a set of AMFI scheme codes to prevent unmapped DB issues during cohort backfills.
      */
     @Transactional
-    public IngestionSummary ingestArtifact(SourceArtifact artifact, String targetAmfiCode) {
+    public IngestionSummary ingestArtifact(SourceArtifact artifact, Set<String> targetAmfiCodes) {
         if (artifact == null || artifact.getPayloadBlob() == null) {
             throw new IllegalArgumentException("SourceArtifact or payload_blob must not be null");
         }
 
-        log.info("ingestArtifact STARTED for artifact #{}, size {} bytes (targetAmfiCode={})", artifact.getId(), artifact.getByteSize(), targetAmfiCode);
+        log.info("ingestArtifact STARTED for artifact #{}, size {} bytes (targetAmfiCodes count={})", artifact.getId(), artifact.getByteSize(), targetAmfiCodes != null ? targetAmfiCodes.size() : "ALL");
         byte[] payload = artifact.getPayloadBlob();
         if (artifact.getId() != null && entityManager != null) {
             entityManager.detach(artifact);
@@ -89,8 +95,8 @@ public class AmfiNavIngestionService {
         Map<String, SchemeOption> amfiCodeMap = new HashMap<>();
         Map<String, SchemeOption> isinMap = new HashMap<>();
         for (SchemeOption opt : schemeOptionRepository.findAll()) {
-            if (targetAmfiCode != null && !targetAmfiCode.isBlank()) {
-                if (!targetAmfiCode.trim().equalsIgnoreCase(opt.getAmfiCode())) {
+            if (targetAmfiCodes != null && !targetAmfiCodes.isEmpty()) {
+                if (opt.getAmfiCode() == null || !targetAmfiCodes.contains(opt.getAmfiCode().trim())) {
                     continue;
                 }
             }
@@ -146,7 +152,7 @@ public class AmfiNavIngestionService {
 
             if (schemeOption == null) {
                 // Unknown or untargeted scheme identity -> skip observation
-                if (targetAmfiCode == null || targetAmfiCode.isBlank()) {
+                if (targetAmfiCodes == null || targetAmfiCodes.isEmpty()) {
                     if (issuesCreated < 50) {
                         ValidationIssue issue = new ValidationIssue(
                             "SOURCE_ARTIFACT",
@@ -304,6 +310,12 @@ public class AmfiNavIngestionService {
             if (!newObsToSave.isEmpty()) {
                 log.info("Saving {} new observations to database for scheme option {}", newObsToSave.size(), schemeOptionId);
                 navObservationRepository.saveAll(newObsToSave);
+                // Flush so that the next ingestArtifact call within the same outer transaction
+                // sees the just-persisted rows when it queries existingObsMap from the DB.
+                // Without this, the unique constraint uq_nav_observation fires on idempotent reruns.
+                if (entityManager != null) {
+                    entityManager.flush();
+                }
             }
             log.info("Observation processing complete for scheme option {}: ingested={}, revisions={}, skipped={}",
                 schemeOptionId, ingested, revisions, duplicatesSkipped);

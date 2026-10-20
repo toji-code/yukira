@@ -132,4 +132,89 @@ describe("Capture Ratios & Asymmetry API Tests (§MKT-03 / §MKT-04 / §MKT-05)"
     assert.equal(inverseGainSample.metrics.isInverseCaptureGain, true);
     assert.ok(inverseGainSample.metrics.downsideCaptureRatio! < 0);
   });
+
+  it("verifies historical stress events response structure and invariants", () => {
+    const responseWithStress: CaptureRatioResponse = {
+      ...mockCaptureResponse,
+      stressEvents: [
+        {
+          eventId: "STRESS-01",
+          name: "COVID-19 Global Liquidity Crash",
+          startDate: "2020-02-19",
+          endDate: "2020-03-23",
+          fundReturn: -0.3805,
+          benchmarkReturn: null,
+          excessReturn: null,
+          fundMaxDrawdown: -0.3823,
+          benchmarkMaxDrawdown: null,
+          tradingDays: 22,
+          coverageStatus: "BENCHMARK_UNAVAILABLE",
+          classificationBasis: "Acute pandemic panic market liquidation.",
+          retrospectiveDisclaimer: "Pre-specified retrospective stress classification.",
+          trajectory: [
+            { date: "2020-02-19", fundIndexed: 100.0, benchmarkIndexed: null, fundDailyReturn: null, benchmarkDailyReturn: null },
+            { date: "2020-03-23", fundIndexed: 61.95, benchmarkIndexed: null, fundDailyReturn: -0.12, benchmarkDailyReturn: null },
+          ],
+        },
+        {
+          eventId: "STRESS-02",
+          name: "2021–2022 Valuation Compression & Tech Selloff",
+          startDate: "2021-10-18",
+          endDate: "2022-06-17",
+          fundReturn: -0.1041,
+          benchmarkReturn: -0.175,
+          excessReturn: 0.0709,
+          fundMaxDrawdown: -0.1204,
+          benchmarkMaxDrawdown: -0.175,
+          tradingDays: 166,
+          coverageStatus: "VERIFIED_COMPLETE_COVERAGE",
+          classificationBasis: "Broad market peak-to-trough correction.",
+          retrospectiveDisclaimer: "Pre-specified retrospective stress classification.",
+          trajectory: [
+            { date: "2021-10-18", fundIndexed: 100.0, benchmarkIndexed: 100.0, fundDailyReturn: null, benchmarkDailyReturn: null },
+            { date: "2022-06-17", fundIndexed: 89.59, benchmarkIndexed: 82.5, fundDailyReturn: -0.015, benchmarkDailyReturn: -0.021 },
+          ],
+        },
+        {
+          eventId: "STRESS-04",
+          name: "June 2024 General Election Counting Volatility",
+          startDate: "2024-05-02",
+          endDate: "2024-06-04",
+          fundReturn: null,
+          benchmarkReturn: null,
+          excessReturn: null,
+          fundMaxDrawdown: null,
+          benchmarkMaxDrawdown: null,
+          tradingDays: 0,
+          coverageStatus: "OUTSIDE_OBSERVATION_HORIZON",
+          classificationBasis: "Pre-election volatility episode.",
+          retrospectiveDisclaimer: "Retrospective stress period post-dates historical analysis cutoff.",
+          trajectory: [],
+        },
+      ],
+    };
+
+    assert.equal(responseWithStress.stressEvents?.length, 3);
+    const s01 = responseWithStress.stressEvents![0];
+    const s02 = responseWithStress.stressEvents![1];
+    const s04 = responseWithStress.stressEvents![2];
+
+    // STRESS-01: Benchmark unavailable is strictly distinguished from underperformance
+    assert.equal(s01.coverageStatus, "BENCHMARK_UNAVAILABLE");
+    assert.equal(s01.benchmarkReturn, null);
+    assert.ok(s01.fundReturn !== null);
+
+    // STRESS-02: Synchronously aligned with excess spread
+    assert.equal(s02.coverageStatus, "VERIFIED_COMPLETE_COVERAGE");
+    assert.ok(s02.fundReturn !== null && s02.benchmarkReturn !== null);
+    const expectedExcess = parseFloat((s02.fundReturn! - s02.benchmarkReturn!).toFixed(4));
+    assert.equal(s02.excessReturn, expectedExcess);
+    assert.equal(s02.trajectory[0].fundIndexed, 100.0);
+    assert.equal(s02.trajectory[0].benchmarkIndexed, 100.0);
+
+    // STRESS-04: Outside observation horizon strictly excluded
+    assert.equal(s04.coverageStatus, "OUTSIDE_OBSERVATION_HORIZON");
+    assert.equal(s04.tradingDays, 0);
+    assert.equal(s04.trajectory.length, 0);
+  });
 });

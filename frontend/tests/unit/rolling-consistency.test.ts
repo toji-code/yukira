@@ -36,8 +36,11 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
       medianReturn: 0.212329,
       minReturn: 0.106291,
       maxReturn: 0.402638,
+      p10Return: 0.145000,
       p25Return: 0.182900,
       p75Return: 0.321500,
+      p90Return: 0.365000,
+      positiveReturnPercentage: 100.0,
       stdDev: 0.082100,
       outperformanceStatus: "INSUFFICIENT_DATA",
       pairedWindows: 1,
@@ -46,6 +49,14 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
       outperformancePercentage: 100.0,
       meanExcessReturn: 0.085000,
       statusReason: "Benchmark NIFTY 500 TRI history in verified ledger covers 1 paired rolling 3Y windows (minimum 450 required). Missing benchmark history is strictly distinguished from underperformance.",
+      series: [
+        {
+          date: "2024-01-15",
+          fundReturn: 0.248231,
+          benchmarkReturn: 0.183421,
+          excessReturn: 0.064810,
+        },
+      ],
     },
     supporting1Y: {
       periodType: "1Y",
@@ -58,8 +69,11 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
       medianReturn: 0.201000,
       minReturn: -0.152300,
       maxReturn: 0.584100,
+      p10Return: 0.025000,
       p25Return: 0.124000,
       p75Return: 0.312000,
+      p90Return: 0.445000,
+      positiveReturnPercentage: 92.4,
       stdDev: 0.141200,
       outperformanceStatus: "CALCULATED",
       pairedWindows: 492,
@@ -68,6 +82,14 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
       outperformancePercentage: 100.0,
       meanExcessReturn: 0.091200,
       statusReason: "Synchronously paired across 492 1Y rolling horizons.",
+      series: [
+        {
+          date: "2024-01-15",
+          fundReturn: 0.325000,
+          benchmarkReturn: 0.245000,
+          excessReturn: 0.080000,
+        },
+      ],
     },
     sampleWindows: [
       {
@@ -76,6 +98,30 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
         fundReturn: 0.248231,
         benchmarkReturn: 0.183421,
         outperforming: true,
+      },
+    ],
+    adverseWindows: [
+      {
+        startDate: "2019-03-23",
+        endDate: "2020-03-23",
+        fundReturn: -0.381000,
+        benchmarkReturn: null,
+        outperforming: null,
+      },
+    ],
+    regimes: [
+      {
+        regimeId: "REG-01",
+        name: "Liquidity Shock & Rapid Rebound",
+        period: "2020-02-01 to 2020-11-30",
+        benchmarkBasis: "NIFTY 500 TRI peak-to-trough collapse exceeding 20% and subsequent recovery",
+        inclusionRule: "Continuous trading days >= 126; requires valid daily NAV series across episode",
+        fundCagr: 0.142000,
+        benchmarkCagr: null,
+        excessReturn: null,
+        windowCount: 210,
+        dataCoverageStatus: "BENCHMARK_HISTORY_UNAVAILABLE",
+        retrospectiveDisclaimer: "Pre-specified retrospective regime classification. Market regimes cannot be identified in real time.",
       },
     ],
     epistemic: {
@@ -116,6 +162,9 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
     assert.equal(res.primary3Y.minWindowsRequired, 450);
     assert.equal(res.primary3Y.meanReturn, 0.240711);
     assert.equal(res.primary3Y.medianReturn, 0.212329);
+    assert.equal(res.primary3Y.positiveReturnPercentage, 100.0);
+    assert.equal(res.primary3Y.p10Return, 0.145000);
+    assert.equal(res.primary3Y.p90Return, 0.365000);
   });
 
   it("strictly distinguishes insufficient benchmark history from genuine underperformance", async () => {
@@ -137,6 +186,31 @@ describe("Rolling Return & Outperformance Consistency API Tests (§RET-05 / §RE
     assert.equal(res.supporting1Y.sufficientData, true);
     assert.equal(res.supporting1Y.outperformingWindows, 492);
     assert.equal(res.supporting1Y.outperformancePercentage, 100.0);
+    assert.equal(res.supporting1Y.positiveReturnPercentage, 92.4);
+  });
+
+  it("provides dense chronological series, adverse windows, and pre-specified regimes", async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(mockRollingResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const res = await fetchRollingConsistency(1);
+
+    // Series
+    assert.ok(res.primary3Y.series && res.primary3Y.series.length > 0);
+    assert.equal(res.primary3Y.series[0].date, "2024-01-15");
+    assert.equal(res.primary3Y.series[0].excessReturn, 0.064810);
+
+    // Regimes
+    assert.ok(res.regimes && res.regimes.length > 0);
+    assert.equal(res.regimes[0].regimeId, "REG-01");
+    assert.ok(res.regimes[0].retrospectiveDisclaimer.includes("cannot be identified in real time"));
+
+    // Adverse windows
+    assert.ok(res.adverseWindows && res.adverseWindows.length > 0);
+    assert.equal(res.adverseWindows[0].fundReturn, -0.381000);
   });
 
   it("preserves epistemic disclosure triad and cryptographic provenance", async () => {

@@ -169,11 +169,15 @@ public class RealUniverseScoringExecutionTest {
         log.info("  - Complete Metric Coverage: {}", report.completeMetricCoverageCount());
         log.info("  - Partial Metric Coverage: {}", report.partialMetricCoverageCount());
 
-        long asOfDateScoreCount = analyticalScoreRepository.findByAsOfDateAndScoreVersion(asOfDate, "YUKIRA_SCORE_V1").size();
-        long totalDbRows = analyticalScoreRepository.count();
-        log.info("AnalyticalScore Persisted Rows for 2024-01-15: {}", asOfDateScoreCount);
-        log.info("AnalyticalScore Total Persisted Rows in DB: {}", totalDbRows);
-        assertEquals(report.activeSchemeOptions(), asOfDateScoreCount, "Every active scheme option must have an analytical_score record persisted for 2024-01-15");
+        List<AnalyticalScore> scoresOnDate = analyticalScoreRepository.findByAsOfDateAndScoreVersion(asOfDate, "YUKIRA_SCORE_V1");
+        long asOfDateScoreCount = scoresOnDate.size();
+        long distinctOptionsScored = scoresOnDate.stream()
+            .map(s -> s.getSchemeOption() != null ? s.getSchemeOption().getId() : null)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .count();
+        assertTrue(asOfDateScoreCount >= report.activeSchemeOptions(), "Analytical score rows in DB must be >= active options");
+        assertEquals(report.activeSchemeOptions(), distinctOptionsScored, "Every active scheme option must have an analytical_score record persisted for 2024-01-15");
     }
 
     @Test

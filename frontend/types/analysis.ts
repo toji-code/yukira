@@ -169,6 +169,7 @@ export interface CalculationRequest {
 
 export interface ProfileContext {
   runId: number;
+  schemeId?: number | null;
   schemeOptionId: number;
   schemeName: string;
   amfiCode: string;
@@ -200,6 +201,7 @@ export interface ProfileMetricItem {
   limitations: string;
   errorMessage?: string | null;
   diagnostics?: Record<string, unknown>;
+  investigationQuestion?: string | null;
 }
 
 export interface ProfileProvenance {
@@ -342,6 +344,13 @@ export interface RollingContext {
   executionCompletedAt: string;
 }
 
+export interface RollingSeriesPoint {
+  date: string;
+  fundReturn: number;
+  benchmarkReturn: number | null;
+  excessReturn: number | null;
+}
+
 export interface RollingHorizonResult {
   periodType: string;
   windowYears: number;
@@ -353,8 +362,11 @@ export interface RollingHorizonResult {
   medianReturn: number | null;
   minReturn: number | null;
   maxReturn: number | null;
+  p10Return: number | null;
   p25Return: number | null;
   p75Return: number | null;
+  p90Return: number | null;
+  positiveReturnPercentage: number | null;
   stdDev: number | null;
   outperformanceStatus: string;
   pairedWindows: number | null;
@@ -363,6 +375,7 @@ export interface RollingHorizonResult {
   outperformancePercentage: number | null;
   meanExcessReturn: number | null;
   statusReason: string;
+  series?: RollingSeriesPoint[];
 }
 
 export interface RollingWindowSample {
@@ -371,6 +384,20 @@ export interface RollingWindowSample {
   fundReturn: number;
   benchmarkReturn: number | null;
   outperforming: boolean | null;
+}
+
+export interface MarketRegimeSummary {
+  regimeId: string;
+  name: string;
+  period: string;
+  benchmarkBasis: string;
+  inclusionRule: string;
+  fundCagr: number | null;
+  benchmarkCagr: number | null;
+  excessReturn: number | null;
+  windowCount: number;
+  dataCoverageStatus: string;
+  retrospectiveDisclaimer: string;
 }
 
 export interface RollingEpistemic {
@@ -388,6 +415,8 @@ export interface RollingConsistencyResponse {
   primary3Y: RollingHorizonResult;
   supporting1Y: RollingHorizonResult;
   sampleWindows: RollingWindowSample[];
+  adverseWindows?: RollingWindowSample[];
+  regimes?: MarketRegimeSummary[];
   epistemic: RollingEpistemic;
 }
 
@@ -438,9 +467,35 @@ export interface CaptureEpistemic {
   calculationRunId: number | null;
 }
 
+export interface StressTrajectoryPoint {
+  date: string;
+  fundIndexed: number | null;
+  benchmarkIndexed: number | null;
+  fundDailyReturn: number | null;
+  benchmarkDailyReturn: number | null;
+}
+
+export interface HistoricalStressEvent {
+  eventId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  fundReturn: number | null;
+  benchmarkReturn: number | null;
+  excessReturn: number | null;
+  fundMaxDrawdown: number | null;
+  benchmarkMaxDrawdown: number | null;
+  tradingDays: number;
+  coverageStatus: string;
+  classificationBasis: string;
+  retrospectiveDisclaimer: string;
+  trajectory: StressTrajectoryPoint[];
+}
+
 export interface CaptureRatioResponse {
   context: CaptureContext;
   metrics: CaptureMetrics;
+  stressEvents?: HistoricalStressEvent[];
   epistemic: CaptureEpistemic;
 }
 
@@ -502,6 +557,7 @@ export interface BetaContext {
   benchmarkName: string;
   startDate: string | null;
   endDate: string | null;
+  windowHorizon?: string;
   knowledgeCutoffTime: string;
   evaluatedAt: string;
 }
@@ -539,9 +595,64 @@ export interface BetaEpistemic {
   calculationRunId: number | null;
 }
 
+export interface ExposureStability {
+  medianBeta: number | null;
+  iqrBeta: number | null;
+  minBeta: number | null;
+  minBetaDate: string | null;
+  maxBeta: number | null;
+  maxBetaDate: string | null;
+  startBeta: number | null;
+  startDate: string | null;
+  endBeta: number | null;
+  endDate: string | null;
+  betaChange: number | null;
+  totalWindows: number;
+  validWindows: number;
+  pctAboveParity: number | null;
+  pctBelowParity: number | null;
+  meanDownsideBeta: number | null;
+  meanUpsideBeta: number | null;
+  upsideDownsideSpread: number | null;
+}
+
+export interface RollingBetaPoint {
+  windowStart: string;
+  windowEnd: string;
+  beta: number | null;
+  downsideBeta: number | null;
+  upsideBeta: number | null;
+  betaSpread: number | null;
+  pairedDays: number;
+  upDays: number;
+  downDays: number;
+  status: string;
+}
+
+export interface BetaRegimeSummary {
+  regimeId: string;
+  regimeName: string;
+  startDate: string;
+  endDate: string;
+  pairedDays: number;
+  upDays: number;
+  downDays: number;
+  fullPeriodBeta: number | null;
+  upsideBeta: number | null;
+  downsideBeta: number | null;
+  medianRollingBeta: number | null;
+  minRollingBeta: number | null;
+  maxRollingBeta: number | null;
+  coverageStatus: string;
+  description: string;
+}
+
 export interface BetaDynamicsResponse {
   context: BetaContext;
   metrics: BetaMetrics;
+  stability?: ExposureStability | null;
+  rollingSeries?: RollingBetaPoint[];
+  regimes?: BetaRegimeSummary[];
   epistemic: BetaEpistemic;
 }
 

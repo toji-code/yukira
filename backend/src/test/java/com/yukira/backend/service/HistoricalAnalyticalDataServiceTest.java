@@ -103,7 +103,8 @@ public class HistoricalAnalyticalDataServiceTest {
     @Test
     @DisplayName("Verification 3: Artifact cryptographic SHA-256 and foreign-key provenance")
     void testArtifactShaAndProvenance() {
-        byte[] payload = "999999;Test Scheme - Growth Option - Direct Plan;INF999TEST01;;1300.0000;;;10-Jan-2023\n".getBytes(StandardCharsets.ISO_8859_1);
+        String header = "Scheme Code;Scheme Name;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Repurchase Price;Sale Price;Date\n";
+        byte[] payload = (header + "999999;Test Scheme - Growth Option - Direct Plan;INF999TEST01;;1300.0000;;;10-Jan-2023\n").getBytes(StandardCharsets.ISO_8859_1);
         String expectedHash = AmfiSourceClient.computeSha256(payload);
 
         SourceArtifact artifact = amfiSourceClient.persistRawPayload(payload, "test://sha-test", OffsetDateTime.now());
@@ -125,10 +126,11 @@ public class HistoricalAnalyticalDataServiceTest {
     @Test
     @DisplayName("Verification 4: Duplicate observation handling (skips redundant rows)")
     void testDuplicateObservationHandling() {
+        String header = "Scheme Code;Scheme Name;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Repurchase Price;Sale Price;Date\n";
         LocalDate date = LocalDate.of(2023, 2, 1);
         OffsetDateTime avail = OffsetDateTime.of(2023, 2, 1, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
-        byte[] payload = String.format("999999;Test Scheme - Direct;INF999TEST01;;1280.0000;;;01-Feb-2023\n")
+        byte[] payload = String.format(header + "999999;Test Scheme - Direct;INF999TEST01;;1280.0000;;;01-Feb-2023\n")
             .getBytes(StandardCharsets.ISO_8859_1);
 
         SourceArtifact artifact1 = amfiSourceClient.persistRawPayload(payload, "test://dup-1", avail);
@@ -150,17 +152,18 @@ public class HistoricalAnalyticalDataServiceTest {
     @Test
     @DisplayName("Verification 5 & 6: Conflicting observation and append-only revision handling")
     void testConflictingObservationAndRevisionHandling() {
+        String header = "Scheme Code;Scheme Name;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Repurchase Price;Sale Price;Date\n";
         LocalDate date = LocalDate.of(2023, 3, 1);
         OffsetDateTime t1 = OffsetDateTime.of(2023, 3, 1, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
         OffsetDateTime t2 = OffsetDateTime.of(2023, 3, 2, 12, 0, 0, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
         // Initial observation: 1310.0000
-        byte[] p1 = "999999;Test Scheme;INF999TEST01;;1310.0000;;;01-Mar-2023\n".getBytes(StandardCharsets.ISO_8859_1);
+        byte[] p1 = (header + "999999;Test Scheme;INF999TEST01;;1310.0000;;;01-Mar-2023\n").getBytes(StandardCharsets.ISO_8859_1);
         SourceArtifact a1 = amfiSourceClient.persistRawPayload(p1, "test://rev-1", t1);
         ingestionService.ingestArtifact(a1);
 
         // Restatement/Correction published next day: 1312.5000
-        byte[] p2 = "999999;Test Scheme;INF999TEST01;;1312.5000;;;01-Mar-2023\n".getBytes(StandardCharsets.ISO_8859_1);
+        byte[] p2 = (header + "999999;Test Scheme;INF999TEST01;;1312.5000;;;01-Mar-2023\n").getBytes(StandardCharsets.ISO_8859_1);
         SourceArtifact a2 = amfiSourceClient.persistRawPayload(p2, "test://rev-2", t2);
         IngestionSummary s2 = ingestionService.ingestArtifact(a2);
 

@@ -8,11 +8,15 @@ import com.yukira.backend.ingestion.amfi.AmfiUniverseIngestionService;
 import com.yukira.backend.ingestion.amfi.HistoricalNavIngestionService;
 import com.yukira.backend.ingestion.amfi.UniverseCoverageReport;
 import com.yukira.backend.ingestion.amfi.UniverseIngestionSummary;
+import com.yukira.backend.repository.NavObservationRepository;
+import com.yukira.backend.repository.PortfolioSnapshotRepository;
 import com.yukira.backend.repository.SchemeOptionRepository;
 import com.yukira.backend.repository.SchemeRepository;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
@@ -36,9 +40,12 @@ public class SchemeController {
     private final AmfiUniverseIngestionService universeIngestionService;
     private final HistoricalNavIngestionService historicalNavIngestionService;
     private final com.yukira.backend.scoring.service.AnalyticalScoringService scoringService;
+    private final NavObservationRepository navObservationRepository;
+    private final PortfolioSnapshotRepository portfolioSnapshotRepository;
+    private final com.yukira.backend.service.DataQualityFreshnessService dataQualityFreshnessService;
 
     public SchemeController(SchemeRepository schemeRepository, SchemeOptionRepository schemeOptionRepository) {
-        this(schemeRepository, schemeOptionRepository, null, null, null);
+        this(schemeRepository, schemeOptionRepository, null, null, null, null, null, null);
     }
 
     public SchemeController(
@@ -46,7 +53,19 @@ public class SchemeController {
         SchemeOptionRepository schemeOptionRepository,
         AmfiUniverseIngestionService universeIngestionService
     ) {
-        this(schemeRepository, schemeOptionRepository, universeIngestionService, null, null);
+        this(schemeRepository, schemeOptionRepository, universeIngestionService, null, null, null, null, null);
+    }
+
+    public SchemeController(
+        SchemeRepository schemeRepository,
+        SchemeOptionRepository schemeOptionRepository,
+        AmfiUniverseIngestionService universeIngestionService,
+        HistoricalNavIngestionService historicalNavIngestionService,
+        com.yukira.backend.scoring.service.AnalyticalScoringService scoringService,
+        NavObservationRepository navObservationRepository,
+        PortfolioSnapshotRepository portfolioSnapshotRepository
+    ) {
+        this(schemeRepository, schemeOptionRepository, universeIngestionService, historicalNavIngestionService, scoringService, navObservationRepository, portfolioSnapshotRepository, null);
     }
 
     @Autowired
@@ -55,13 +74,19 @@ public class SchemeController {
         SchemeOptionRepository schemeOptionRepository,
         @Autowired(required = false) AmfiUniverseIngestionService universeIngestionService,
         @Autowired(required = false) HistoricalNavIngestionService historicalNavIngestionService,
-        @Autowired(required = false) com.yukira.backend.scoring.service.AnalyticalScoringService scoringService
+        @Autowired(required = false) com.yukira.backend.scoring.service.AnalyticalScoringService scoringService,
+        @Autowired(required = false) NavObservationRepository navObservationRepository,
+        @Autowired(required = false) PortfolioSnapshotRepository portfolioSnapshotRepository,
+        @Autowired(required = false) com.yukira.backend.service.DataQualityFreshnessService dataQualityFreshnessService
     ) {
         this.schemeRepository = schemeRepository;
         this.schemeOptionRepository = schemeOptionRepository;
         this.universeIngestionService = universeIngestionService;
         this.historicalNavIngestionService = historicalNavIngestionService;
         this.scoringService = scoringService;
+        this.navObservationRepository = navObservationRepository;
+        this.portfolioSnapshotRepository = portfolioSnapshotRepository;
+        this.dataQualityFreshnessService = dataQualityFreshnessService;
     }
 
     /**
@@ -76,13 +101,18 @@ public class SchemeController {
         @RequestParam(required = false) String status,
         @RequestParam(required = false) String search
     ) {
-        Specification<Scheme> spec = (root, query, cb) -> {
+        Specification<Scheme> spec = (root, criteriaQuery, cb) -> {
+            if (criteriaQuery.getResultType() != null && Scheme.class.isAssignableFrom(criteriaQuery.getResultType())) {
+                root.fetch("amc", JoinType.LEFT);
+            }
             List<Predicate> predicates = new ArrayList<>();
+            Join<Scheme, Amc> amcJoin = root.join("amc", JoinType.LEFT);
+
             if (amcId != null) {
-                predicates.add(cb.equal(root.get("amc").get("id"), amcId));
+                predicates.add(cb.equal(amcJoin.get("id"), amcId));
             }
             if (amcCode != null && !amcCode.isBlank()) {
-                predicates.add(cb.equal(cb.upper(root.get("amc").get("code")), amcCode.toUpperCase()));
+                predicates.add(cb.equal(cb.upper(amcJoin.get("code")), amcCode.toUpperCase()));
             }
             if (category != null && !category.isBlank()) {
                 predicates.add(cb.like(cb.lower(root.get("category")), "%" + category.toLowerCase() + "%"));
@@ -95,31 +125,54 @@ public class SchemeController {
             }
             if (search != null && !search.isBlank()) {
                 String pattern = "%" + search.toLowerCase() + "%";
-                predicates.add(cb.or(
+                Predicate searchPred = cb.or(
                     cb.like(cb.lower(root.get("name")), pattern),
-                    cb.like(cb.lower(root.get("code")), pattern)
-                ));
+                    cb.like(cb.lower(root.get("code")), pattern),
+                    cb.like(cb.lower(amcJoin.get("legalName")), pattern),
+                    cb.like(cb.lower(amcJoin.get("code")), pattern)
+                );
+                Subquery<Long> optSub = criteriaQuery.subquery(Long.class);
+                Root<SchemeOption> optRoot = optSub.from(SchemeOption.class);
+                optSub.select(optRoot.get("plan").get("scheme").get("id"))
+                      .where(cb.or(
+                          cb.like(cb.lower(optRoot.get("amfiCode")), pattern),
+                          cb.like(cb.lower(optRoot.get("isin")), pattern)
+                      ));
+                predicates.add(cb.or(searchPred, root.get("id").in(optSub)));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
         List<Scheme> schemes = schemeRepository.findAll(spec);
         if (scoringService != null) {
-            Map<Long, com.yukira.backend.scoring.dto.YukiraScoreSummary> scoreMap = scoringService.getLatestScoreSummariesGroupedBySchemeId();
-            for (Scheme s : schemes) {
-                s.setYukiraScore(scoreMap.get(s.getId()));
+            if (schemes.size() <= 100) {
+                for (Scheme s : schemes) {
+                    s.setYukiraScore(scoringService.getLatestScoreSummaryForScheme(s.getId()));
+                }
+            } else {
+                Map<Long, com.yukira.backend.scoring.dto.YukiraScoreSummary> scoreMap = scoringService.getLatestScoreSummariesGroupedBySchemeId();
+                for (Scheme s : schemes) {
+                    s.setYukiraScore(scoreMap.get(s.getId()));
+                }
             }
         }
         return ResponseEntity.ok(schemes);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Scheme> getSchemeById(@PathVariable Long id) {
-        return schemeRepository.findById(id)
+    @GetMapping("/{identifier}")
+    public ResponseEntity<Scheme> getSchemeByIdentifier(@PathVariable String identifier) {
+        java.util.Optional<Scheme> schemeOpt = java.util.Optional.empty();
+        try {
+            Long id = Long.parseLong(identifier);
+            schemeOpt = schemeRepository.findById(id);
+        } catch (NumberFormatException ignored) {}
+        if (schemeOpt.isEmpty()) {
+            schemeOpt = schemeRepository.findByCode(identifier);
+        }
+        return schemeOpt
             .map(scheme -> {
                 if (scoringService != null) {
-                    Map<Long, com.yukira.backend.scoring.dto.YukiraScoreSummary> scoreMap = scoringService.getLatestScoreSummariesGroupedBySchemeId();
-                    scheme.setYukiraScore(scoreMap.get(scheme.getId()));
+                    scheme.setYukiraScore(scoringService.getLatestScoreSummaryForScheme(scheme.getId()));
                 }
                 return ResponseEntity.ok(scheme);
             })
@@ -194,7 +247,9 @@ public class SchemeController {
                     cb.like(cb.lower(root.get("amfiCode")), pattern),
                     cb.like(cb.lower(root.get("isin")), pattern),
                     cb.like(cb.lower(schemeJoin.get("name")), pattern),
-                    cb.like(cb.lower(schemeJoin.get("code")), pattern)
+                    cb.like(cb.lower(schemeJoin.get("code")), pattern),
+                    cb.like(cb.lower(amcJoin.get("legalName")), pattern),
+                    cb.like(cb.lower(amcJoin.get("code")), pattern)
                 ));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -202,21 +257,63 @@ public class SchemeController {
 
         List<SchemeOption> options = schemeOptionRepository.findAll(spec);
         if (scoringService != null) {
-            Map<Long, com.yukira.backend.scoring.dto.YukiraScoreSummary> scoreMap = scoringService.getLatestScoreSummariesGroupedByOptionId();
-            for (SchemeOption opt : options) {
-                opt.setYukiraScore(scoreMap.get(opt.getId()));
+            if (options.size() <= 100) {
+                for (SchemeOption opt : options) {
+                    opt.setYukiraScore(scoringService.getLatestScoreSummaryForOption(opt.getId()));
+                }
+            } else {
+                Map<Long, com.yukira.backend.scoring.dto.YukiraScoreSummary> scoreMap = scoringService.getLatestScoreSummariesGroupedByOptionId();
+                for (SchemeOption opt : options) {
+                    opt.setYukiraScore(scoreMap.get(opt.getId()));
+                }
             }
         }
         return ResponseEntity.ok(options);
     }
 
-    @GetMapping("/{id}/options")
-    public ResponseEntity<List<SchemeOption>> getOptionsBySchemeId(@PathVariable Long id) {
-        List<SchemeOption> options = schemeOptionRepository.findByPlanSchemeId(id);
+    @GetMapping("/{identifier}/options")
+    public ResponseEntity<List<SchemeOption>> getOptionsBySchemeIdentifier(@PathVariable String identifier) {
+        Long schemeId = null;
+        try {
+            schemeId = Long.parseLong(identifier);
+        } catch (NumberFormatException ignored) {}
+        if (schemeId == null) {
+            java.util.Optional<Scheme> schemeOpt = schemeRepository.findByCode(identifier);
+            if (schemeOpt.isPresent()) {
+                schemeId = schemeOpt.get().getId();
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        }
+        List<SchemeOption> options = schemeOptionRepository.findByPlanSchemeId(schemeId);
         if (scoringService != null) {
-            Map<Long, com.yukira.backend.scoring.dto.YukiraScoreSummary> scoreMap = scoringService.getLatestScoreSummariesGroupedByOptionId();
             for (SchemeOption opt : options) {
-                opt.setYukiraScore(scoreMap.get(opt.getId()));
+                opt.setYukiraScore(scoringService.getLatestScoreSummaryForOption(opt.getId()));
+            }
+        }
+        for (SchemeOption opt : options) {
+            if (dataQualityFreshnessService != null) {
+                dataQualityFreshnessService.enrichOptionFreshness(opt, null, null);
+            } else {
+                if (navObservationRepository != null) {
+                    navObservationRepository.findLatestActiveObservation(opt.getId()).ifPresent(nav -> {
+                        if (nav.getEffectiveDate() != null) {
+                            opt.setLatestNavDate(nav.getEffectiveDate().toString());
+                        }
+                    });
+                    long count = navObservationRepository.countBySchemeOptionId(opt.getId());
+                    if (count > 0) {
+                        opt.setNavObservationCount(count);
+                    }
+                }
+                if (portfolioSnapshotRepository != null) {
+                    portfolioSnapshotRepository.findTopBySchemeOptionIdOrderByPortfolioDateDesc(opt.getId()).ifPresent(snap -> {
+                        if (snap.getPortfolioDate() != null) {
+                            opt.setLatestHoldingsDate(snap.getPortfolioDate().toString());
+                        }
+                        opt.setHoldingsCount(snap.getReportedHoldingsCount());
+                    });
+                }
             }
         }
         return ResponseEntity.ok(options);

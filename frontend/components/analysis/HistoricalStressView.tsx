@@ -7,6 +7,8 @@ import { AnalysisResponse } from "@/types/analysis";
 interface HistoricalStressViewProps {
   schemeOptionId: number;
   schemeCode: string;
+  asOfDate?: string;
+  knowledgeCutoffTime?: string;
 }
 
 interface StressPeriodConfig {
@@ -40,7 +42,12 @@ const STRESS_PERIODS: StressPeriodConfig[] = [
   },
 ];
 
-export function HistoricalStressView({ schemeOptionId, schemeCode }: HistoricalStressViewProps) {
+export function HistoricalStressView({
+  schemeOptionId,
+  schemeCode,
+  asOfDate,
+  knowledgeCutoffTime,
+}: HistoricalStressViewProps) {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("covid_2020");
   const [returnAnalysis, setReturnAnalysis] = useState<AnalysisResponse | null>(null);
   const [mddAnalysis, setMddAnalysis] = useState<AnalysisResponse | null>(null);
@@ -52,9 +59,9 @@ export function HistoricalStressView({ schemeOptionId, schemeCode }: HistoricalS
 
   useEffect(() => {
     let active = true;
-    const cutoffTime = "2024-01-31T23:59:59+05:30";
+    const cutoffTime = knowledgeCutoffTime || "2024-01-31T23:59:59+05:30";
 
-    Promise.all([
+    Promise.allSettled([
       executeAnalysis("ret02", {
         schemeOptionId,
         startDate: selectedPeriod.startDate,
@@ -69,10 +76,14 @@ export function HistoricalStressView({ schemeOptionId, schemeCode }: HistoricalS
         methodologyTag: "CANDIDATE_V1",
       }),
     ])
-      .then(([retRes, mddRes]) => {
+      .then(([retSettled, mddSettled]) => {
         if (active) {
-          setReturnAnalysis(retRes);
-          setMddAnalysis(mddRes);
+          if (retSettled.status === "fulfilled") setReturnAnalysis(retSettled.value);
+          else setReturnAnalysis(null);
+
+          if (mddSettled.status === "fulfilled") setMddAnalysis(mddSettled.value);
+          else setMddAnalysis(null);
+
           setLoading(false);
         }
       })

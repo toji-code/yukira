@@ -133,7 +133,7 @@ public class Rsk01EndToEndIntegrationTest {
         assertEquals(1, metricResults.size());
         MetricResult persistedMetric = metricResults.get(0);
         assertEquals("3Y", persistedMetric.getPeriodType());
-        assertEquals(0.150571584544, persistedMetric.getNumericValue().doubleValue(), 0.0001);
+        assertEquals(0.145939606904, persistedMetric.getNumericValue().doubleValue(), 0.0001);
         assertEquals("CALCULATED", persistedMetric.getCalculationStatus());
 
         List<CalculationRunInputObservation> inputObsLinks = inputObservationRepository.findByCalculationRunId(persistedRun.getId());

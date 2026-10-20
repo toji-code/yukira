@@ -122,6 +122,14 @@ public class AnalyticalScoringService {
         // 0b. Universe Eligibility Assessment
         ScoringEligibilityAssessment assessment = evaluateSchemeOptionScoringEligibility(option, asOfDate, knowledgeCutoff);
         if (!assessment.isScoreable()) {
+            if (request.calculationRunId() == null) {
+                List<AnalyticalScore> existingScores = analyticalScoreRepository.findBySchemeOptionAndDateAndVersion(
+                    option.getId(), asOfDate, config.getScoreVersion()
+                );
+                if (!existingScores.isEmpty()) {
+                    return buildResponseFromEntity(existingScores.get(0));
+                }
+            }
             String summaryMsg = "Score Unavailable: " + assessment.reason();
             AnalyticalScore nonScoreable = new AnalyticalScore(
                 option,
@@ -568,6 +576,73 @@ public class AnalyticalScoringService {
             }
         }
         return map;
+    }
+
+    @Transactional(readOnly = true)
+    public com.yukira.backend.scoring.dto.YukiraScoreSummary getLatestScoreSummaryForScheme(Long schemeId) {
+        if (schemeId == null) {
+            return null;
+        }
+        List<SchemeOption> options = schemeOptionRepository.findByPlanSchemeId(schemeId);
+        if (options.isEmpty()) {
+            return null;
+        }
+
+        SchemeOption preferred = options.stream()
+            .filter(o -> o.getPlan() != null && "DIRECT".equalsIgnoreCase(o.getPlan().getPlanType()) && "GROWTH".equalsIgnoreCase(o.getOptionType()))
+            .findFirst()
+            .orElse(options.get(0));
+
+        List<AnalyticalScore> scores = analyticalScoreRepository.findLatestBySchemeOptionId(preferred.getId());
+        if (scores.isEmpty()) {
+            for (SchemeOption opt : options) {
+                if (opt.getId().equals(preferred.getId())) {
+                    continue;
+                }
+                scores = analyticalScoreRepository.findLatestBySchemeOptionId(opt.getId());
+                if (!scores.isEmpty()) {
+                    break;
+                }
+            }
+        }
+        if (scores.isEmpty()) {
+            return null;
+        }
+        AnalyticalScore s = scores.get(0);
+        return new com.yukira.backend.scoring.dto.YukiraScoreSummary(
+            s.getId(),
+            s.getSchemeOption() != null ? s.getSchemeOption().getId() : null,
+            s.getScore(),
+            s.getConfidence(),
+            s.getStatus(),
+            s.getScoreVersion(),
+            s.getMethodologyStatus(),
+            s.getAsOfDate(),
+            s.getSummary()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public com.yukira.backend.scoring.dto.YukiraScoreSummary getLatestScoreSummaryForOption(Long schemeOptionId) {
+        if (schemeOptionId == null) {
+            return null;
+        }
+        List<AnalyticalScore> scores = analyticalScoreRepository.findLatestBySchemeOptionId(schemeOptionId);
+        if (scores.isEmpty()) {
+            return null;
+        }
+        AnalyticalScore s = scores.get(0);
+        return new com.yukira.backend.scoring.dto.YukiraScoreSummary(
+            s.getId(),
+            s.getSchemeOption() != null ? s.getSchemeOption().getId() : null,
+            s.getScore(),
+            s.getConfidence(),
+            s.getStatus(),
+            s.getScoreVersion(),
+            s.getMethodologyStatus(),
+            s.getAsOfDate(),
+            s.getSummary()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -1111,8 +1186,8 @@ public class AnalyticalScoringService {
         Map<Long, AnalyticalScore> existingScoresMap = new HashMap<>();
         List<AnalyticalScore> existingScores = analyticalScoreRepository.findByAsOfDateAndScoreVersion(asOf, config.getScoreVersion());
         for (AnalyticalScore score : existingScores) {
-            if (score.getSchemeOption() != null && isReusableScoreSnapshot(score)) {
-                existingScoresMap.put(score.getSchemeOption().getId(), score);
+            if (score.getSchemeOption() != null) {
+                existingScoresMap.putIfAbsent(score.getSchemeOption().getId(), score);
             }
         }
 

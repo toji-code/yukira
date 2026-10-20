@@ -63,6 +63,59 @@ public class AmfiSourceClient {
     }
 
     /**
+     * Constructs canonical query URL for an all-scheme universe-wide historical date chunk.
+     * Omits mf and scheme params so AMFI returns a single shared payload for all schemes in that date window.
+     */
+    public String buildUniverseChunkUrl(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("startDate and endDate must not be null");
+        }
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("endDate cannot be before startDate");
+        }
+        String fromStr = startDate.format(AMFI_URL_DATE);
+        String toStr = endDate.format(AMFI_URL_DATE);
+        return String.format("%s?frmdt=%s&todt=%s", BASE_URL, fromStr, toStr);
+    }
+
+    /**
+     * Fetches and persist an all-scheme universe historical chunk artifact for a date window.
+     * Deduplicates by storage URI and SHA-256 hash.
+     */
+    public SourceArtifact fetchAndPersistUniverseChunkArtifact(LocalDate startDate, LocalDate endDate) {
+        String targetUrl = buildUniverseChunkUrl(startDate, endDate);
+        OffsetDateTime retrievalTimestamp = OffsetDateTime.now();
+
+        Optional<SourceArtifact> existingByUri = sourceArtifactRepository.findFirstByStorageUri(targetUrl);
+        if (existingByUri.isPresent()) {
+            return existingByUri.get();
+        }
+
+        byte[] rawBytes = executeHttpGet(targetUrl);
+        String sha256Hash = computeSha256(rawBytes);
+
+        Optional<SourceArtifact> existing = sourceArtifactRepository.findBySha256Hash(sha256Hash);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        DataSource amfiSource = dataSourceRepository.findByCode("AMFI_PORTAL")
+            .orElseGet(() -> dataSourceRepository.save(new DataSource("AMFI_PORTAL", "AMFI NAV Historical Portal", "AMFI")));
+
+        SourceArtifact artifact = new SourceArtifact(
+            amfiSource,
+            retrievalTimestamp,
+            "NAV_HISTORY_TEXT",
+            sha256Hash,
+            (long) rawBytes.length
+        );
+        artifact.setStorageUri(targetUrl);
+        artifact.setPayloadBlob(rawBytes);
+
+        return sourceArtifactRepository.save(artifact);
+    }
+
+    /**
      * Executes HTTP GET and captures exact raw bytes BEFORE parsing with optional AMC filtering.
      * Computes SHA-256 hash across full payload and performs deterministic deduplication.
      */
@@ -73,9 +126,22 @@ public class AmfiSourceClient {
         byte[] rawBytes = executeHttpGet(targetUrl);
         String sha256Hash = computeSha256(rawBytes);
 
-        // Deduplication: if exact SHA-256 hash already exists, return existing artifact
+        // Deduplication: if exact SHA-256 hash already exists, return existing artifact or record targetUrl
         Optional<SourceArtifact> existing = sourceArtifactRepository.findBySha256Hash(sha256Hash);
         if (existing.isPresent()) {
+            if (!sourceArtifactRepository.existsByStorageUri(targetUrl)) {
+                DataSource amfiSource = existing.get().getDataSource();
+                SourceArtifact artifact = new SourceArtifact(
+                    amfiSource,
+                    retrievalTimestamp,
+                    existing.get().getArtifactType(),
+                    sha256Hash,
+                    (long) rawBytes.length
+                );
+                artifact.setStorageUri(targetUrl);
+                artifact.setPayloadBlob(rawBytes);
+                return sourceArtifactRepository.save(artifact);
+            }
             return existing.get();
         }
 
@@ -186,8 +252,9 @@ public class AmfiSourceClient {
 
             byte[] payload = response.body();
             String prefix = new String(payload, 0, Math.min(payload.length, 120), java.nio.charset.StandardCharsets.ISO_8859_1).trim();
-            if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!DOCTYPE")) {
-                throw new IllegalStateException("AMFI portal returned HTML page instead of NAV text stream for " + urlString);
+            if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!DOCTYPE") || prefix.contains("<table")) {
+                // AMFI portal returned HTML page (e.g. "No Data Found") instead of NAV text stream -> return empty payload
+                return new byte[0];
             }
 
             return payload;

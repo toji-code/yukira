@@ -121,10 +121,8 @@ public class January2024ProvenanceDiscrepancyTest {
 
         SchemeOption option = optionOpt.get();
         List<NavObservation> observations = navObservationRepository
-            .findBySchemeOptionId(option.getId()).stream()
-            .filter(o -> !o.getEffectiveDate().isBefore(LocalDate.of(2024, 1, 1)) && !o.getEffectiveDate().isAfter(LocalDate.of(2024, 1, 15)))
-            .sorted(Comparator.comparing(NavObservation::getEffectiveDate))
-            .toList();
+            .findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(
+                option.getId(), LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 15));
 
         if (observations.isEmpty()) {
             return;

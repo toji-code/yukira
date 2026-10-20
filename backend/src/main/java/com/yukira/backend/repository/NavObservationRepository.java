@@ -48,8 +48,17 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
         @Param("knowledgeCutoffTime") OffsetDateTime knowledgeCutoffTime
     );
 
-    List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
     List<NavObservation> findBySchemeOptionId(Long schemeOptionId);
+    List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
+    @Query(value = """
+        SELECT * FROM nav_observation
+        WHERE scheme_option_id = :schemeOptionId
+          AND is_latest_revision = true
+        ORDER BY effective_date DESC, revision_seq DESC
+        LIMIT 1
+        """, nativeQuery = true)
+    java.util.Optional<NavObservation> findLatestActiveObservation(@Param("schemeOptionId") Long schemeOptionId);
+
     java.util.Optional<com.yukira.backend.domain.entity.NavObservation> findTopBySchemeOptionIdOrderByEffectiveDateDesc(Long schemeOptionId);
     long countBySchemeOptionId(Long schemeOptionId);
     List<NavObservation> findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(Long schemeOptionId, LocalDate startDate, LocalDate endDate);
@@ -72,4 +81,7 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
 
     @Query("SELECT MAX(n.ingestionTime) FROM NavObservation n")
     java.util.Optional<OffsetDateTime> findMaxIngestionTime();
+
+    @Query("SELECT n.schemeOption.id, MIN(n.effectiveDate), MAX(n.effectiveDate), COUNT(n) FROM NavObservation n GROUP BY n.schemeOption.id")
+    List<Object[]> findSchemeOptionNavDateSummaries();
 }

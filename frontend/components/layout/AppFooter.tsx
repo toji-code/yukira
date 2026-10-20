@@ -25,7 +25,7 @@ const LINK_COLUMNS = [
     head: 'Account',
     links: [
       { href: '/portfolio', label: 'My portfolio' },
-      { href: '/api/auth/login', label: 'Sign in' },
+      { href: '/auth/login', label: 'Sign in' },
     ],
   },
   {
@@ -79,38 +79,36 @@ export function AppFooter() {
   };
 
   return (
-    <footer className="mt-auto border-t border-border bg-background">
-      <div className="container-app py-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-[46ch]">
-            <div className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className="flex h-6 w-6 items-center justify-center rounded-sm border border-border-strong bg-surface-inset font-mono text-[11px] text-accent"
-              >
-                Y
-              </span>
-              <span className="text-[13px] font-semibold tracking-[-0.02em] text-text-primary">
+    <footer className="mt-auto w-full border-t border-border-gold-subtle bg-surface-obsidian/95 py-8 backdrop-blur-md">
+      <div className="mx-auto max-w-[1440px] px-6 md:px-10">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-[48ch]">
+            <div className="flex items-center gap-2.5">
+              <span className="font-sans font-bold text-[15px] tracking-[0.04em] text-primary">
                 YUKIRA
               </span>
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-primary/70">
+                INVESTMENT INTELLIGENCE
+              </span>
             </div>
-            <p className="mt-3 text-[13px] leading-[1.55] text-text-secondary">
-              Research tooling for point-in-time quantitative verification. Not investment
-              advice, not a solicitation, and not a recommendation.
+            <p className="mt-3 font-sans text-[13px] leading-[1.65] text-text-cream-muted">
+              Institutional quantitative research and verification checkpoint for Indian mutual funds. Not investment advice, not a solicitation, and not a recommendation.
             </p>
-            <p className="mt-2 text-[11px] text-text-tertiary">
-              No composite score, star rating or credit grade is computed or displayed.
+            <p className="mt-2 font-mono text-[11px] text-text-cream-muted/70">
+              No composite score, star rating, or commercial grade is computed or displayed.
             </p>
           </div>
 
           <nav
             aria-label="Footer"
-            className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:gap-10"
+            className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:gap-12"
           >
             {LINK_COLUMNS.map((column) => (
               <div key={column.head}>
-                <h2 className="eyebrow">{column.head}</h2>
-                <ul className="mt-3 space-y-1.5">
+                <h2 className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-primary/90 font-semibold">
+                  {column.head}
+                </h2>
+                <ul className="mt-3.5 space-y-2">
                   {column.links.map((link) => (
                     <li key={link.label}>
                       {'external' in link && link.external ? (
@@ -118,7 +116,7 @@ export function AppFooter() {
                           href={link.href}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+                          className="font-sans text-[13px] text-text-cream-body transition-colors hover:text-primary"
                         >
                           {link.label}
                           <span className="sr-only"> (external)</span>
@@ -126,7 +124,7 @@ export function AppFooter() {
                       ) : (
                         <Link
                           href={link.href}
-                          className="text-[13px] text-text-secondary transition-colors hover:text-text-primary"
+                          className="font-sans text-[13px] text-text-cream-body transition-colors hover:text-primary"
                         >
                           {link.label}
                         </Link>
@@ -139,19 +137,20 @@ export function AppFooter() {
           </nav>
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="mono-meta">
-            Analysis cutoff and knowledge cutoff are reported on every analytical surface.
+        <div className="mt-8 flex flex-col gap-3 border-t border-border-gold-subtle pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-mono text-[11px] text-text-cream-muted">
+            Analysis cutoff and knowledge cutoff are enforced on every analytical surface.
           </p>
           <button
             type="button"
             onClick={toggle}
-            className="btn btn-ghost btn-sm self-start"
+            className="inline-flex items-center gap-2 rounded-full border border-border-gold-subtle bg-surface-navy-raised px-3.5 py-1.5 font-sans text-[12.5px] font-medium text-text-cream-bright transition-all hover:bg-surface-navy-hover hover:border-border-gold-bright self-start"
             aria-expanded={open}
             aria-controls="system-status"
           >
+            <span className="h-2 w-2 rounded-full bg-status-approved shadow-[0_0_8px_#4ade80]" />
             System status
-            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+            <svg className="h-3 w-3 text-text-cream-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

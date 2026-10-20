@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface PortfolioHoldingRepository extends JpaRepository<PortfolioHolding, Long> {
     List<PortfolioHolding> findByPortfolioSnapshotIdOrderByReportedWeightDesc(Long portfolioSnapshotId);
+    List<PortfolioHolding> findByPortfolioSnapshotIdOrderByHoldingRankAsc(Long portfolioSnapshotId);
 }

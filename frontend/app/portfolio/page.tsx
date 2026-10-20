@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { PageContainer, SectionHeading } from '@/components/layout/PageContainer';
 import { SchemeOption } from '@/types/domain';
 import { fetchAllSchemeOptions } from '@/lib/api/schemes';
@@ -21,8 +22,17 @@ import { PortfolioComparisonView } from '@/components/portfolio/PortfolioCompari
 import { PortfolioScoreHistoryView } from '@/components/portfolio/PortfolioScoreHistoryView';
 import { GroundedAiInterpretationPanel } from '@/components/analysis/GroundedAiInterpretationPanel';
 import { DataFreshnessIndicator } from '@/components/portfolio/DataFreshnessIndicator';
+import { PortfolioIntelligenceSection } from '@/components/portfolio/PortfolioIntelligenceSection';
+import { CasImportModal } from '@/components/portfolio/CasImportModal';
+import { ResearchPortfolioView } from '@/components/portfolio/ResearchPortfolioView';
 
-export default function PortfolioPage() {
+function PortfolioPageContent() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab') || searchParams.get('view');
+  const [userSelectedMode, setUserSelectedMode] = useState<'holdings' | 'research' | null>(null);
+  const portfolioMode = userSelectedMode ?? (tabParam === 'research' ? 'research' : 'holdings');
+  const setPortfolioMode = (mode: 'holdings' | 'research') => setUserSelectedMode(mode);
+
   const [summary, setSummary] = useState<PortfolioSummaryDto | null>(null);
   const [options, setOptions] = useState<SchemeOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +40,7 @@ export default function PortfolioPage() {
   const [error, setError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isCasModalOpen, setIsCasModalOpen] = useState(false);
 
   // Form state
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
@@ -114,13 +125,42 @@ export default function PortfolioPage() {
       title="My Portfolio"
       subtitle="Track externally held mutual funds with deterministic valuation, portfolio quality aggregation, and analytical evidence."
     >
-      {/* Portfolio Quick Actions Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] text-text-tertiary">
-              PORTFOLIO HOLDINGS INGESTION V1
-            </span>
+      {/* Portfolio Main Mode Selector */}
+      <div className="mb-6 flex border-b border-border">
+        <button
+          onClick={() => setPortfolioMode('holdings')}
+          className={`flex items-center gap-2 px-4 py-2.5 font-mono text-[12px] font-semibold border-b-2 transition-colors ${
+            portfolioMode === 'holdings'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-tertiary hover:text-text-primary'
+          }`}
+        >
+          <span>📋 Tracked External Holdings</span>
+        </button>
+        <button
+          onClick={() => setPortfolioMode('research')}
+          className={`flex items-center gap-2 px-4 py-2.5 font-mono text-[12px] font-semibold border-b-2 transition-colors ${
+            portfolioMode === 'research'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-tertiary hover:text-text-primary'
+          }`}
+        >
+          <span>🔬 Multi-Fund Look-Through & Research</span>
+          <span className="status-badge state-verified text-[9px]">INTERACTIVE</span>
+        </button>
+      </div>
+
+      {portfolioMode === 'research' ? (
+        <ResearchPortfolioView />
+      ) : (
+        <>
+          {/* Portfolio Quick Actions Header */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[11px] text-text-tertiary">
+                  PORTFOLIO HOLDINGS INGESTION V1
+                </span>
             <DataFreshnessIndicator />
           </div>
           <p className="font-sans text-[13px] font-medium text-text-secondary">
@@ -128,7 +168,7 @@ export default function PortfolioPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsReportModalOpen(true)}
             className="px-4 py-2 rounded bg-surface border border-border text-text-primary font-mono text-[12px] font-medium hover:bg-surface-hover flex items-center gap-2"
@@ -140,10 +180,17 @@ export default function PortfolioPage() {
           </button>
 
           <button
+            onClick={() => setIsCasModalOpen(true)}
+            className="px-4 py-2 rounded bg-cyan-600 text-white font-mono text-[12px] font-semibold hover:bg-cyan-500 flex items-center gap-2 shadow"
+          >
+            <span>📥 Import CAS Portfolio</span>
+          </button>
+
+          <button
             onClick={() => setIsImportModalOpen(true)}
             className="px-4 py-2 rounded bg-accent text-surface-dark font-mono text-[12px] font-medium hover:bg-accent/90 flex items-center gap-2"
           >
-            <span>+ Import External Mutual Funds</span>
+            <span>+ Add Holding</span>
           </button>
         </div>
       </div>
@@ -151,6 +198,15 @@ export default function PortfolioPage() {
       <PortfolioReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
+      />
+
+      <CasImportModal
+        isOpen={isCasModalOpen}
+        onClose={() => setIsCasModalOpen(false)}
+        onSuccess={async () => {
+          const updated = await fetchPortfolioSummary();
+          setSummary(updated);
+        }}
       />
 
       <AddHoldingModal
@@ -195,7 +251,7 @@ export default function PortfolioPage() {
                 {pScore.portfolioScore.toFixed(2)}
               </span>
             ) : (
-              <span className="data-value-lg data-unavailable">â€”</span>
+              <span className="data-value-lg data-unavailable">—</span>
             )}
             {pScore && (
               <span className={`status-badge text-[10px] ${
@@ -299,7 +355,7 @@ export default function PortfolioPage() {
                     <span className="text-2xl font-bold text-accent">
                       {pScore.portfolioScore !== null && pScore.portfolioScore !== undefined
                         ? pScore.portfolioScore.toFixed(2)
-                        : 'â€”'}
+                        : '—'}
                     </span>
                     <span className="text-text-tertiary text-[11px]">/ 100</span>
                   </div>
@@ -365,7 +421,7 @@ export default function PortfolioPage() {
                               {c.fundScore.toFixed(2)}
                             </td>
                             <td className="py-2 px-3 text-right text-text-secondary">
-                              {c.portfolioWeight !== null ? `${c.portfolioWeight.toFixed(2)}%` : 'â€”'}
+                              {c.portfolioWeight !== null ? `${c.portfolioWeight.toFixed(2)}%` : '—'}
                             </td>
                             <td className="py-2 px-3 text-right text-text-secondary">
                               {c.normalizedScoreWeight.toFixed(2)}%
@@ -498,7 +554,7 @@ export default function PortfolioPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-text-tertiary text-[10px]">YUKIRA Score:</span>
                             <span className="font-bold text-accent">
-                              {hEv.yukiraScore !== null ? hEv.yukiraScore.toFixed(2) : 'â€”'}
+                              {hEv.yukiraScore !== null ? hEv.yukiraScore.toFixed(2) : '—'}
                             </span>
                             <span className="status-badge state-candidate text-[9px]">{hEv.scoreStatus}</span>
                             <span className="text-text-tertiary text-[10px]">As of {hEv.asOfDate || '2024-01-15'}</span>
@@ -520,7 +576,7 @@ export default function PortfolioPage() {
                                   </span>
                                 ) : (
                                   <span className="text-text-disabled text-[10px] italic">
-                                    N/A â€” insufficient data
+                                    N/A — insufficient data
                                   </span>
                                 )}
                                 {m.observationCount && (
@@ -556,7 +612,7 @@ export default function PortfolioPage() {
                 <div className="space-y-1 pt-2 border-t border-border font-mono text-[10px] text-text-tertiary">
                   <span className="font-semibold text-text-secondary block">Methodological Limitations:</span>
                   {summary.portfolioRiskEvidence.dataLimitations.map((lim, idx) => (
-                    <p key={idx}>â€¢ {lim}</p>
+                    <p key={idx}>• {lim}</p>
                   ))}
                 </div>
               )}
@@ -577,6 +633,9 @@ export default function PortfolioPage() {
           {summary && (
             <PortfolioComparisonView holdings={summary.holdings || []} />
           )}
+
+          {/* Institutional Portfolio Intelligence & Look-Through Exposure Section */}
+          <PortfolioIntelligenceSection holdings={summary?.holdings || []} />
 
           {/* Portfolio Analytical Exposure & Concentration Section */}
           {summary && summary.holdings.length > 0 && conc && (
@@ -611,7 +670,7 @@ export default function PortfolioPage() {
                   <p className="text-accent text-[12px] font-bold mt-0.5">
                     {conc.topHoldingWeight !== null && conc.topHoldingWeight !== undefined
                       ? `${conc.topHoldingWeight.toFixed(2)}% share`
-                      : 'â€”'}
+                      : '—'}
                   </p>
                 </div>
 
@@ -623,7 +682,7 @@ export default function PortfolioPage() {
                   <p className="text-accent text-[12px] font-bold mt-0.5">
                     {conc.top3HoldingsWeight !== null && conc.top3HoldingsWeight !== undefined
                       ? `${conc.top3HoldingsWeight.toFixed(2)}% combined`
-                      : 'â€”'}
+                      : '—'}
                   </p>
                 </div>
 
@@ -635,7 +694,7 @@ export default function PortfolioPage() {
                   <p className="text-accent text-[12px] font-bold mt-0.5">
                     {conc.topAmcWeight !== null && conc.topAmcWeight !== undefined
                       ? `${conc.topAmcWeight.toFixed(2)}% share`
-                      : 'â€”'}
+                      : '—'}
                   </p>
                 </div>
 
@@ -647,7 +706,7 @@ export default function PortfolioPage() {
                   <p className="text-accent text-[12px] font-bold mt-0.5">
                     {conc.topCategoryWeight !== null && conc.topCategoryWeight !== undefined
                       ? `${conc.topCategoryWeight.toFixed(2)}% share`
-                      : 'â€”'}
+                      : '—'}
                   </p>
                 </div>
               </div>
@@ -852,7 +911,7 @@ export default function PortfolioPage() {
                           </div>
                           <div className="flex items-center gap-2 font-mono text-[11px] text-text-tertiary">
                             <span>Confidence: {yScore?.confidence !== null && yScore?.confidence !== undefined ? `${yScore.confidence.toFixed(0)}/100` : (holding.analyticalScore?.confidence || "N/A")}</span>
-                            <span>â€¢</span>
+                            <span>•</span>
                             <span>{yScore?.scoreVersion || holding.analyticalScore?.methodologyVersion || "YUKIRA_SCORE_V1"} ({yScore?.methodologyStatus || "CANDIDATE"})</span>
                           </div>
                         </div>
@@ -865,7 +924,7 @@ export default function PortfolioPage() {
                                 <span className="text-text-muted text-[10px] block truncate">{dim.dimensionName}</span>
                                 <div className="flex items-baseline justify-between mt-1">
                                   <span className="font-semibold text-text-primary text-[12px]">
-                                    {dim.score !== null && dim.score !== undefined ? dim.score.toFixed(2) : "â€”"}
+                                    {dim.score !== null && dim.score !== undefined ? dim.score.toFixed(2) : "—"}
                                   </span>
                                   <span className="text-[9px] text-text-tertiary">W: {dim.weight * 100}%</span>
                                 </div>
@@ -998,7 +1057,7 @@ export default function PortfolioPage() {
                       className="field"
                       required
                     >
-                      <option value="">â€” Select exact fund option â€”</option>
+                      <option value="">— Select exact fund option —</option>
                       {options.map(opt => (
                         <option key={opt.id} value={opt.id}>
                           {opt.plan?.scheme?.name} - {opt.plan?.planType} ({opt.optionType}) [AMFI: {opt.amfiCode || 'N/A'}]
@@ -1051,7 +1110,7 @@ export default function PortfolioPage() {
                     disabled={submitting || !selectedOptionId || !unitsInput}
                     className="btn btn-primary w-full"
                   >
-                    {submitting ? 'Adding Holdingâ€¦' : 'Add External Holding'}
+                    {submitting ? 'Adding Holding...' : 'Add External Holding'}
                   </button>
                 </>
               )}
@@ -1065,6 +1124,27 @@ export default function PortfolioPage() {
           </form>
         </div>
       </div>
+        </>
+      )}
     </PageContainer>
+  );
+}
+
+export default function PortfolioPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageContainer
+          title="My Portfolio"
+          subtitle="Loading portfolio..."
+        >
+          <div className="p-8 text-center font-mono text-[12px] text-text-tertiary">
+            Initializing portfolio view...
+          </div>
+        </PageContainer>
+      }
+    >
+      <PortfolioPageContent />
+    </Suspense>
   );
 }

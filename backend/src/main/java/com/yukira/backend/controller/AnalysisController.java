@@ -8,9 +8,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import com.yukira.backend.dto.analysis.ComparisonRequest;
 import com.yukira.backend.dto.analysis.ComparisonResponse;
+import com.yukira.backend.dto.analysis.ProfileCalculationRequest;
 
 @RestController
 @RequestMapping("/api/v1/analysis")
@@ -19,11 +21,18 @@ public class AnalysisController {
     private final AnalysisService analysisService;
     private final SchemeOptionRepository schemeOptionRepository;
     private final PortfolioComparisonQueryService portfolioComparisonQueryService;
+    private final com.yukira.backend.repository.CalculationRunRepository calculationRunRepository;
 
-    public AnalysisController(AnalysisService analysisService, SchemeOptionRepository schemeOptionRepository, PortfolioComparisonQueryService portfolioComparisonQueryService) {
+    public AnalysisController(
+        AnalysisService analysisService,
+        SchemeOptionRepository schemeOptionRepository,
+        PortfolioComparisonQueryService portfolioComparisonQueryService,
+        com.yukira.backend.repository.CalculationRunRepository calculationRunRepository
+    ) {
         this.analysisService = analysisService;
         this.schemeOptionRepository = schemeOptionRepository;
         this.portfolioComparisonQueryService = portfolioComparisonQueryService;
+        this.calculationRunRepository = calculationRunRepository;
     }
 
     /**
@@ -454,6 +463,27 @@ public class AnalysisController {
             }
         }
 
+        // Auto-hydrate calculation runs for any fund lacking runs for requested asOfDate
+        for (Long id : request.schemeOptionIds()) {
+            List<com.yukira.backend.domain.entity.CalculationRun> runs = calculationRunRepository
+                .findBySchemeOptionIdAndAsOfDateOrderByExecutionStartedAtDesc(id, request.asOfDate());
+            if (runs.isEmpty()) {
+                try {
+                    analysisService.executeProfileAnalysis(new ProfileCalculationRequest(
+                        id,
+                        null,
+                        request.asOfDate(),
+                        request.knowledgeCutoffTime(),
+                        null,
+                        null,
+                        null
+                    ));
+                } catch (Exception ignored) {
+                    // Continue with whatever calculation runs are available in repository
+                }
+            }
+        }
+
         ComparisonResponse response = portfolioComparisonQueryService.executeComparison(request);
         return ResponseEntity.ok(response);
     }
@@ -698,7 +728,8 @@ public class AnalysisController {
         @PathVariable Long schemeOptionId,
         @RequestParam(required = false) String asOfDate,
         @RequestParam(required = false) String knowledgeCutoffTime,
-        @RequestParam(required = false) Long benchmarkId
+        @RequestParam(required = false) Long benchmarkId,
+        @RequestParam(required = false, defaultValue = "3Y") String horizon
     ) {
         if (!schemeOptionRepository.existsById(schemeOptionId)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
@@ -741,7 +772,7 @@ public class AnalysisController {
         }
 
         BetaDynamicsResponse response = analysisService.executeBetaCalculation(
-            schemeOptionId, date, cutoff, benchmarkId
+            schemeOptionId, date, cutoff, benchmarkId, horizon
         );
         return ResponseEntity.ok(response);
     }

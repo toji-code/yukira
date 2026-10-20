@@ -11,4 +11,7 @@ public interface SourceArtifactRepository extends JpaRepository<SourceArtifact, 
     Optional<SourceArtifact> findBySha256Hash(String sha256Hash);
     Optional<SourceArtifact> findTopByOrderByRetrievalTimestampDesc();
     Optional<SourceArtifact> findTopByArtifactTypeOrderByRetrievalTimestampDesc(String artifactType);
+    Optional<SourceArtifact> findFirstByStorageUri(String storageUri);
+    boolean existsByStorageUri(String storageUri);
+    boolean existsByStorageUriContaining(String fragment);
 }

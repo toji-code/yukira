@@ -15,4 +15,10 @@ public interface SecurityIdentifierRepository extends JpaRepository<SecurityIden
     Optional<SecurityIdentifier> findTopBySecurityIdAndIdType(Long securityId, String idType);
 
     List<SecurityIdentifier> findBySecurityIdInAndIdType(List<Long> securityIds, String idType);
+
+    Optional<SecurityIdentifier> findByIdTypeAndIdValue(String idType, String idValue);
+
+    Optional<SecurityIdentifier> findTopByIdTypeAndIdValueOrderByIdAsc(String idType, String idValue);
+
+    List<SecurityIdentifier> findByIdType(String idType);
 }

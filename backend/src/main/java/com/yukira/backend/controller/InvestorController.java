@@ -1,10 +1,12 @@
 package com.yukira.backend.controller;
 
 import com.yukira.backend.domain.entity.Investor;
-import com.yukira.backend.domain.entity.InvestorWatchlist;
 import com.yukira.backend.dto.portfolio.PortfolioHoldingDto;
 import com.yukira.backend.dto.portfolio.PortfolioHoldingRequest;
 import com.yukira.backend.dto.portfolio.PortfolioSummaryDto;
+import com.yukira.backend.dto.watchlist.WatchlistNoteRequest;
+import com.yukira.backend.dto.watchlist.WatchlistRequest;
+import com.yukira.backend.dto.watchlist.WatchlistResponse;
 import com.yukira.backend.service.InvestorService;
 import com.yukira.backend.service.portfolio.InvestorPortfolioService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,22 +38,41 @@ public class InvestorController {
     @GetMapping("/watchlist")
     public List<WatchlistResponse> getWatchlist(@AuthenticationPrincipal Jwt jwt) {
         String subject = jwt != null ? jwt.getSubject() : null;
-        return investorService.getWatchlist(subject).stream()
-                .map(w -> new WatchlistResponse(w.getScheme().getId(), w.getScheme().getCode()))
-                .collect(Collectors.toList());
+        return investorService.getWatchlistDtoList(subject);
     }
 
     @PostMapping("/watchlist")
     public WatchlistResponse addWatchlist(@AuthenticationPrincipal Jwt jwt, @RequestBody WatchlistRequest req) {
         String subject = jwt != null ? jwt.getSubject() : null;
-        InvestorWatchlist w = investorService.addWatchlist(subject, req.schemeId());
-        return new WatchlistResponse(w.getScheme().getId(), w.getScheme().getCode());
+        return investorService.addWatchlistDto(subject, req);
+    }
+
+    @PutMapping("/watchlist/{schemeId}")
+    public WatchlistResponse updateWatchlistNote(@AuthenticationPrincipal Jwt jwt,
+                                                 @PathVariable Long schemeId,
+                                                 @RequestBody WatchlistNoteRequest req) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        return investorService.updateWatchlistNote(subject, schemeId, req);
+    }
+
+    @PutMapping("/watchlist/option/{schemeOptionId}")
+    public WatchlistResponse updateWatchlistNoteByOption(@AuthenticationPrincipal Jwt jwt,
+                                                         @PathVariable Long schemeOptionId,
+                                                         @RequestBody WatchlistNoteRequest req) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        return investorService.updateWatchlistNoteByOption(subject, schemeOptionId, req);
     }
 
     @DeleteMapping("/watchlist/{schemeId}")
     public void removeWatchlist(@AuthenticationPrincipal Jwt jwt, @PathVariable Long schemeId) {
         String subject = jwt != null ? jwt.getSubject() : null;
         investorService.removeWatchlist(subject, schemeId);
+    }
+
+    @DeleteMapping("/watchlist/option/{schemeOptionId}")
+    public void removeWatchlistByOption(@AuthenticationPrincipal Jwt jwt, @PathVariable Long schemeOptionId) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        investorService.removeWatchlistByOption(subject, schemeOptionId);
     }
 
     @GetMapping("/portfolio")
@@ -79,8 +100,6 @@ public class InvestorController {
     }
 
     public record AccountResponse(Long id, String auth0Subject) {}
-    public record WatchlistRequest(Long schemeId) {}
-    public record WatchlistResponse(Long schemeId, String code) {}
     public record PortfolioRequest(Long schemeOptionId, BigDecimal units, BigDecimal costBasisAmount) {}
     public record PortfolioResponse(Long schemeOptionId, BigDecimal units) {}
 }

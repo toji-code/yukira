@@ -43,15 +43,27 @@ class ApiControllerTest {
     @Autowired
     private MetricResultRepository metricResultRepository;
 
+    @Autowired
+    private com.yukira.backend.repository.NavObservationRepository navObservationRepository;
+
+    @Autowired
+    private com.yukira.backend.repository.PortfolioSnapshotRepository portfolioSnapshotRepository;
+
+    @Autowired
+    private com.yukira.backend.controller.PortfolioController portfolioController;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        SchemeController schemeController = new SchemeController(schemeRepository, schemeOptionRepository);
+        SchemeController schemeController = new SchemeController(
+            schemeRepository, schemeOptionRepository, null, null, null,
+            navObservationRepository, portfolioSnapshotRepository
+        );
         CalculationRunController calculationRunController = new CalculationRunController(
             calculationOrchestratorService, calculationRunRepository, metricResultRepository
         );
-        mockMvc = MockMvcBuilders.standaloneSetup(healthController, schemeController, calculationRunController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(healthController, schemeController, calculationRunController, portfolioController).build();
     }
 
     @Test
@@ -75,11 +87,74 @@ class ApiControllerTest {
     }
 
     @Test
+    @DisplayName("Schemes endpoint searches by fund name, AMFI code, and returns AMC details")
+    void testSchemesSearchByNameAndIdentifier() throws Exception {
+        mockMvc.perform(get("/api/v1/schemes?search=HDFC")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].name").exists());
+
+        mockMvc.perform(get("/api/v1/schemes?search=118955")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].code", is("HDFC_FLEXI")));
+    }
+
+    @Test
+    @DisplayName("Scheme options endpoint exposes exact share-class IDs, AMFI code, and verified data availability")
+    void testSchemeOptionsBySchemeIdWithFreshness() throws Exception {
+        mockMvc.perform(get("/api/v1/schemes/1/options")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].id", is(1)))
+            .andExpect(jsonPath("$[0].amfiCode", is("118955")))
+            .andExpect(jsonPath("$[0].optionType", is("GROWTH")))
+            .andExpect(jsonPath("$[0].plan.planType", is("DIRECT")))
+            .andExpect(jsonPath("$[0].latestNavDate").exists())
+            .andExpect(jsonPath("$[0].navObservationCount").exists());
+    }
+
+    @Test
     @DisplayName("Trigger calculation run returns 400 when missing required fields")
     void testTriggerCalculationValidation() throws Exception {
         mockMvc.perform(post("/api/v1/calculation-runs")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Pairwise overlap and correlation endpoints return verified evidence for canonical pilots")
+    void testPairwiseOverlapAndCorrelationEndpoints() throws Exception {
+        mockMvc.perform(get("/api/v1/schemes/options/overlap?schemeOptionIdA=1&schemeOptionIdB=10262")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.schemeOptionIdA", is(1)))
+            .andExpect(jsonPath("$.schemeOptionIdB", is(10262)))
+            .andExpect(jsonPath("$.qualityState").exists())
+            .andExpect(jsonPath("$.commonSecurityCount").isNumber());
+
+        mockMvc.perform(get("/api/v1/schemes/options/correlation?schemeOptionIdA=1&schemeOptionIdB=10262")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.schemeOptionIdA", is(1)))
+            .andExpect(jsonPath("$.schemeOptionIdB", is(10262)))
+            .andExpect(jsonPath("$.calculationStatus").exists())
+            .andExpect(jsonPath("$.comparabilityStatus").exists());
+    }
+
+    @Test
+    @DisplayName("Scheme endpoint resolves by both alphanumeric schemeCode and numeric ID")
+    void testSchemeResolutionByIdentifierAndOptions() throws Exception {
+        mockMvc.perform(get("/api/v1/schemes/HDFC_FLEXI")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.code", is("HDFC_FLEXI")))
+            .andExpect(jsonPath("$.name", is("HDFC Flexi Cap Fund")));
+
+        mockMvc.perform(get("/api/v1/schemes/HDFC_FLEXI/options")
+                .accept(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].amfiCode", is("118955")));
     }
 }

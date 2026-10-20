@@ -31,6 +31,36 @@ public class SchemeOption implements Serializable {
     @Transient
     private com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore;
 
+    @Transient
+    private String latestNavDate;
+
+    @Transient
+    private Long navObservationCount;
+
+    @Transient
+    private String latestHoldingsDate;
+
+    @Transient
+    private Integer holdingsCount;
+
+    @Transient
+    private String navFreshnessState;
+
+    @Transient
+    private String navFreshnessExplanation;
+
+    @Transient
+    private String holdingsFreshnessState;
+
+    @Transient
+    private String holdingsFreshnessExplanation;
+
+    @Transient
+    private Double holdingsRawSumPercentage;
+
+    @Transient
+    private Integer snapshotCount;
+
     public SchemeOption() {}
 
     public SchemeOption(SchemePlan plan, String optionType, String amfiCode, String isin) {
@@ -60,4 +90,34 @@ public class SchemeOption implements Serializable {
 
     public com.yukira.backend.scoring.dto.YukiraScoreSummary getYukiraScore() { return yukiraScore; }
     public void setYukiraScore(com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore) { this.yukiraScore = yukiraScore; }
+
+    public String getLatestNavDate() { return latestNavDate; }
+    public void setLatestNavDate(String latestNavDate) { this.latestNavDate = latestNavDate; }
+
+    public Long getNavObservationCount() { return navObservationCount; }
+    public void setNavObservationCount(Long navObservationCount) { this.navObservationCount = navObservationCount; }
+
+    public String getLatestHoldingsDate() { return latestHoldingsDate; }
+    public void setLatestHoldingsDate(String latestHoldingsDate) { this.latestHoldingsDate = latestHoldingsDate; }
+
+    public Integer getHoldingsCount() { return holdingsCount; }
+    public void setHoldingsCount(Integer holdingsCount) { this.holdingsCount = holdingsCount; }
+
+    public String getNavFreshnessState() { return navFreshnessState; }
+    public void setNavFreshnessState(String navFreshnessState) { this.navFreshnessState = navFreshnessState; }
+
+    public String getNavFreshnessExplanation() { return navFreshnessExplanation; }
+    public void setNavFreshnessExplanation(String navFreshnessExplanation) { this.navFreshnessExplanation = navFreshnessExplanation; }
+
+    public String getHoldingsFreshnessState() { return holdingsFreshnessState; }
+    public void setHoldingsFreshnessState(String holdingsFreshnessState) { this.holdingsFreshnessState = holdingsFreshnessState; }
+
+    public String getHoldingsFreshnessExplanation() { return holdingsFreshnessExplanation; }
+    public void setHoldingsFreshnessExplanation(String holdingsFreshnessExplanation) { this.holdingsFreshnessExplanation = holdingsFreshnessExplanation; }
+
+    public Double getHoldingsRawSumPercentage() { return holdingsRawSumPercentage; }
+    public void setHoldingsRawSumPercentage(Double holdingsRawSumPercentage) { this.holdingsRawSumPercentage = holdingsRawSumPercentage; }
+
+    public Integer getSnapshotCount() { return snapshotCount; }
+    public void setSnapshotCount(Integer snapshotCount) { this.snapshotCount = snapshotCount; }
 }

@@ -34,6 +34,9 @@ public class Amc implements Serializable {
     public String getLegalName() { return legalName; }
     public void setLegalName(String legalName) { this.legalName = legalName; }
 
+    @com.fasterxml.jackson.annotation.JsonProperty("name")
+    public String getName() { return legalName; }
+
     public String getCode() { return code; }
     public void setCode(String code) { this.code = code; }
 

@@ -34,8 +34,8 @@ function applyThemeToDom(resolved: ResolvedTheme) {
 const ThemeContext = createContext<ThemeContextType>({
   theme: "dark",
   resolvedTheme: "dark",
-  setTheme: () => {},
-  toggleTheme: () => {},
+  setTheme: () => { },
+  toggleTheme: () => { },
   mounted: false,
 });
 

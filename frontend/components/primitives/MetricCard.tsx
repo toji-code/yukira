@@ -39,6 +39,8 @@ export interface MetricCardProps {
   onExecute?: () => void;
   runId?: number | null;
   disabledReason?: string;
+  investigationQuestion?: string;
+  onInvestigate?: (question: string) => void;
 }
 
 /**
@@ -92,6 +94,8 @@ export function MetricCard({
   onExecute,
   runId,
   disabledReason,
+  investigationQuestion,
+  onInvestigate,
 }: MetricCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -237,6 +241,31 @@ export function MetricCard({
           )}
 
           <div className="flex items-center gap-2">
+            {investigationQuestion && onInvestigate && (
+              <button
+                type="button"
+                onClick={() => onInvestigate(investigationQuestion)}
+                className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                title="Investigate this metric in Research Workspace"
+              >
+                <svg
+                  className="h-3 w-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                  />
+                </svg>
+                <span>Investigate</span>
+              </button>
+            )}
+
             {runId && (
               <Link href={`/analysis/${runId}`} className="btn btn-secondary btn-sm">
                 Audit run #{runId}

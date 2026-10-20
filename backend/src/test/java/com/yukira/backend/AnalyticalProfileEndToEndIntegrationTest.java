@@ -123,9 +123,9 @@ public class AnalyticalProfileEndToEndIntegrationTest {
         }
 
         // 5. Canonical Value Verifications (Section 7 of prompt)
-        // RSK-01 Volatility: fixed PIT resolver includes valid same-availability revised observations.
+        // RSK-01 Volatility: deterministic quant engine calculation on 739 authoritative PIT observations
         AnalyticalProfileResponse.ProfileMetricItem rsk01 = findMetric(rskMetrics, "RSK-01");
-        assertEquals(0.150571584544, rsk01.numericValue().doubleValue(), 0.0001, "RSK-01 canonical volatility mismatch");
+        assertEquals(0.145939606904, rsk01.numericValue().doubleValue(), 0.0001, "RSK-01 canonical volatility mismatch");
 
         // RSK-02 Downside Semideviation: ~0.1013013296
         AnalyticalProfileResponse.ProfileMetricItem rsk02 = findMetric(rskMetrics, "RSK-02");

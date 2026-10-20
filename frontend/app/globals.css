@@ -10,136 +10,211 @@
 
 :root {
   /* ==========================================================================
-     AURALIS LIGHT MODE DESIGN SYSTEM (Primary Reference)
+     YUKIRA LIGHT THEME DESIGN SYSTEM (Authoritative Stitch Template DESIGN.md)
+     Warm linen / alabaster substrates, deep obsidian typography, audited gold
      ========================================================================== */
-  --background: #ffffff;
+  --background: #faf8f5;
   --surface: #ffffff;
-  --surface-raised: #f6f6f6;
-  --surface-inset: #f1edec;
+  --surface-raised: #fbf9f4;
+  --surface-inset: #f8f5ee;
+  --surface-hover: #f7f2e6;
 
-  --border: #ebebeb;
-  --border-strong: #747878;
-  --border-focus: #111111;
+  --surface-obsidian: #faf8f5;
+  --surface-midnight: #ffffff;
+  --surface-navy-raised: #fbf9f4;
+  --surface-navy-hover: #f7f2e6;
+  --surface-container-low: #f5f3f0;
+  --surface-container: #efeeeb;
+  --surface-container-high: #eae8e5;
 
-  --text-primary: #111111;
-  --text-secondary: #666666;
-  --text-tertiary: #9a9a9a;
-  --text-disabled: #c7c6c6;
+  --border: #e6dcce;
+  --border-subtle: #dfd7c8;
+  --border-strong: #d2c5b0;
+  --border-focus: #b88e28;
+  --border-gold-subtle: rgba(212, 175, 55, 0.35);
+  --border-gold-bright: #b88e28;
+  --border-gold-muted: rgba(212, 175, 55, 0.5);
 
-  --accent: #111111;
-  --accent-hover: #333333;
-  --accent-muted: #f6f6f6;
+  --text-primary: #111622;
+  --text-secondary: #555d6b;
+  --text-tertiary: #6c7482;
+  --text-disabled: #a0a6b2;
+  --text-muted: #6c7482;
+
+  --text-cream-bright: #111622;
+  --text-cream-body: #353c48;
+  --text-cream-muted: #6c7482;
+
+  --accent: #b88e28;
+  --accent-gold: #b88e28;
+  --accent-hover: #997316;
+  --accent-muted: rgba(212, 175, 55, 0.15);
   --accent-foreground: #ffffff;
 
+  --primary: #b88e28;
+  --primary-container: #d4af37;
+  --champagne-light: #fdf9ee;
+
   /* Semantic state colors */
-  --approved-fg: #1f7a4d;
-  --approved-bg: #e6f4ec;
+  --approved-fg: #15803d;
+  --approved-bg: #edfbf2;
   --approved-border: #a8d5bd;
 
-  --candidate-fg: #8a6216;
-  --candidate-bg: #fbf1dd;
+  --candidate-fg: #997316;
+  --candidate-bg: #fdf9ee;
   --candidate-border: #e0c489;
 
-  --operational-fg: #1f6488;
-  --operational-bg: #e3eff6;
+  --operational-fg: #1d4ed8;
+  --operational-bg: #f0f6ff;
   --operational-border: #a3c8dc;
 
   --unavailable-fg: #5a656e;
   --unavailable-bg: #f1f3f5;
   --unavailable-border: #d3d9de;
 
-  --risk-fg: #b3362c;
+  --risk-fg: #c0392b;
   --risk-bg: #fceae8;
   --risk-border: #eeb4ad;
 
-  --critical-fg: #b3261e;
-  --critical-bg: #fce6e5;
+  --critical-fg: #ba1a1a;
+  --critical-bg: #ffdad6;
   --critical-border: #efada8;
 
-  --info-fg: #4a565f;
+  --info-fg: #595e6d;
   --info-bg: #f1f3f5;
   --info-border: #dde2e6;
 
-  --series-1: #111111;
-  --series-2: #666666;
-  --series-neg: #b3362c;
-  --series-muted: #ebebeb;
+  --status-approved: #15803d;
+  --status-approved-bg: #edfbf2;
+  --status-candidate: #997316;
+  --status-candidate-bg: #fdf9ee;
+  --status-risk: #c0392b;
+  --status-risk-bg: #fceae8;
+  --status-operational: #1d4ed8;
+  --status-operational-bg: #f0f6ff;
+
+  --series-1: #b88e28;
+  --series-2: #555d6b;
+  --series-neg: #c0392b;
+  --series-muted: #e6dcce;
 
   --foreground: var(--text-primary);
   --surface-elevated: var(--surface-raised);
   --surface-muted: var(--surface-inset);
   --card: var(--surface);
   --card-foreground: var(--text-primary);
-  --border-subtle: color-mix(in srgb, var(--border) 60%, var(--background));
-  --text-muted: var(--text-tertiary);
-  --primary: var(--text-primary);
-  --primary-foreground: var(--background);
   --success: var(--approved-fg);
   --warning: var(--candidate-fg);
   --danger: var(--risk-fg);
   --info: var(--operational-fg);
 
-  --font-heading: var(--font-inter);
+  --font-heading: var(--font-plus-jakarta-sans, var(--font-inter));
+  --font-inter: var(--font-plus-jakarta-sans);
+  --font-manrope: var(--font-plus-jakarta-sans);
+  --font-geist-mono: var(--font-space-mono);
+
+  --glow-gold-color: rgba(212, 175, 55, 0.12);
 }
 
 .dark,
 [data-theme="dark"] {
   /* ==========================================================================
-     ROMER DARK MODE DESIGN SYSTEM (Primary Reference)
+     YUKIRA SOVEREIGN GOLD & ROYAL MIDNIGHT DESIGN SYSTEM (DESIGN.md)
+     Canvas & Substrates: Deep Obsidian, Royal Midnight, Elevated Navy
+     Metallic Hierarchy: Sovereign Gold (#d4af37), Champagne Gold (#e6ca65)
+     Text: Cream White (#f8f6f0), Warm Parchment (#dcd7cc), Muted Sand (#969082)
      ========================================================================== */
-  --background: #131314;
-  --surface: #1c1b1d;
-  --surface-raised: #201f21;
-  --surface-inset: #0e0e0f;
+  --background: #0a0e17;
+  --surface: #101826;
+  --surface-raised: #162032;
+  --surface-inset: #0a0e17;
+  --surface-hover: #1c283e;
 
-  --border: #2a2a2b;
-  --border-strong: #353436;
-  --border-focus: #50d8e9;
+  --surface-obsidian: #0a0e17;
+  --surface-midnight: #101826;
+  --surface-navy-raised: #162032;
+  --surface-navy-hover: #1c283e;
+  --surface-container-low: #111726;
+  --surface-container: #151e30;
+  --surface-container-high: #1b253b;
 
-  --text-primary: #e5e2e3;
-  --text-secondary: #9ba6b0;
-  --text-tertiary: #8f8fa1;
-  --text-disabled: #474646;
+  --border: #2c281e;
+  --border-subtle: rgba(212, 175, 55, 0.15);
+  --border-strong: #3d3522;
+  --border-focus: #c5a059;
+  --border-gold-subtle: rgba(212, 175, 55, 0.15);
+  --border-gold-bright: #c5a059;
+  --border-gold-muted: rgba(212, 175, 55, 0.28);
 
-  --accent: #5e6bff;
-  --accent-hover: #7a85ff;
-  --accent-muted: #1f2bc8;
-  --accent-foreground: #f0f1f2;
+  --text-primary: #f8f6f0;
+  --text-secondary: #dcd7cc;
+  --text-tertiary: #969082;
+  --text-disabled: #555046;
+  --text-muted: #969082;
 
-  --approved-fg: #5bc98c;
-  --approved-bg: #0f2a1d;
+  --text-cream-bright: #f8f6f0;
+  --text-cream-body: #dcd7cc;
+  --text-cream-muted: #969082;
+
+  --accent: #d4af37;
+  --accent-gold: #d4af37;
+  --accent-hover: #e6ca65;
+  --accent-muted: rgba(212, 175, 55, 0.15);
+  --accent-foreground: #0a0e17;
+
+  --primary: #f2ca50;
+  --primary-container: #d4af37;
+  --champagne-light: #f3e5ab;
+
+  --approved-fg: #4ade80;
+  --approved-bg: #0e291b;
   --approved-border: #1e4433;
 
-  --candidate-fg: #ffb689;
-  --candidate-bg: #471e00;
-  --candidate-border: #e0731d;
+  --candidate-fg: #f5d166;
+  --candidate-bg: #2c2310;
+  --candidate-border: #4a3a1a;
 
-  --operational-fg: #50d8e9;
-  --operational-bg: #00363c;
-  --operational-border: #00b1c2;
+  --operational-fg: #9fc0ec;
+  --operational-bg: #162740;
+  --operational-border: #2a4468;
 
-  --unavailable-fg: #8f8fa1;
-  --unavailable-bg: #1c1b1d;
-  --unavailable-border: #2a2a2b;
+  --unavailable-fg: #969082;
+  --unavailable-bg: #101826;
+  --unavailable-border: #2c281e;
 
-  --risk-fg: #ffb4ab;
-  --risk-bg: #690005;
-  --risk-border: #93000a;
+  --risk-fg: #f87171;
+  --risk-bg: #301519;
+  --risk-border: #4e2622;
 
   --critical-fg: #ffb4ab;
-  --critical-bg: #93000a;
-  --critical-border: #ba1a1a;
+  --critical-bg: #3b1414;
+  --critical-border: #56201c;
 
-  --info-fg: #bec2ff;
-  --info-bg: #1f2bc8;
-  --info-border: #7a85ff;
+  --info-fg: #dcd7cc;
+  --info-bg: #162032;
+  --info-border: #2c281e;
 
-  --series-1: #50d8e9;
-  --series-2: #bec2ff;
-  --series-neg: #ffb4ab;
-  --series-muted: #2a2a2b;
+  --status-approved: #4ade80;
+  --status-approved-bg: #0e291b;
+  --status-candidate: #f5d166;
+  --status-candidate-bg: #2c2310;
+  --status-risk: #f87171;
+  --status-risk-bg: #301519;
+  --status-operational: #9fc0ec;
+  --status-operational-bg: #162740;
 
-  --font-heading: var(--font-inter);
+  --series-1: #d4af37;
+  --series-2: #969082;
+  --series-neg: #f87171;
+  --series-muted: #2c281e;
+
+  --foreground: var(--text-primary);
+  --card: var(--surface);
+  --card-foreground: var(--text-primary);
+
+  --font-heading: var(--font-plus-jakarta-sans, var(--font-inter));
+
+  --glow-gold-color: rgba(212, 175, 55, 0.22);
 }
 
 @theme {
@@ -153,6 +228,35 @@
   --color-surface-muted: var(--surface-inset);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+
+  /* Specific Design Tokens mapped to theme-adaptive variables */
+  --color-surface-obsidian: var(--surface-obsidian);
+  --color-surface-midnight: var(--surface-midnight);
+  --color-surface-navy-raised: var(--surface-navy-raised);
+  --color-surface-navy-hover: var(--surface-navy-hover);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+
+  --color-accent: var(--accent);
+  --color-accent-gold: var(--accent-gold);
+  --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-champagne-light: var(--champagne-light);
+  --color-text-cream-bright: var(--text-cream-bright);
+  --color-text-cream-body: var(--text-cream-body);
+  --color-text-cream-muted: var(--text-cream-muted);
+
+  --color-border-gold-subtle: var(--border-gold-subtle);
+  --color-border-gold-bright: var(--border-gold-bright);
+  --color-border-gold-muted: var(--border-gold-muted);
+
+  --color-status-approved: var(--status-approved);
+  --color-status-approved-bg: var(--status-approved-bg);
+  --color-status-candidate: var(--status-candidate);
+  --color-status-candidate-bg: var(--status-candidate-bg);
+  --color-status-risk: var(--status-risk);
+  --color-status-risk-bg: var(--status-risk-bg);
 
   /* Borders */
   --color-border: var(--border);
@@ -203,9 +307,9 @@
   --color-series-muted: var(--series-muted);
 
   /* Type families — mono is data, sans is language */
-  --font-sans: var(--font-inter);
-  --font-heading: var(--font-heading);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-plus-jakarta-sans), var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-plus-jakarta-sans), system-ui, sans-serif;
+  --font-mono: var(--font-space-mono), var(--font-geist-mono), monospace;
 
   /* Type scale. Minimum rendered size is 11px. */
   --text-display: clamp(2rem, 4vw, 2.75rem);
@@ -951,6 +1055,25 @@
   .scroll-region {
     overflow-x: auto;
     scrollbar-width: thin;
+  }
+
+  /* ---------------------------------------------------------------------
+     Ambient gold radiance & tabular numbers from DESIGN.md
+     --------------------------------------------------------------------- */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 25px -4px rgba(212, 175, 55, 0.12);
+  }
+
+  .glow-gold-sm {
+    box-shadow: 0 4px 16px -2px rgba(212, 175, 55, 0.18);
+  }
+
+  .glow-gold-lg {
+    box-shadow: 0 8px 32px -8px rgba(212, 175, 55, 0.28);
   }
 }
 
