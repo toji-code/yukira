@@ -94,3 +94,122 @@ export async function searchSchemeOptions(query: string): Promise<SchemeOption[]
   if (!query || query.trim().length === 0) return [];
   return apiFetch<SchemeOption[]>(`/api/v1/schemes/options?search=${encodeURIComponent(query.trim())}`);
 }
+
+export interface ScreenerMetricValue {
+  metricCode: string;
+  numericValue: number | null;
+  formattedValue: string;
+  periodType: string;
+  units: string;
+  calculationStatus: string;
+  percentileRank?: number | null;
+  formattedPercentile?: string | null;
+  peerDenominator?: number | null;
+  rankingDirection?: string | null;
+  peerCohortStatus?: string | null;
+  unavailableReason?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface ScreenerItem {
+  schemeOptionId: number;
+  schemeId: number;
+  schemeCode: string;
+  schemeName: string;
+  amcId: number;
+  amcName: string;
+  amfiCode: string;
+  isin: string;
+  category: string;
+  categoryDisplayName: string;
+  distinctNavDates: number;
+  sufficiencyStatus: string;
+  isEligibleFor3Y: boolean;
+  exclusionReason?: string | null;
+  candidateBenchmarkCode: string;
+  candidateBenchmarkName: string;
+  benchmarkGovernanceStatus: string;
+  benchmarkObservationCount: number;
+  benchmarkCoverageStatus: string;
+  latestCalculationRunId?: number | null;
+  asOfDate: string;
+  knowledgeCutoffTime?: string | null;
+  calculationStatus: string;
+  validMetricCount?: number;
+  metrics: Record<string, ScreenerMetricValue>;
+  allTimeNavDates?: number | null;
+  earliestNavDate?: string | null;
+  latestNavDate?: string | null;
+  dataFreshnessStatus?: string | null;
+  planType?: string;
+  optionType?: string;
+  horizon?: string;
+  isEligibleForHorizon?: boolean;
+}
+
+export interface CategoryScreenerSummary {
+  category: string;
+  displayName: string;
+  candidateBenchmarkCode: string;
+  totalOptions: number;
+  eligibleCount: number;
+  partialCount: number;
+  calculatedCount: number;
+}
+
+export interface ScreenerMetricDefinition {
+  metricCode: string;
+  metricName: string;
+  category: string;
+  units: string;
+  evaluationWindow: string;
+  benchmarkDependent: boolean;
+  formulaDescription: string;
+  epistemicStatus: string;
+  rankingDirection?: string | null;
+  percentileInterpretation?: string | null;
+}
+
+export interface UniverseScreenerResponse {
+  asOfDate: string;
+  totalReferenceOptions: number;
+  eligibleOptionsCount: number;
+  partialOptionsCount: number;
+  zeroHistoryCount: number;
+  calculatedOptionsCount: number;
+  allTimeSufficientCount?: number | null;
+  allTimePartialCount?: number | null;
+  threeYearSufficientCount?: number | null;
+  categorySummaries: Record<string, CategoryScreenerSummary>;
+  metricDefinitions: ScreenerMetricDefinition[];
+  items: ScreenerItem[];
+  governanceDisclaimers: string[];
+  generatedAt: string;
+  horizon?: string;
+  evaluationWindow?: string;
+  horizonStartDate?: string;
+  horizonThreshold?: number;
+}
+
+export async function fetchUniverseScreener(params?: {
+  category?: string;
+  eligibleOnly?: boolean;
+  asOfDate?: string;
+  horizon?: string;
+}): Promise<UniverseScreenerResponse> {
+  const queryParts: string[] = [];
+  if (params?.category && params.category !== 'ALL') {
+    queryParts.push(`category=${encodeURIComponent(params.category)}`);
+  }
+  if (params?.eligibleOnly) {
+    queryParts.push(`eligibleOnly=true`);
+  }
+  if (params?.asOfDate) {
+    queryParts.push(`asOfDate=${encodeURIComponent(params.asOfDate)}`);
+  }
+  if (params?.horizon) {
+    queryParts.push(`horizon=${encodeURIComponent(params.horizon)}`);
+  }
+  const qs = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return apiFetch<UniverseScreenerResponse>(`/api/v1/schemes/screener${qs}`, undefined, 30000);
+}

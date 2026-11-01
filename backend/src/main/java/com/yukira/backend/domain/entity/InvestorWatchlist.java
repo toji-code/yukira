@@ -33,6 +33,12 @@ public class InvestorWatchlist {
     @Column(name = "next_step")
     private String nextStep;
 
+    @Column(name = "thesis_status", length = 50)
+    private String thesisStatus = "ACTIVE_HYPOTHESIS";
+
+    @Column(name = "associated_finding_id", length = 100)
+    private String associatedFindingId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
 
@@ -64,7 +70,13 @@ public class InvestorWatchlist {
     public void setInvestigationQuestion(String investigationQuestion) { this.investigationQuestion = investigationQuestion; }
     public String getNextStep() { return nextStep; }
     public void setNextStep(String nextStep) { this.nextStep = nextStep; }
+    public String getThesisStatus() { return thesisStatus; }
+    public String getStatus() { return thesisStatus; }
+    public void setThesisStatus(String thesisStatus) { this.thesisStatus = thesisStatus; }
+    public String getAssociatedFindingId() { return associatedFindingId; }
+    public void setAssociatedFindingId(String associatedFindingId) { this.associatedFindingId = associatedFindingId; }
     public ZonedDateTime getCreatedAt() { return createdAt; }
+    public ZonedDateTime getAddedAt() { return createdAt; }
     public void setCreatedAt(ZonedDateTime createdAt) { this.createdAt = createdAt; }
     public ZonedDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(ZonedDateTime updatedAt) { this.updatedAt = updatedAt; }

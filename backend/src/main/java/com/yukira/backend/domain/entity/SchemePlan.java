@@ -37,6 +37,7 @@ public class SchemePlan implements Serializable {
     public void setScheme(Scheme scheme) { this.scheme = scheme; }
 
     public String getPlanType() { return planType; }
+    public String getPlanName() { return planType; }
     public void setPlanType(String planType) { this.planType = planType; }
 
     public String getCode() { return code; }

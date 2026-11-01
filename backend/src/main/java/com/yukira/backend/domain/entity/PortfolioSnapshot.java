@@ -51,12 +51,14 @@ public class PortfolioSnapshot implements Serializable {
     public SchemeOption getSchemeOption() { return schemeOption; }
     public void setSchemeOption(SchemeOption schemeOption) { this.schemeOption = schemeOption; }
     public LocalDate getPortfolioDate() { return portfolioDate; }
+    public LocalDate getReportingDate() { return portfolioDate; }
     public void setPortfolioDate(LocalDate portfolioDate) { this.portfolioDate = portfolioDate; }
     public Integer getRevisionSeq() { return revisionSeq; }
     public void setRevisionSeq(Integer revisionSeq) { this.revisionSeq = revisionSeq; }
     public Boolean getLatestRevision() { return isLatestRevision; }
     public void setLatestRevision(Boolean latestRevision) { isLatestRevision = latestRevision; }
     public OffsetDateTime getAvailabilityTime() { return availabilityTime; }
+    public OffsetDateTime getCreatedAt() { return availabilityTime; }
     public void setAvailabilityTime(OffsetDateTime availabilityTime) { this.availabilityTime = availabilityTime; }
     public BigDecimal getReportedTotalNetAssets() { return reportedTotalNetAssets; }
     public void setReportedTotalNetAssets(BigDecimal reportedTotalNetAssets) { this.reportedTotalNetAssets = reportedTotalNetAssets; }

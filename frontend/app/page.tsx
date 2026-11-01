@@ -1,42 +1,100 @@
 import Link from "next/link";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { YukiraBrandLogo } from "@/components/brand/YukiraBrandLogo";
+import { InvestorQuickWorkspace } from "@/components/home/InvestorQuickWorkspace";
 
-const SEVEN_STEPS = [
+const CORE_WORKFLOWS = [
   {
     ordinal: "01",
-    title: "Where am I?",
-    body: "Canonical scheme identity: AMC, Plan (Direct vs. Regular), Option (Growth vs. IDCW), AMFI Code, and ISIN.",
+    tag: "CANONICAL CATALOG",
+    title: "Fund Discovery & Analytical Profiles",
+    description:
+      "Search the verified Indian mutual fund universe by AMC, category, plan, and option. Inspect 16 deterministic metrics across return, risk, capture, and market sensitivity.",
+    guarantee:
+      "Exact scheme-option identity (Direct vs Regular, Growth vs IDCW, AMFI code, ISIN).",
+    limitation:
+      "Requires minimum 3-year trading history for full metric coverage; unverified series are excluded.",
+    primaryHref: "/funds",
+    primaryLabel: "Search Fund Catalog",
+    secondaryHref: "/funds/HDFC_FLEXI",
+    secondaryLabel: "Inspect Pilot Fund",
   },
   {
     ordinal: "02",
-    title: "What does YUKIRA know?",
-    body: "Point-in-time observation ledger: verified trading dates, knowledge cutoffs, and immutable revision history.",
+    tag: "MULTI-FUND SCREENER",
+    title: "Comparative Fund Screener",
+    description:
+      "Screen and compare candidate funds side-by-side across return quality, risk quality, benchmark-relative dispersion, and downside consistency.",
+    guarantee:
+      "Pairwise portfolio overlap analysis, correlation matrix, within-fund drift audit, and cumulative growth comparison.",
+    limitation:
+      "Comparison depends on metric eligibility and common trading periods; disparate historical horizons are flagged.",
+    primaryHref: "/compare",
+    primaryLabel: "Launch Comparative Screener",
   },
   {
     ordinal: "03",
-    title: "What does the data show?",
-    body: "Objective mathematical outputs: realized CAGR, volatility, drawdowns, capture ratios, and downside beta.",
+    tag: "INVESTOR WORKSPACE",
+    title: "Saved Research & Due Diligence",
+    description:
+      "Organize candidate funds under active investigation. Formulate structured questions, record hypothesis notes, and plan next verification steps.",
+    guarantee:
+      "Bidirectional links to portfolio holdings, guest local browser persistence, and seamless migration upon investor sign-in.",
+    limitation:
+      "Research notes remain strictly private to the allocator and are never monetized, aggregated, or shared.",
+    primaryHref: "/watchlist",
+    primaryLabel: "Open Saved Research",
   },
   {
     ordinal: "04",
-    title: "What does it mean?",
-    body: "Deterministic statistical interpretation of return dispersion and market sensitivity without promotional speculation.",
+    tag: "PORTFOLIO AUDIT",
+    title: "Portfolio Tracking & Valuation Quality",
+    description:
+      "Track external mutual fund holdings, compute deterministic NAV-based valuations, inspect asset allocation, and audit data completeness.",
+    guarantee:
+      "Holding completeness checklist (Identity, Valuation, Cost-Basis, Research Link), concentration analysis, and category allocation.",
+    limitation:
+      "Local pilot NAV history ends at 2024-01-15 cutoff; valuations are explicitly flagged as stale rather than presented as current live market pricing.",
+    primaryHref: "/portfolio",
+    primaryLabel: "Review Portfolio Holdings",
+  },
+];
+
+const FIVE_STAGE_FRAMEWORK = [
+  {
+    stage: "01",
+    title: "What the data shows",
+    summary: "Objective mathematical outputs",
+    detail:
+      "Computed in pure vectorized Python (NumPy 2, Polars). Realized CAGR, annualized volatility, peak-to-trough drawdowns, capture ratios, and downside beta without smoothing or estimation.",
   },
   {
-    ordinal: "05",
-    title: "What are the risks?",
-    body: "Downside semideviation, Ulcer Index path stress, Value at Risk (95%), and maximum historical recovery duration.",
+    stage: "02",
+    title: "Why it matters",
+    summary: "Downside capital preservation",
+    detail:
+      "Capital impairment, Ulcer Index path stress, and maximum recovery duration take priority over trailing point-to-point returns that mask intermediate drawdowns.",
   },
   {
-    ordinal: "06",
-    title: "What is missing?",
-    body: "Explicit disclosure of uningested benchmark series, missing portfolio disclosures, or unvalidated candidate metrics.",
+    stage: "03",
+    title: "Inspect the evidence",
+    summary: "Full calculation provenance",
+    detail:
+      "Every observation traces directly to an immutable source artifact with SHA-256 cryptographic digest, HTTP URI, and retrieval timestamp. Formulas and inputs are open to audit.",
   },
   {
-    ordinal: "07",
-    title: "What should I investigate next?",
-    body: "Targeted verification checkpoints: portfolio concentration, manager tenure, market regime behavior, and fee drag.",
+    stage: "04",
+    title: "Understand limitations",
+    summary: "Strict epistemic honesty",
+    detail:
+      "Missing data, stale observations, candidate methodologies, and uningested benchmarks are explicitly reported as “Not available” or “Candidate methodology”. Zero synthetic values are imputed.",
+  },
+  {
+    stage: "05",
+    title: "Investigate further",
+    summary: "Allocators formulate the questions",
+    detail:
+      "Equips the investor with structured verification checkpoints (manager tenure, fee drag, sector concentration, market regime behavior) rather than forcing automated buy/sell recommendations.",
   },
 ];
 
@@ -81,7 +139,7 @@ export default function HomePage() {
       <div className="pointer-events-none fixed -bottom-32 right-0 -z-10 h-[500px] w-[500px] bg-[#d4af37]/[0.03] blur-[140px]" />
 
       {/* Hero Masthead with Tree of Life Sigil */}
-      <section className="relative mb-12 overflow-hidden rounded-3xl border border-border-gold-subtle bg-gradient-to-b from-surface-midnight via-surface-midnight to-surface-obsidian p-6 sm:p-10 lg:p-14 shadow-2xl glow-gold">
+      <section className="relative mb-8 overflow-hidden rounded-3xl border border-border-gold-subtle bg-gradient-to-b from-surface-midnight via-surface-midnight to-surface-obsidian p-6 sm:p-10 lg:p-14 shadow-2xl glow-gold">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
           <div className="flex flex-col gap-6 max-w-3xl">
             <div className="inline-flex items-center gap-2.5 rounded-full border border-border-gold-subtle bg-surface-navy-raised/80 px-4 py-1.5 text-xs font-mono font-medium text-primary shadow-sm self-start">
@@ -97,22 +155,28 @@ export default function HomePage() {
               <strong className="text-primary font-semibold">Before you commit capital, ask one more question.</strong> YUKIRA is an institutional-grade, evidence-based verification platform for Indian mutual funds, replacing trailing returns and marketing narratives with deterministic calculation, point-in-time verification, and cryptographic provenance.
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            <div className="flex flex-wrap items-center gap-3.5 pt-2">
               <Link
                 href="/funds"
                 className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#d4af37] via-[#f2ca50] to-[#e6be44] px-7 py-3.5 font-sans text-sm font-semibold text-[#1e1704] glow-gold-sm transition-all duration-200 hover:scale-[1.02] hover:from-[#e1bc42] hover:to-[#ffd868] shadow-md active:scale-[0.98]"
               >
-                Explore Funds
+                Discover Mutual Funds
+              </Link>
+              <Link
+                href="/compare"
+                className="flex items-center justify-center rounded-full border border-border-gold-subtle bg-surface-navy-raised px-6 py-3.5 font-sans text-sm font-semibold text-text-cream-bright transition-all hover:bg-surface-navy-hover hover:border-border-gold-bright"
+              >
+                Compare Candidates
               </Link>
               <Link
                 href="/funds/HDFC_FLEXI"
-                className="flex items-center justify-center rounded-full border border-border-gold-subtle bg-surface-navy-raised px-6 py-3.5 font-sans text-sm font-semibold text-text-cream-bright transition-all hover:bg-surface-navy-hover hover:border-border-gold-bright"
+                className="flex items-center justify-center rounded-full border border-border-gold-subtle/80 bg-surface-obsidian px-5 py-3.5 font-sans text-xs font-semibold text-primary transition-all hover:border-primary"
               >
                 Canonical Pilot · HDFC Flexi Cap
               </Link>
               <Link
                 href="/methodology"
-                className="rounded-full px-5 py-3 font-sans text-sm font-semibold text-text-cream-muted transition-colors hover:text-primary"
+                className="rounded-full px-4 py-3 font-sans text-xs font-semibold text-text-cream-muted transition-colors hover:text-primary"
               >
                 Methodology & Governance &rarr;
               </Link>
@@ -128,6 +192,132 @@ export default function HomePage() {
               <YukiraBrandLogo variant="emblem" className="!h-48 !w-48 sm:!h-60 sm:!w-60" priority />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Personalized Context / Guest Research Quick Workspace */}
+      <InvestorQuickWorkspace />
+
+      {/* Core Unified Workflows Hub */}
+      <section className="mb-14" id="workflows">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary font-semibold">
+              01 · Unified Research Workflows
+            </p>
+            <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl mt-1">
+              Direct Research Entry Points
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm text-text-cream-body max-w-2xl leading-relaxed">
+              Every workflow is connected to real market data and deterministic calculation. Select an entry point to begin your investigation.
+            </p>
+          </div>
+          <Link
+            href="/funds"
+            className="rounded-full bg-surface-navy-raised px-4 py-2 font-sans text-xs font-semibold text-text-cream-bright border border-border-gold-subtle hover:text-primary hover:border-border-gold-bright transition-all shrink-0 self-start sm:self-auto"
+          >
+            Browse Complete Catalog &rarr;
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {CORE_WORKFLOWS.map((wf) => (
+            <div
+              key={wf.ordinal}
+              className="p-6 rounded-2xl border border-border-gold-subtle bg-surface-midnight/90 hover:border-border-gold-bright/60 transition-all flex flex-col justify-between shadow-xl backdrop-blur-sm glow-gold group"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-3 border-b border-border-gold-subtle/50 pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-primary">
+                      {wf.ordinal}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-text-cream-muted font-medium bg-surface-navy-raised px-2 py-0.5 rounded border border-border-gold-subtle/50">
+                      {wf.tag}
+                    </span>
+                  </div>
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+                </div>
+
+                <h3 className="text-lg font-bold text-text-cream-bright group-hover:text-primary transition-colors">
+                  {wf.title}
+                </h3>
+                <p className="mt-2 text-xs sm:text-[13px] leading-relaxed text-text-cream-body font-sans">
+                  {wf.description}
+                </p>
+
+                <div className="mt-4 pt-3 border-t border-border-gold-subtle/40 space-y-2">
+                  <div className="flex items-start gap-2 text-[11px] font-sans text-text-cream-muted">
+                    <span className="font-mono text-primary font-bold shrink-0">✓</span>
+                    <span><strong className="text-text-cream-bright font-medium">Precision:</strong> {wf.guarantee}</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-[11px] font-sans text-text-cream-muted/80">
+                    <span className="font-mono text-status-warning font-bold shrink-0">!</span>
+                    <span><strong className="text-text-cream-muted font-medium">Limitation:</strong> {wf.limitation}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-border-gold-subtle/50 flex flex-wrap items-center gap-3">
+                <Link
+                  href={wf.primaryHref}
+                  className="flex items-center justify-center rounded-full bg-surface-navy-raised px-4 py-2 font-sans text-xs font-semibold text-text-cream-bright border border-border-gold-subtle hover:text-primary hover:border-border-gold-bright transition-all"
+                >
+                  {wf.primaryLabel} &rarr;
+                </Link>
+                {wf.secondaryHref && (
+                  <Link
+                    href={wf.secondaryHref}
+                    className="rounded-full px-3 py-2 font-sans text-xs font-semibold text-text-cream-muted hover:text-primary transition-colors"
+                  >
+                    {wf.secondaryLabel}
+                  </Link>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 5-Stage Evidence-First Analytical Framework */}
+      <section className="mb-14" id="evidence-framework">
+        <div className="mb-6">
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary font-semibold">
+            02 · Analytical Method
+          </p>
+          <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl mt-1">
+            The Evidence-First Verification Process
+          </h2>
+          <p className="mt-2 text-xs sm:text-sm text-text-cream-body max-w-2xl leading-relaxed">
+            YUKIRA equips the investor with auditable quantitative evidence rather than forcing automated buy/sell conclusions. Here is how every investigation is constructed:
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {FIVE_STAGE_FRAMEWORK.map((stage) => (
+            <div
+              key={stage.stage}
+              className="p-5 rounded-2xl border border-border-gold-subtle bg-surface-midnight/90 hover:border-border-gold-muted/80 transition-all shadow-md glow-gold flex flex-col justify-between"
+            >
+              <div>
+                <span className="font-mono text-xs font-bold text-primary">
+                  {stage.stage}
+                </span>
+                <h3 className="mt-2 text-sm font-bold text-text-cream-bright">
+                  {stage.title}
+                </h3>
+                <p className="mt-1 font-mono text-[11px] text-primary/80 font-medium">
+                  {stage.summary}
+                </p>
+                <p className="mt-2.5 text-xs leading-relaxed text-text-cream-body font-sans">
+                  {stage.detail}
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-border-gold-subtle/40 font-mono text-[10px] text-text-cream-muted/70">
+                Step {stage.stage} of 05
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -148,7 +338,7 @@ export default function HomePage() {
               IMPLEMENTED ≠ VALIDATED ≠ APPROVED
             </span>
           </div>
-          <p className="text-sm leading-relaxed text-text-cream-body">
+          <p className="text-sm leading-relaxed text-text-cream-body font-sans">
             In YUKIRA, implementing an algorithm in code does not constitute approval for live investment decision support. Every calculation is governed under strict empirical validation standards across candidate, validated, and approved methodology tiers.
           </p>
           <div className="mt-4 pt-3.5 border-t border-border-gold-subtle/60 font-mono text-xs text-text-cream-muted flex flex-wrap gap-4">
@@ -171,15 +361,18 @@ export default function HomePage() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary font-semibold">
-              01 · Baseline Verification
+              03 · Empirical Baseline
             </p>
-            <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl mt-1">
               Canonical Pilot Instrument
             </h2>
+            <p className="mt-1 text-xs text-text-cream-muted font-sans">
+              Real market data verified across 5 full calendar years through the January 15, 2024 cutoff.
+            </p>
           </div>
           <Link
             href="/funds/HDFC_FLEXI"
-            className="rounded-full bg-surface-navy-raised px-4 py-2 font-sans text-xs font-semibold text-text-cream-bright border border-border-gold-subtle hover:text-primary hover:border-border-gold-bright transition-all"
+            className="rounded-full bg-surface-navy-raised px-4 py-2 font-sans text-xs font-semibold text-text-cream-bright border border-border-gold-subtle hover:text-primary hover:border-border-gold-bright transition-all shrink-0 self-start sm:self-auto"
           >
             Open Fund Workspace · HDFC Flexi Cap &rarr;
           </Link>
@@ -290,49 +483,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Progressive Disclosure Architecture */}
-      <section className="mb-14" id="framework">
-        <div className="mb-6">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary font-semibold">
-            02 · Information Architecture
-          </p>
-          <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl">
-            7-Step Progressive Disclosure Architecture
-          </h2>
-          <p className="mt-2 text-sm text-text-cream-body max-w-2xl leading-relaxed">
-            Every screen answers three simple questions: Where am I? What am I looking at? What can I do next? Showing immediate clarity at the surface, with complete mathematical evidence one level deeper.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {SEVEN_STEPS.map((step) => (
-            <div
-              key={step.ordinal}
-              className="p-5 rounded-2xl border border-border-gold-subtle bg-surface-midnight/90 hover:border-border-gold-muted/80 transition-all shadow-md glow-gold"
-            >
-              <span className="font-mono text-xs font-bold text-primary">
-                {step.ordinal}
-              </span>
-              <h3 className="mt-2 text-sm font-bold text-text-cream-bright">
-                {step.title}
-              </h3>
-              <p className="mt-2 text-xs leading-relaxed text-text-cream-body font-sans">
-                {step.body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Epistemic Architecture */}
+      {/* Epistemic Architecture & Invariants */}
       <section className="mb-14" id="philosophy">
         <div className="mb-6">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary font-semibold">
-            03 · Foundational Rules
+            04 · Epistemic Foundation
           </p>
-          <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl">
+          <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl mt-1">
             Epistemic Architecture & Invariants
           </h2>
+          <p className="mt-2 text-xs sm:text-sm text-text-cream-body max-w-2xl leading-relaxed">
+            The core principles that govern every calculation, data observation, and visual disclosure in YUKIRA.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -355,53 +517,74 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Next Verification Steps */}
-      <section className="mb-12">
-        <div className="mb-6">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-primary font-semibold">
-            04 · Continue Verification
-          </p>
-          <h2 className="text-2xl font-bold tracking-tight text-text-cream-bright sm:text-3xl">
-            Verification Workflows
-          </h2>
-        </div>
+      {/* Investor Accounts & Subscription Plans */}
+      <section className="mb-12" id="plans">
+        <div className="rounded-2xl border border-border-gold-subtle bg-gradient-to-r from-surface-midnight via-surface-midnight to-surface-obsidian p-6 sm:p-8 shadow-xl backdrop-blur-sm glow-gold">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-border-gold-subtle/50 pb-6 mb-6">
+            <div className="max-w-2xl">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-primary font-semibold">
+                05 · Investor Accounts & Access
+              </p>
+              <h2 className="text-xl font-bold text-text-cream-bright sm:text-2xl mt-1">
+                Transparent Research Tiers
+              </h2>
+              <p className="mt-2 text-xs sm:text-sm text-text-cream-body font-sans leading-relaxed">
+                YUKIRA provides evidence-based analysis for individual allocators and institutional research teams with transparent feature access.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/pricing"
+                className="flex items-center justify-center rounded-full bg-gradient-to-r from-[#d4af37] via-[#f2ca50] to-[#e6be44] px-6 py-2.5 font-sans text-xs font-semibold text-[#1e1704] glow-gold-sm transition-all duration-200 hover:scale-[1.02] hover:from-[#e1bc42] hover:to-[#ffd868] shadow-md active:scale-[0.98]"
+              >
+                View Plans & Pricing
+              </Link>
+              <Link
+                href="/account"
+                className="flex items-center justify-center rounded-full border border-border-gold-subtle bg-surface-navy-raised px-5 py-2.5 font-sans text-xs font-semibold text-text-cream-bright transition-all hover:bg-surface-navy-hover hover:border-border-gold-bright"
+              >
+                Investor Account &rarr;
+              </Link>
+            </div>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          {[
-            {
-              href: "/funds",
-              title: "Explore Funds Catalog",
-              note: "Search canonical scheme universe by AMC, category, plan, and option with live AMFI data availability.",
-            },
-            {
-              href: "/funds/HDFC_FLEXI",
-              title: "Review Analytical Profile",
-              note: "Sixteen point-in-time metrics across return, risk, ratio, and market dimensions for canonical pilot HDFC Flexi Cap.",
-            },
-            {
-              href: "/methodology",
-              title: "Governance Specifications",
-              note: "Methodology lifecycle, approval states, and frozen Phase 2H mathematical definitions.",
-            },
-          ].map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="p-6 rounded-2xl border border-border-gold-subtle bg-surface-midnight/90 hover:border-primary/60 hover:bg-surface-navy-raised/60 transition-all flex flex-col justify-between shadow-lg glow-gold group"
-            >
-              <div>
-                <h3 className="text-base font-bold text-text-cream-bright group-hover:text-primary transition-colors">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-xs text-text-cream-muted leading-relaxed font-sans">
-                  {item.note}
-                </p>
-              </div>
-              <div className="mt-4 font-mono text-xs font-semibold text-primary flex items-center gap-1.5">
-                Open workflow &rarr;
-              </div>
-            </Link>
-          ))}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-surface-obsidian/60 border border-border-gold-subtle/40">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-text-cream-muted font-bold">
+                TIER 1 · FREE / GUEST
+              </span>
+              <h4 className="text-sm font-bold text-text-cream-bright mt-1">
+                Public Exploration
+              </h4>
+              <p className="mt-1 text-xs text-text-cream-muted font-sans leading-relaxed">
+                Public fund discovery, pilot fund analytical profiles, and local browser research storage without an account.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-obsidian/60 border border-border-gold-subtle/40">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-primary font-bold">
+                TIER 2 · PRO INVESTOR
+              </span>
+              <h4 className="text-sm font-bold text-text-cream-bright mt-1">
+                Workspace & Portfolio
+              </h4>
+              <p className="mt-1 text-xs text-text-cream-muted font-sans leading-relaxed">
+                Full saved research workspace, cloud synchronization, external portfolio tracking, and multi-fund comparisons.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-obsidian/60 border border-border-gold-subtle/40">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-text-cream-muted font-bold">
+                TIER 3 · INSTITUTIONAL
+              </span>
+              <h4 className="text-sm font-bold text-text-cream-bright mt-1">
+                Custom Research
+              </h4>
+              <p className="mt-1 text-xs text-text-cream-muted font-sans leading-relaxed">
+                Custom benchmark integration, security-level look-through analysis, and institutional data lineage export.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </PageContainer>

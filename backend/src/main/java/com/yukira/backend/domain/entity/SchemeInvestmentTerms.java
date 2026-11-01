@@ -64,12 +64,14 @@ public class SchemeInvestmentTerms implements Serializable {
     public void setScheme(Scheme scheme) { this.scheme = scheme; }
 
     public BigDecimal getMinSipAmount() { return minSipAmount; }
+    public BigDecimal getMinimumSipAmount() { return minSipAmount; }
     public void setMinSipAmount(BigDecimal minSipAmount) { this.minSipAmount = minSipAmount; }
 
     public String getSipFrequencies() { return sipFrequencies; }
     public void setSipFrequencies(String sipFrequencies) { this.sipFrequencies = sipFrequencies; }
 
     public BigDecimal getMinLumpsumAmount() { return minLumpsumAmount; }
+    public BigDecimal getMinimumLumpSumAmount() { return minLumpsumAmount; }
     public void setMinLumpsumAmount(BigDecimal minLumpsumAmount) { this.minLumpsumAmount = minLumpsumAmount; }
 
     public BigDecimal getMinAdditionalAmount() { return minAdditionalAmount; }

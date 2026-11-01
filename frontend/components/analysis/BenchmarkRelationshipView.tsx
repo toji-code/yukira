@@ -303,17 +303,44 @@ export function BenchmarkRelationshipView({
         </div>
       </div>
 
-      <div className="def-list def-list-2 mt-3">
-        <div>
-          <p className="def-label">Observation Window</p>
-          <p className="def-value">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="panel-inset px-3 py-2">
+          <p className="def-label mb-0.5">Aligned Common Window</p>
+          <p className="def-value text-xs font-mono">
             {startDate} → {endDate}
           </p>
+          <p className="mono-meta mt-0.5">{pairedDays} synchronized trading days</p>
         </div>
-        <div>
-          <p className="def-label">Benchmark</p>
-          <p className="def-value">{benchmarkName}</p>
+        <div className="panel-inset px-3 py-2">
+          <p className="def-label mb-0.5">Benchmark Index &amp; Type</p>
+          <p className="def-value text-xs font-medium truncate" title={benchmarkName}>
+            {benchmarkName}
+          </p>
+          <p className="mono-meta mt-0.5 text-accent font-semibold">Total Return Index (TRI)</p>
         </div>
+        <div className="panel-inset px-3 py-2">
+          <p className="def-label mb-0.5">Benchmark Source</p>
+          <p className="def-value text-xs">Official NSE/AMFI TRI Feed</p>
+          <p className="mono-meta mt-0.5">Point-in-Time Synchronized</p>
+        </div>
+        <div className="panel-inset px-3 py-2">
+          <p className="def-label mb-0.5">Comparison Eligibility</p>
+          <div className="mt-1">
+            <span
+              className={`status-badge text-[10px] ${
+                pairedDays >= 700 ? "state-approved" : "state-unavailable"
+              }`}
+            >
+              {pairedDays >= 700
+                ? "ELIGIBLE_SYNCHRONIZED_TRI"
+                : "WITHHELD_INSUFFICIENT_PAIRED_OBSERVATIONS"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel-inset mt-3 border-l-2 border-l-accent px-3 py-2 text-xs text-text-secondary">
+        <strong className="text-text-primary">Epistemic Rule:</strong> Total Return Index (TRI) strictly enforced. Price-only index returns (PRI) are never substituted; PRI understates benchmark return by omitting dividends, which creates spurious manager alpha.
       </div>
 
       {/* ── 2. THE CONSOLIDATED EXECUTIVE METRIC ───────────────────────────── */}

@@ -254,6 +254,17 @@ public class MultiFundLookThroughService {
 
         boolean isFullyAllocated = sumWeights.subtract(HUNDRED).abs().compareTo(new BigDecimal("0.05")) <= 0;
 
+        boolean isEqualWeightAssumption = false;
+        if (request.funds().size() > 1) {
+            BigDecimal firstWeight = request.funds().get(0).allocationWeight();
+            boolean allEqual = request.funds().stream()
+                .allMatch(f -> f.allocationWeight() != null && f.allocationWeight().compareTo(firstWeight) == 0);
+            if (allEqual) {
+                isEqualWeightAssumption = true;
+                limitations.add("Illustrative assumption: all constituent funds have identical input allocations. Results reflect equal weighting rather than actual investor capital commitments.");
+            }
+        }
+
         // Normalize weights so sum = 1.0 (as fractions for math) and percentage (0..100)
         Map<Long, BigDecimal> normalizedWeightsFraction = new LinkedHashMap<>();
         Map<Long, BigDecimal> normalizedWeightsPct = new LinkedHashMap<>();
@@ -548,6 +559,44 @@ public class MultiFundLookThroughService {
             }
         }
 
+        List<String> investigationPrompts = new ArrayList<>();
+        if (sharedSecWeight.compareTo(new BigDecimal("25.00")) >= 0) {
+            investigationPrompts.add(String.format(Locale.US,
+                "Shared Exposure Check: %.2f%% of total portfolio value is concentrated in %d overlapping securities across funds. Investigate whether adding these funds provides true diversification or duplicates core holdings.",
+                sharedSecWeight.doubleValue(), sharedSecCount));
+        }
+
+        if (top10Weight.compareTo(new BigDecimal("50.00")) >= 0) {
+            investigationPrompts.add(String.format(Locale.US,
+                "Top-10 Dominance: The top 10 consolidated positions represent %.2f%% of the portfolio. Review if this level of single-stock concentration aligns with your risk tolerance.",
+                top10Weight.doubleValue()));
+        }
+
+        if (!consolidatedSectors.isEmpty() && consolidatedSectors.get(0).consolidatedWeightPct().compareTo(new BigDecimal("25.00")) >= 0) {
+            ConsolidatedSectorExposureDto topSector = consolidatedSectors.get(0);
+            investigationPrompts.add(String.format(Locale.US,
+                "Sector Tilt: Macro-sector '%s' accounts for %.2f%% of consolidated holdings. Check whether this sector exposure matches your intended asset allocation.",
+                topSector.macroSector(), topSector.consolidatedWeightPct().doubleValue()));
+        }
+
+        if (maxDeltaDays > 45) {
+            investigationPrompts.add(String.format(Locale.US,
+                "Reporting Date Discrepancy: Holdings disclosure dates differ by %d days between funds (%s to %s). Verify recent monthly fact sheets before relying on overlapping positions.",
+                maxDeltaDays, minObsDate, maxObsDate));
+        }
+
+        if (unclassifiedWeight.compareTo(new BigDecimal("5.00")) >= 0) {
+            investigationPrompts.add(String.format(Locale.US,
+                "Identity Resolution: %.2f%% of exposure corresponds to unclassified or off-benchmark instruments. Check underlying derivatives or cash positions for hidden leverage.",
+                unclassifiedWeight.doubleValue()));
+        }
+
+        if (fundSnapshotMap.size() < request.funds().size()) {
+            investigationPrompts.add(String.format(Locale.US,
+                "Incomplete Holdings Coverage: %d of %d constituent funds lack authoritative portfolio snapshots. Unrepresented funds cannot be assumed to have zero exposure; look-through metrics reflect partial coverage only.",
+                (request.funds().size() - fundSnapshotMap.size()), request.funds().size()));
+        }
+
         PortfolioRiskDecompositionDto riskDecomp = null;
         if (navObservationRepository != null && benchmarkRepository != null && benchmarkObservationRepository != null) {
             riskDecomp = computePortfolioRiskDecomposition(
@@ -558,7 +607,8 @@ public class MultiFundLookThroughService {
         return new MultiFundLookThroughResponseDto(
             asOf, cutoff, sumWeights.setScale(2, RoundingMode.HALF_UP), isFullyAllocated, qualityState,
             updatedSummaries, consolidatedSecurities, consolidatedSectors, consolidatedMarketCap,
-            pairwiseOverlapList, concentrationMetrics, diagnostics, limitations, epistemic, riskDecomp
+            pairwiseOverlapList, concentrationMetrics, diagnostics, limitations, epistemic, riskDecomp,
+            isEqualWeightAssumption, investigationPrompts
         );
     }
 

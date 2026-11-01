@@ -7,14 +7,18 @@ import com.yukira.backend.dto.analysis.*;
 import com.yukira.backend.repository.*;
 import com.yukira.backend.scoring.dto.AnalyticalScoreResponse;
 import com.yukira.backend.scoring.dto.YukiraScoreSummary;
+import com.yukira.backend.universe.AnalyticalHorizon;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @SuppressWarnings("null")
@@ -37,6 +41,9 @@ public class AnalysisService {
     private final MethodologyGovernanceService methodologyGovernanceService;
     private final PitObservationResolutionService pitObservationResolutionService;
     private final AnalyticalScoreRepository analyticalScoreRepository;
+    private final BenchmarkResolutionService benchmarkResolutionService;
+    private final MetricHorizonEligibilityService metricHorizonEligibilityService;
+    private final com.yukira.backend.universe.UniverseScreenerService universeScreenerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public static final List<String> CANONICAL_3Y_PROFILE_METRIC_CODES = List.of(
@@ -68,7 +75,54 @@ public class AnalysisService {
         MethodologyVersionRepository methodologyVersionRepository,
         MethodologyGovernanceService methodologyGovernanceService,
         PitObservationResolutionService pitObservationResolutionService,
-        @Autowired(required = false) AnalyticalScoreRepository analyticalScoreRepository
+        AnalyticalScoreRepository analyticalScoreRepository
+    ) {
+        this(
+            periodReturnCalculationService,
+            riskCalculationService,
+            calculationOrchestratorService,
+            calculationRunRepository,
+            metricResultRepository,
+            calculationRunInputObservationRepository,
+            schemeOptionRepository,
+            schemePlanRepository,
+            schemeRepository,
+            benchmarkRepository,
+            benchmarkObservationRepository,
+            validationIssueRepository,
+            navObservationRepository,
+            methodologyVersionRepository,
+            methodologyGovernanceService,
+            pitObservationResolutionService,
+            analyticalScoreRepository,
+            null,
+            null,
+            null
+        );
+    }
+
+    @Autowired
+    public AnalysisService(
+        PeriodReturnCalculationService periodReturnCalculationService,
+        RiskCalculationService riskCalculationService,
+        CalculationOrchestratorService calculationOrchestratorService,
+        CalculationRunRepository calculationRunRepository,
+        MetricResultRepository metricResultRepository,
+        CalculationRunInputObservationRepository calculationRunInputObservationRepository,
+        SchemeOptionRepository schemeOptionRepository,
+        SchemePlanRepository schemePlanRepository,
+        SchemeRepository schemeRepository,
+        BenchmarkRepository benchmarkRepository,
+        BenchmarkObservationRepository benchmarkObservationRepository,
+        ValidationIssueRepository validationIssueRepository,
+        NavObservationRepository navObservationRepository,
+        MethodologyVersionRepository methodologyVersionRepository,
+        MethodologyGovernanceService methodologyGovernanceService,
+        PitObservationResolutionService pitObservationResolutionService,
+        @Autowired(required = false) AnalyticalScoreRepository analyticalScoreRepository,
+        @Autowired(required = false) BenchmarkResolutionService benchmarkResolutionService,
+        @Autowired(required = false) MetricHorizonEligibilityService metricHorizonEligibilityService,
+        @Autowired(required = false) com.yukira.backend.universe.UniverseScreenerService universeScreenerService
     ) {
         this.periodReturnCalculationService = periodReturnCalculationService;
         this.riskCalculationService = riskCalculationService;
@@ -87,6 +141,9 @@ public class AnalysisService {
         this.methodologyGovernanceService = methodologyGovernanceService;
         this.pitObservationResolutionService = pitObservationResolutionService;
         this.analyticalScoreRepository = analyticalScoreRepository;
+        this.benchmarkResolutionService = benchmarkResolutionService;
+        this.metricHorizonEligibilityService = metricHorizonEligibilityService;
+        this.universeScreenerService = universeScreenerService;
     }
 
 
@@ -124,7 +181,8 @@ public class AnalysisService {
             request.schemeOptionId(),
             request.endDate(),
             request.knowledgeCutoffTime(),
-            tag
+            tag,
+            request.effectiveHorizon()
         );
 
         return buildRet03Response(run);
@@ -143,7 +201,8 @@ public class AnalysisService {
             request.schemeOptionId(),
             request.endDate(),
             request.knowledgeCutoffTime(),
-            tag
+            tag,
+            request.effectiveHorizon()
         );
 
         return buildRsk01Response(run);
@@ -270,12 +329,90 @@ public class AnalysisService {
         Objects.requireNonNull(request.asOfDate(), "asOfDate must not be null");
         Objects.requireNonNull(request.knowledgeCutoffTime(), "knowledgeCutoffTime must not be null");
 
+        AnalyticalHorizon targetHorizon = request.effectiveHorizon();
+
+        // 1. Direct Run ID Lookup (preserves audit lineage from screener or URL)
+        if (request.runId() != null) {
+            CalculationRun specificRun = calculationRunRepository.findById(request.runId())
+                .orElseThrow(() -> new IllegalArgumentException("Requested calculation run #" + request.runId() + " not found"));
+            if (specificRun.getSchemeOption() == null || !specificRun.getSchemeOption().getId().equals(request.schemeOptionId())) {
+                throw new IllegalArgumentException("Calculation run #" + request.runId() + " belongs to scheme option #"
+                    + (specificRun.getSchemeOption() != null ? specificRun.getSchemeOption().getId() : "null")
+                    + ", which does not match requested scheme option #" + request.schemeOptionId());
+            }
+            List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunId(specificRun.getId()));
+            return buildAnalyticalProfileResponse(specificRun, results, targetHorizon);
+        }
+
+        // 2. Idempotent Run Lookup: check for existing compatible run for the exact temporal cutoffs and horizon
+        boolean forceRecalc = Boolean.TRUE.equals(request.forceRecalculate()) ||
+            (request.parameters() != null && Boolean.TRUE.equals(request.parameters().get("force_recalculate")));
+
+        if (!forceRecalc) {
+            List<CalculationRun> existingRuns = calculationRunRepository.findBySchemeOptionIdAndAsOfDateOrderByExecutionStartedAtDesc(
+                request.schemeOptionId(), request.asOfDate()
+            );
+            List<String> targetCodes = request.metricCodes() != null && !request.metricCodes().isEmpty()
+                ? request.metricCodes() : CANONICAL_3Y_PROFILE_METRIC_CODES;
+
+            for (CalculationRun existingRun : existingRuns) {
+                if (("SUCCESS".equalsIgnoreCase(existingRun.getRunStatus()) || "COMPLETED".equalsIgnoreCase(existingRun.getRunStatus()))
+                    && existingRun.getKnowledgeCutoffTime() != null
+                    && existingRun.getKnowledgeCutoffTime().isEqual(request.knowledgeCutoffTime())) {
+
+                    // Verify benchmark compatibility if explicitly requested
+                    if (request.benchmarkId() != null && existingRun.getBenchmark() != null
+                        && !existingRun.getBenchmark().getId().equals(request.benchmarkId())) {
+                        continue;
+                    }
+
+                    List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunId(existingRun.getId()));
+                    Set<String> presentCodes = results.stream().map(MetricResult::getMetricCode).collect(Collectors.toSet());
+
+                    // Run must cover the requested metric set
+                    if (!presentCodes.containsAll(targetCodes)) {
+                        continue;
+                    }
+
+                    // Run must match requested horizon: periodType on results must match targetHorizon.getCode()
+                    boolean matchesHorizon = results.stream().anyMatch(r ->
+                        targetHorizon.getCode().equalsIgnoreCase(r.getPeriodType())
+                    );
+                    if (!matchesHorizon) {
+                        continue;
+                    }
+
+                    // Must have usable metrics and not be completely failed
+                    boolean hasUsableMetrics = results.stream().anyMatch(r ->
+                        ("CALCULATED".equalsIgnoreCase(r.getCalculationStatus()) && r.getNumericValue() != null)
+                        || "INSUFFICIENT_DATA".equalsIgnoreCase(r.getCalculationStatus())
+                    );
+                    boolean allFailed = results.stream().allMatch(r -> "FAILED".equalsIgnoreCase(r.getCalculationStatus()));
+
+                    if (hasUsableMetrics && !allFailed) {
+                        return buildAnalyticalProfileResponse(existingRun, results, targetHorizon);
+                    }
+                }
+            }
+        }
+
         Long benchmarkId = request.benchmarkId();
         if (benchmarkId == null) {
-            Benchmark bm = benchmarkRepository.findByCode("NIFTY_500_TRI")
-                .orElseGet(() -> benchmarkRepository.findAll().stream().findFirst()
-                    .orElseThrow(() -> new IllegalStateException("NIFTY_500_TRI benchmark not registered")));
-            benchmarkId = bm.getId();
+            if (benchmarkResolutionService != null) {
+                SchemeOption opt = schemeOptionRepository.findById(request.schemeOptionId()).orElse(null);
+                if (opt != null) {
+                    var res = benchmarkResolutionService.resolveBenchmarkForOption(opt, request.asOfDate());
+                    if (res != null && res.benchmark() != null) {
+                        benchmarkId = res.benchmark().getId();
+                    }
+                }
+            }
+            if (benchmarkId == null) {
+                Benchmark bm = benchmarkRepository.findByCode("NIFTY_500_TRI")
+                    .orElseGet(() -> benchmarkRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new IllegalStateException("NIFTY_500_TRI benchmark not registered")));
+                benchmarkId = bm.getId();
+            }
         }
 
         List<String> metricCodes = request.metricCodes() != null && !request.metricCodes().isEmpty()
@@ -290,6 +427,10 @@ public class AnalysisService {
         if (request.parameters() != null) {
             params.putAll(request.parameters());
         }
+        params.put("horizon", targetHorizon.getCode());
+        params.put("lookback_years", targetHorizon.getYears());
+        params.put("min_observations", targetHorizon.getDefaultThreshold());
+        params.put("start_date", targetHorizon.calculateStartDate(request.asOfDate()).toString());
         params.putIfAbsent("periods_per_year", 252.0);
         params.putIfAbsent("min_downside_observations", 100);
 
@@ -304,7 +445,7 @@ public class AnalysisService {
         );
 
         List<MetricResult> results = filterLegacyRel02(metricResultRepository.findByCalculationRunId(run.getId()));
-        return buildAnalyticalProfileResponse(run, results);
+        return buildAnalyticalProfileResponse(run, results, targetHorizon);
     }
 
     /**
@@ -1534,6 +1675,15 @@ public class AnalysisService {
 
     @Transactional(readOnly = true)
     public AnalyticalProfileResponse buildAnalyticalProfileResponse(CalculationRun run, List<MetricResult> results) {
+        return buildAnalyticalProfileResponse(run, results, null);
+    }
+
+    @Transactional(readOnly = true)
+    public AnalyticalProfileResponse buildAnalyticalProfileResponse(
+        CalculationRun run,
+        List<MetricResult> results,
+        AnalyticalHorizon explicitHorizon
+    ) {
         SchemeOption option = run.getSchemeOption();
         if (option != null && option.getId() != null) {
             option = schemeOptionRepository.findById(option.getId()).orElse(option);
@@ -1551,7 +1701,24 @@ public class AnalysisService {
             benchmark = benchmarkRepository.findById(benchmark.getId()).orElse(benchmark);
         }
 
-        LocalDate startDate = run.getAsOfDate().minusYears(3);
+        // Resolve effective horizon
+        AnalyticalHorizon horizon = explicitHorizon;
+        if (horizon == null && results != null) {
+            boolean has10Y = results.stream().anyMatch(r -> "10Y".equalsIgnoreCase(r.getPeriodType()));
+            boolean has5Y = results.stream().anyMatch(r -> "5Y".equalsIgnoreCase(r.getPeriodType()));
+            if (has10Y) {
+                horizon = AnalyticalHorizon.TEN_YEAR;
+            } else if (has5Y) {
+                horizon = AnalyticalHorizon.FIVE_YEAR;
+            } else {
+                horizon = AnalyticalHorizon.THREE_YEAR;
+            }
+        }
+        if (horizon == null) {
+            horizon = AnalyticalHorizon.THREE_YEAR;
+        }
+
+        LocalDate startDate = horizon.calculateStartDate(run.getAsOfDate());
 
         AnalyticalProfileResponse.ProfileContext context = new AnalyticalProfileResponse.ProfileContext(
             run.getId(),
@@ -1569,8 +1736,33 @@ public class AnalysisService {
             startDate,
             run.getAsOfDate(),
             run.getKnowledgeCutoffTime(),
-            run.getRunStatus()
+            run.getRunStatus(),
+            horizon.getCode()
         );
+
+        com.yukira.backend.universe.EquityUniverseCategory eqCat = null;
+        if (scheme != null) {
+            eqCat = com.yukira.backend.universe.EquityUniverseCategory.fromSource(scheme.getCategory(), scheme.getSubcategory());
+        }
+
+        Map<String, com.yukira.backend.universe.UniverseScreenerDto.MetricValueDto> screenerMetrics = Collections.emptyMap();
+        if (universeScreenerService != null && eqCat != null && option != null) {
+            try {
+                var screenerResp = universeScreenerService.getScreenerData(eqCat, false, run.getAsOfDate(), horizon);
+                if (screenerResp != null && screenerResp.items() != null) {
+                    for (var sItem : screenerResp.items()) {
+                        if (option.getId() != null && option.getId().equals(sItem.schemeOptionId())) {
+                            if (sItem.metrics() != null) {
+                                screenerMetrics = sItem.metrics();
+                            }
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // Non-blocking fallback if screener data retrieval encounters issue
+            }
+        }
 
         List<AnalyticalProfileResponse.ProfileMetricItem> returnMetrics = new ArrayList<>();
         List<AnalyticalProfileResponse.ProfileMetricItem> riskMetrics = new ArrayList<>();
@@ -1584,11 +1776,31 @@ public class AnalysisService {
             String name = meta != null ? meta.name() : code;
             String cat = meta != null ? meta.category() : "OTHER";
             String units = r.getUnits() != null ? r.getUnits() : (meta != null ? meta.defaultUnits() : "UNKNOWN");
-            String periodType = r.getPeriodType() != null ? r.getPeriodType() : (meta != null ? meta.defaultPeriod() : "3Y");
-            String govStatus = meta != null ? meta.governanceStatus() : "CANDIDATE";
-            String formula = meta != null ? meta.formula() : "";
+            String periodType = r.getPeriodType() != null ? r.getPeriodType() : (meta != null ? meta.defaultPeriod() : horizon.getCode());
+            String govStatus;
+            String formula;
             String interp = meta != null ? meta.interpretation() : "";
             String limit = meta != null ? meta.limitations() : "";
+
+            if (metricHorizonEligibilityService != null) {
+                var elig = metricHorizonEligibilityService.getEligibility(code, horizon);
+                govStatus = elig.governanceStatus();
+                if (elig.formulaDisclosure() != null && !elig.formulaDisclosure().isBlank()) {
+                    formula = elig.formulaDisclosure();
+                } else {
+                    formula = meta != null ? meta.formula() : "";
+                }
+                if (elig.knownLimitations() != null && !elig.knownLimitations().isBlank()) {
+                    limit = elig.knownLimitations();
+                }
+            } else {
+                if (horizon == AnalyticalHorizon.THREE_YEAR) {
+                    govStatus = meta != null ? meta.governanceStatus() : "CANDIDATE";
+                } else {
+                    govStatus = "CANDIDATE";
+                }
+                formula = meta != null ? meta.formula() : "";
+            }
 
             String invQuestion = getCanonicalInvestigationQuestion(code);
             Map<String, Object> diags = new HashMap<>();
@@ -1598,6 +1810,38 @@ public class AnalysisService {
                 } catch (Exception ignored) {}
             }
             diags.putIfAbsent("investigationQuestion", invQuestion);
+            diags.putIfAbsent("requested_horizon", horizon.getCode());
+            diags.putIfAbsent("observation_threshold", horizon.getDefaultThreshold());
+            diags.putIfAbsent("evaluation_window_start", startDate != null ? startDate.toString() : null);
+            diags.putIfAbsent("evaluation_window_end", run.getAsOfDate() != null ? run.getAsOfDate().toString() : null);
+            diags.putIfAbsent("benchmark_mapping_status", "CANDIDATE");
+            diags.putIfAbsent("benchmark_code", context.benchmarkCode());
+            diags.putIfAbsent("benchmark_name", context.benchmarkName());
+            diags.putIfAbsent("degrees_of_freedom", "N - 1");
+            diags.putIfAbsent("annualization_convention", (code.startsWith("RSK-") || code.startsWith("REL-") || code.startsWith("MKT-") || code.startsWith("RAT-")) ? "√252 trading days" : (code.startsWith("RET-") ? "365.25 Julian days" : "Unannualized"));
+            diags.putIfAbsent("zero_synthetic_interpolation", true);
+            diags.putIfAbsent("point_in_time_enforced", true);
+
+            Double pRank = null;
+            String fPercentile = null;
+            String peerCohort = null;
+            String rDirection = null;
+            String unavailReason = null;
+
+            var mv = screenerMetrics.get(code);
+            if (mv != null) {
+                pRank = mv.percentileRank();
+                fPercentile = mv.formattedPercentile();
+                if (mv.peerDenominator() != null && mv.peerDenominator() > 0) {
+                    peerCohort = mv.peerDenominator() + " " + (eqCat != null ? eqCat.getDisplayName() : "Category") + " Peers";
+                }
+                rDirection = mv.rankingDirection();
+                unavailReason = mv.unavailableReason();
+            }
+
+            if (unavailReason == null && !"SUCCESS".equalsIgnoreCase(r.getCalculationStatus())) {
+                unavailReason = r.getErrorMessage() != null ? r.getErrorMessage() : "Metric unavailable for evaluation window";
+            }
 
             AnalyticalProfileResponse.ProfileMetricItem item = new AnalyticalProfileResponse.ProfileMetricItem(
                 code,
@@ -1614,7 +1858,12 @@ public class AnalysisService {
                 limit,
                 r.getErrorMessage(),
                 diags,
-                invQuestion
+                invQuestion,
+                pRank,
+                fPercentile,
+                peerCohort,
+                rDirection,
+                unavailReason
             );
 
             if ("RETURN_BENCHMARK".equals(cat)) {
@@ -1645,28 +1894,48 @@ public class AnalysisService {
         long rfCount = inputObsLinks.stream().filter(l -> l.getRiskFreeObservation() != null).count();
 
         List<Ret02AnalysisResponse.InputObservationRef> sampleObservations = new ArrayList<>();
-        int sampleLimit = 10;
-        for (int i = 0; i < Math.min(inputObsLinks.size(), sampleLimit); i++) {
-            CalculationRunInputObservation link = inputObsLinks.get(i);
-            NavObservation nav = link.getNavObservation();
-            if (nav != null) {
-                sampleObservations.add(new Ret02AnalysisResponse.InputObservationRef(
-                    nav.getId(),
-                    i == 0 ? "START" : (i == inputObsLinks.size() - 1 ? "END" : "INTERMEDIATE"),
-                    nav.getEffectiveDate(),
-                    nav.getRevisionSeq(),
-                    nav.getNavValue(),
-                    nav.getAvailabilityTime(),
-                    nav.getQualityAssessment(),
-                    nav.getVerificationStatus(),
-                    nav.getRevisionStatus(),
-                    nav.getTemporalStatus() != null ? nav.getTemporalStatus() : "CURRENT",
-                    nav.getPresenceStatus(),
-                    "NONE",
-                    "HISTORICAL_BACKFILL",
-                    nav.getSourceArtifact() != null ? nav.getSourceArtifact().getId() : null,
-                    nav.getSourceArtifact() != null ? nav.getSourceArtifact().getSha256Hash() : null
-                ));
+        List<CalculationRunInputObservation> navLinks = inputObsLinks.stream()
+            .filter(l -> l.getNavObservation() != null)
+            .sorted(Comparator.comparing(CalculationRunInputObservation::getEffectiveDate))
+            .toList();
+
+        if (!navLinks.isEmpty()) {
+            int total = navLinks.size();
+            Set<Integer> selectedIndices = new LinkedHashSet<>();
+            selectedIndices.add(0);
+            if (total > 2) {
+                selectedIndices.add(1);
+            }
+            if (total > 4) {
+                selectedIndices.add(total / 4);
+                selectedIndices.add(total / 2);
+                selectedIndices.add((total * 3) / 4);
+                selectedIndices.add(total - 2);
+            }
+            selectedIndices.add(total - 1);
+
+            for (int idx : selectedIndices) {
+                CalculationRunInputObservation link = navLinks.get(idx);
+                NavObservation nav = link.getNavObservation();
+                if (nav != null) {
+                    sampleObservations.add(new Ret02AnalysisResponse.InputObservationRef(
+                        nav.getId(),
+                        idx == 0 ? "START" : (idx == total - 1 ? "END" : "INTERMEDIATE"),
+                        nav.getEffectiveDate(),
+                        nav.getRevisionSeq(),
+                        nav.getNavValue(),
+                        nav.getAvailabilityTime(),
+                        nav.getQualityAssessment(),
+                        nav.getVerificationStatus(),
+                        nav.getRevisionStatus(),
+                        nav.getTemporalStatus() != null ? nav.getTemporalStatus() : "CURRENT",
+                        nav.getPresenceStatus(),
+                        "NONE",
+                        "HISTORICAL_BACKFILL",
+                        nav.getSourceArtifact() != null ? nav.getSourceArtifact().getId() : null,
+                        nav.getSourceArtifact() != null ? nav.getSourceArtifact().getSha256Hash() : null
+                    ));
+                }
             }
         }
 
@@ -1688,7 +1957,7 @@ public class AnalysisService {
             new Ret02AnalysisResponse.QualityDimension("1. Quality", "VALID", "Input observations pass non-negativity and mathematical sanity validation."),
             new Ret02AnalysisResponse.QualityDimension("2. Verification", "VERIFIED", "Corroborated against authoritative AMFI, NSE Indices, and FBIL point-in-time ledgers."),
             new Ret02AnalysisResponse.QualityDimension("3. Revision", "ORIGINAL", "Observations reflect immutable bitemporal revision states."),
-            new Ret02AnalysisResponse.QualityDimension("4. Freshness", "CURRENT", "All inputs current relative to the 3-year historical evaluation horizon."),
+            new Ret02AnalysisResponse.QualityDimension("4. Freshness", "CURRENT", "All inputs current relative to the " + horizon.getCode() + " historical evaluation horizon."),
             new Ret02AnalysisResponse.QualityDimension("5. Presence", "AVAILABLE", "Point-in-time trading day observation series complete without synthetic smoothing."),
             new Ret02AnalysisResponse.QualityDimension("6. Integrity", "NONE", "Zero unresolvable duplicate or conflicting keys detected.")
         );
@@ -1698,11 +1967,16 @@ public class AnalysisService {
             List.of("PIT_ENFORCED", "IMMUTABLE_SNAPSHOT_HASHED", "REVISION_RESOLVED")
         );
 
+        String limitationSummary = horizon == AnalyticalHorizon.THREE_YEAR
+            ? "Candidate methodologies (RET-07, RSK-01..07, REL-02, REL-03, MKT-01..05, RAT-01..04) are implemented for quantitative evaluation and are not authorized as live investment advice."
+            : "Extended " + horizon.getCode() + " analytical calculations operate under candidate methodology (Phase B1) and have not been validated across multi-cycle regimes or approved for live investment advice. Multi-year risk-adjusted metrics (Sharpe, Sortino, Treynor, Jensen's Alpha) are restricted until risk-free daily compounding methodologies are formally authorized.";
+
         AnalyticalProfileResponse.ProfileLimitations limitations = new AnalyticalProfileResponse.ProfileLimitations(
             run.getAsOfDate(),
             run.getKnowledgeCutoffTime(),
-            "All metrics computed strictly using observations known to market as of knowledge cutoff time " + run.getKnowledgeCutoffTime(),
-            "Candidate methodologies (RET-07, RSK-01..07, REL-02, REL-03) are implemented for quantitative evaluation and are not authorized as live investment advice."
+            "All metrics computed strictly using observations known to market as of knowledge cutoff time " + run.getKnowledgeCutoffTime() + " over " + horizon.getCode() + " evaluation window. PIT_AVAILABILITY_METADATA_BOUNDED: Legacy historical NAV and benchmark records without sub-second ingestion timestamps assume end-of-day cutoff availability; synthetic timestamps are never fabricated.",
+            limitationSummary,
+            horizon.getCode()
         );
 
         return new AnalyticalProfileResponse(
@@ -1784,6 +2058,10 @@ public class AnalysisService {
                 }
             }
 
+            String cat = scheme.getCategory() != null ? scheme.getCategory() : "Equity: Flexi Cap";
+            String subcat = scheme.getSubcategory();
+            LocalDate incDate = scheme.getInceptionDate();
+
             funds.add(new ComparisonResponse.ComparisonFund(
                 schemeOptionId,
                 scheme.getName(),
@@ -1793,7 +2071,15 @@ public class AnalysisService {
                 option.getIsin(),
                 plan.getPlanType(),
                 option.getOptionType(),
-                yukiraScore
+                yukiraScore,
+                null,
+                null,
+                cat,
+                subcat,
+                "NIFTY 500 TRI",
+                "NIFTY_500_TRI",
+                "TRI",
+                incDate
             ));
 
             Map<String, MetricResult> resultMap = new HashMap<>();
@@ -2130,6 +2416,12 @@ public class AnalysisService {
         if (requestedBenchmarkId != null) {
             benchmark = benchmarkRepository.findById(requestedBenchmarkId).orElse(null);
         }
+        if (benchmark == null && benchmarkResolutionService != null) {
+            var res = benchmarkResolutionService.resolveBenchmarkForOption(option, asOfDate);
+            if (res != null && res.benchmark() != null) {
+                benchmark = res.benchmark();
+            }
+        }
         if (benchmark == null) {
             benchmark = benchmarkRepository.findByCode("NIFTY_500_TRI")
                 .orElseGet(() -> benchmarkRepository.findAll().stream().findFirst().orElse(null));
@@ -2167,6 +2459,13 @@ public class AnalysisService {
         List<InternalRollingWindow> bench1YWins = calculateRollingWindows(benchNavMap, 1, 4);
         RollingConsistencyResponse.RollingHorizonResult supporting1Y = buildHorizonResult(
             "1Y", 1, 450, fund1YWins, bench1YWins, benchmark != null ? benchmark.getName() : "NIFTY 500 TRI"
+        );
+
+        // 4b. Compute 5-Year Rolling Horizon (Candidate §RET-04)
+        List<InternalRollingWindow> fund5YWins = calculateRollingWindows(fundNavMap, 5, 4);
+        List<InternalRollingWindow> bench5YWins = calculateRollingWindows(benchNavMap, 5, 4);
+        RollingConsistencyResponse.RollingHorizonResult candidate5Y = buildHorizonResult(
+            "5Y", 5, 900, fund5YWins, bench5YWins, benchmark != null ? benchmark.getName() : "NIFTY 500 TRI"
         );
 
         // 5. Build representative milestone sample windows
@@ -2242,6 +2541,14 @@ public class AnalysisService {
                 LocalDate.of(2023, 4, 30),
                 "RBI off-cycle repo rate hike cycle (+40 bps) with range-bound benchmark trading",
                 "Continuous trading days >= 126; evaluates Sharpe under compressed excess returns"
+            ),
+            new RegimeDef(
+                "REG-04",
+                "Broad-Based Expansion & Valuation Dispersion",
+                LocalDate.of(2023, 5, 1),
+                LocalDate.of(2024, 3, 31),
+                "Broad equity market expansion with mid/small cap outperformance and valuation expansion",
+                "Continuous trading days >= 126; evaluates bull participation across equity segments"
             )
         );
 
@@ -2419,6 +2726,7 @@ public class AnalysisService {
             ),
             primary3Y,
             supporting1Y,
+            candidate5Y,
             samples,
             adverseWindows,
             regimes,
@@ -2591,6 +2899,12 @@ public class AnalysisService {
         Benchmark benchmark = null;
         if (requestedBenchmarkId != null) {
             benchmark = benchmarkRepository.findById(requestedBenchmarkId).orElse(null);
+        }
+        if (benchmark == null && benchmarkResolutionService != null) {
+            var res = benchmarkResolutionService.resolveBenchmarkForOption(option, asOfDate);
+            if (res != null && res.benchmark() != null) {
+                benchmark = res.benchmark();
+            }
         }
         if (benchmark == null) {
             benchmark = benchmarkRepository.findByCode("NIFTY_500_TRI")
@@ -3093,6 +3407,12 @@ public class AnalysisService {
         if (requestedBenchmarkId != null) {
             benchmark = benchmarkRepository.findById(requestedBenchmarkId).orElse(null);
         }
+        if (benchmark == null && benchmarkResolutionService != null) {
+            var res = benchmarkResolutionService.resolveBenchmarkForOption(option, asOfDate);
+            if (res != null && res.benchmark() != null) {
+                benchmark = res.benchmark();
+            }
+        }
         if (benchmark == null) {
             benchmark = benchmarkRepository.findByCode("NIFTY_500_TRI")
                 .orElseGet(() -> benchmarkRepository.findAll().stream().findFirst().orElse(null));
@@ -3441,6 +3761,12 @@ public class AnalysisService {
         if (requestedBenchmarkId != null) {
             benchmark = benchmarkRepository.findById(requestedBenchmarkId).orElse(null);
         }
+        if (benchmark == null && benchmarkResolutionService != null) {
+            var res = benchmarkResolutionService.resolveBenchmarkForOption(option, asOfDate);
+            if (res != null && res.benchmark() != null) {
+                benchmark = res.benchmark();
+            }
+        }
         if (benchmark == null) {
             benchmark = benchmarkRepository.findByCode("NIFTY_500_TRI")
                 .orElseGet(() -> benchmarkRepository.findAll().stream().findFirst().orElse(null));
@@ -3599,6 +3925,12 @@ public class AnalysisService {
         if (requestedBenchmarkId != null) {
             benchmark = benchmarkRepository.findById(requestedBenchmarkId).orElse(null);
         }
+        if (benchmark == null && benchmarkResolutionService != null) {
+            var res = benchmarkResolutionService.resolveBenchmarkForOption(option, asOfDate);
+            if (res != null && res.benchmark() != null) {
+                benchmark = res.benchmark();
+            }
+        }
         if (benchmark == null) {
             benchmark = benchmarkRepository.findByCode("NIFTY_500_TRI")
                 .orElseGet(() -> benchmarkRepository.findAll().stream().findFirst().orElse(null));
@@ -3689,13 +4021,9 @@ public class AnalysisService {
             }
         }
 
-        int upCount = 0;
         int downCountCalculated = 0;
-        int flatCount = 0;
         for (PairedReturn pr : pairedReturns) {
-            if (pr.benchReturn() > 0.0) upCount++;
-            else if (pr.benchReturn() < 0.0) downCountCalculated++;
-            else flatCount++;
+            if (pr.benchReturn() < 0.0) downCountCalculated++;
         }
         if (pairedCount == 0 && !pairedReturns.isEmpty()) {
             pairedCount = pairedReturns.size();
@@ -3704,28 +4032,20 @@ public class AnalysisService {
             downCount = downCountCalculated;
         }
 
-        // 3. Compute full-period Upside Beta (conditioned on Rb > 0, min 100 observations)
-        Integer minUp = 100;
+        int upCount = 0;
+        int flatCount = Math.max(0, pairedCount - downCount);
+
+        // Upside Beta (MKT-06 / REL-05) is candidate / unauthorized in the operational slice
+        Integer minUp = 0;
         BigDecimal upsideBeta = null;
-        String upsideStatus = "INSUFFICIENT_DATA";
-        if (upCount >= minUp) {
-            Double ub = calculateBetaSlope(pairedReturns, "UP");
-            if (ub != null) {
-                upsideBeta = BigDecimal.valueOf(ub).setScale(4, java.math.RoundingMode.HALF_UP);
-                upsideStatus = "CALCULATED";
-            }
-        }
+        String upsideStatus = "NOT_AVAILABLE";
 
         boolean isStdSufficient = "CALCULATED".equals(standardStatus) && standardBeta != null;
         boolean isDownSufficient = "CALCULATED".equals(downsideStatus) && downsideBeta != null;
-        boolean isUpSufficient = "CALCULATED".equals(upsideStatus) && upsideBeta != null;
+        boolean isUpSufficient = false;
 
         BigDecimal asymmetry = null;
         String asymmetryStatus = "NOT_AVAILABLE";
-        if (upsideBeta != null && downsideBeta != null) {
-            asymmetry = upsideBeta.subtract(downsideBeta).setScale(4, java.math.RoundingMode.HALF_UP);
-            asymmetryStatus = "CALCULATED";
-        }
 
         LocalDate startDate = null;
         LocalDate endDate = null;
@@ -3965,22 +4285,20 @@ public class AnalysisService {
 
         String stdFmt = standardBeta != null ? String.format("%.4f", standardBeta) : "Insufficient Data";
         String downFmt = downsideBeta != null ? String.format("%.4f", downsideBeta) : "Insufficient Data";
-        String upFmt = upsideBeta != null ? String.format("%.4f", upsideBeta) : "Insufficient Data";
-        String spreadFmt = asymmetry != null ? String.format("%+.4f", asymmetry) : "N/A";
 
         String obsText = String.format(
-            "Over %d paired trading days from %s to %s against %s, the fund recorded a Standard Beta of %s, Downside Beta of %s (%d down days), Upside Beta of %s (%d up days), and Beta Asymmetry Spread of %s.",
+            "Over %d paired trading days from %s to %s against %s, the fund recorded a Standard Beta of %s (excess-return OLS vs FBIL 91-Day T-Bill) and a Downside Beta of %s (%d negative benchmark days, threshold >= %d).",
             pairedCount, startDate, endDate, bmName,
-            stdFmt, downFmt, downCount, upFmt, upCount, spreadFmt
+            stdFmt, downFmt, downCount, minDown
         );
 
-        String interpText = "Standard beta measures linear sensitivity across all trading days. Downside beta isolates co-movement on sell-off days (Rb < 0), while upside beta measures participation during advances (Rb > 0). When upside beta exceeds downside beta, the fund exhibits positive participation asymmetry. Rolling beta dynamics reveal whether market sensitivity has remained stable or drifted across distinct market regimes.";
+        String interpText = "Standard beta measures linear sensitivity of portfolio excess returns to benchmark excess returns across the full sample. Downside beta measures co-movement only on days when the benchmark declined, isolating sell-off sensitivity. A downside beta above standard beta indicates amplified participation in market declines.";
 
-        String limitText = "Beta is a conditional linear slope, not an absolute guarantee of downside protection or future alpha. Rolling windows overlap and are statistically dependent; observation counts must not be interpreted as independent trials. Zero interpolation is applied: missing dates are excluded synchronously without date substitution.";
+        String limitText = "Standard beta assumes a stationary linear covariance across all regimes and does not capture non-linear or crisis-specific sensitivity. Downside beta is estimated on negative benchmark subsets, reducing sample size and increasing estimation error. Past beta does not predict future systematic exposure. Zero interpolation is applied; missing paired dates are excluded synchronously.";
 
         String bmLineageText = String.format(
-            "Benchmark observations for %s are matched synchronously on identical calendar trading days. Out of %d paired return observations (%d minimum required for standard beta), %d were positive (%d required for upside beta), %d were negative (%d required for downside beta), and %d were flat (Rb = 0.0, strictly excluded from conditional samples).",
-            bmName, pairedCount, minPaired, upCount, minUp, downCount, minDown, flatCount
+            "Benchmark observations for %s are matched synchronously on identical calendar trading days. Out of %d paired return observations (%d minimum required for standard beta), %d were negative (%d required for downside beta), and %d were non-negative. Missing dates are excluded without date substitution or synthetic interpolation.",
+            bmName, pairedCount, minPaired, downCount, minDown, flatCount
         );
 
         return new BetaDynamicsResponse(
@@ -4127,6 +4445,278 @@ public class AnalysisService {
         Object v = diag.get(key);
         if (v instanceof Boolean b) return b;
         return fallback;
+    }
+
+    @Transactional(readOnly = true)
+    public PerformancePeriodsResponseDto evaluatePerformancePeriods(
+        Long schemeOptionId,
+        LocalDate asOfDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        LocalDate effectiveAsOf = asOfDate != null ? asOfDate : LocalDate.now();
+        OffsetDateTime effectiveCutoff = knowledgeCutoffTime != null ? knowledgeCutoffTime : OffsetDateTime.now();
+
+        SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
+            .orElseThrow(() -> new NoSuchElementException("SchemeOption not found: " + schemeOptionId));
+
+        String schemeName = option.getPlan() != null && option.getPlan().getScheme() != null
+            ? option.getPlan().getScheme().getSchemeName()
+            : "Unknown Scheme";
+
+        String benchmarkCode = benchmarkResolutionService != null
+            ? benchmarkResolutionService.resolveBenchmarkForSchemeOption(option).getCode()
+            : "NIFTY_50_TRI";
+
+        List<NavObservation> obsList = navObservationRepository.findAuthoritativeObservationsAsOfCutoff(
+            schemeOptionId, effectiveAsOf, effectiveCutoff
+        );
+
+        LocalDate earliestDate = obsList.isEmpty() ? null : obsList.get(0).getEffectiveDate();
+
+        record PeriodConfig(String key, String label, LocalDate startDate) {}
+        List<PeriodConfig> configs = new ArrayList<>();
+        configs.add(new PeriodConfig("1Y", "1-Year", effectiveAsOf.minusYears(1)));
+        configs.add(new PeriodConfig("3Y", "3-Year", effectiveAsOf.minusYears(3)));
+        configs.add(new PeriodConfig("5Y", "5-Year", effectiveAsOf.minusYears(5)));
+        configs.add(new PeriodConfig("10Y", "10-Year", effectiveAsOf.minusYears(10)));
+        if (earliestDate != null) {
+            configs.add(new PeriodConfig("INCEPTION", "Since Inception", earliestDate));
+        }
+
+        List<PerformancePeriodsResponseDto.PerformancePeriodItem> periodItems = new ArrayList<>();
+
+        for (PeriodConfig cfg : configs) {
+            if (earliestDate != null && cfg.startDate().isBefore(earliestDate) && !"INCEPTION".equals(cfg.key())) {
+                periodItems.add(new PerformancePeriodsResponseDto.PerformancePeriodItem(
+                    cfg.key(),
+                    cfg.label(),
+                    cfg.startDate(),
+                    effectiveAsOf,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    0,
+                    0,
+                    0,
+                    "INSUFFICIENT_HISTORY",
+                    "Fund inception (" + earliestDate + ") does not cover the required " + cfg.label() + " period."
+                ));
+                continue;
+            }
+
+            var startRes = periodReturnCalculationService.selectBoundaryObservation(
+                schemeOptionId, cfg.startDate(), effectiveCutoff, 4
+            );
+            var endRes = periodReturnCalculationService.selectBoundaryObservation(
+                schemeOptionId, effectiveAsOf, effectiveCutoff, 4
+            );
+
+            if (startRes.selectedObservation().isEmpty() || endRes.selectedObservation().isEmpty()) {
+                periodItems.add(new PerformancePeriodsResponseDto.PerformancePeriodItem(
+                    cfg.key(),
+                    cfg.label(),
+                    cfg.startDate(),
+                    effectiveAsOf,
+                    startRes.selectedDate(),
+                    endRes.selectedDate(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    0,
+                    startRes.lookbackDaysUsed(),
+                    endRes.lookbackDaysUsed(),
+                    "DATA_STALE",
+                    "Boundary observation not found within 4-day lookback window: " +
+                        (startRes.selectedObservation().isEmpty() ? startRes.failureReason() : endRes.failureReason())
+                ));
+                continue;
+            }
+
+            NavObservation startObs = startRes.selectedObservation().get();
+            NavObservation endObs = endRes.selectedObservation().get();
+            BigDecimal startNav = startObs.getNavValue();
+            BigDecimal endNav = endObs.getNavValue();
+
+            BigDecimal simpleReturn = BigDecimal.ZERO;
+            if (startNav.compareTo(BigDecimal.ZERO) > 0) {
+                simpleReturn = endNav.subtract(startNav).divide(startNav, 8, RoundingMode.HALF_UP);
+            }
+
+            BigDecimal annualizedReturn = null;
+            long calendarDays = ChronoUnit.DAYS.between(startRes.selectedDate(), endRes.selectedDate());
+            if (calendarDays >= 365 && startNav.compareTo(BigDecimal.ZERO) > 0 && endNav.compareTo(BigDecimal.ZERO) > 0) {
+                double years = calendarDays / 365.25;
+                double cagr = Math.pow(endNav.doubleValue() / startNav.doubleValue(), 1.0 / years) - 1.0;
+                annualizedReturn = BigDecimal.valueOf(cagr).setScale(6, RoundingMode.HALF_UP);
+            }
+
+            long tradingDays = obsList.stream()
+                .filter(o -> !o.getEffectiveDate().isBefore(startRes.selectedDate()) && !o.getEffectiveDate().isAfter(endRes.selectedDate()))
+                .count();
+
+            periodItems.add(new PerformancePeriodsResponseDto.PerformancePeriodItem(
+                cfg.key(),
+                cfg.label(),
+                cfg.startDate(),
+                effectiveAsOf,
+                startRes.selectedDate(),
+                endRes.selectedDate(),
+                startNav,
+                endNav,
+                simpleReturn,
+                annualizedReturn,
+                null,
+                null,
+                (int) tradingDays,
+                startRes.lookbackDaysUsed(),
+                endRes.lookbackDaysUsed(),
+                "ELIGIBLE",
+                "Point-in-time calculation successful."
+            ));
+        }
+
+        return new PerformancePeriodsResponseDto(
+            schemeOptionId,
+            schemeName,
+            benchmarkCode,
+            effectiveAsOf,
+            effectiveCutoff,
+            periodItems,
+            "RET-02 (Simple Period Return) is validated operational baseline. RET-03 (CAGR) is candidate methodology."
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public DrawdownEpisodesResponseDto getDrawdownEpisodes(
+        Long schemeOptionId,
+        LocalDate asOfDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        LocalDate effectiveAsOf = asOfDate != null ? asOfDate : LocalDate.now();
+        OffsetDateTime effectiveCutoff = knowledgeCutoffTime != null ? knowledgeCutoffTime : OffsetDateTime.now();
+
+        SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
+            .orElseThrow(() -> new NoSuchElementException("SchemeOption not found: " + schemeOptionId));
+
+        String schemeName = option.getPlan() != null && option.getPlan().getScheme() != null
+            ? option.getPlan().getScheme().getSchemeName()
+            : "Unknown Scheme";
+
+        List<NavObservation> obsList = navObservationRepository.findAuthoritativeObservationsAsOfCutoff(
+            schemeOptionId, effectiveAsOf, effectiveCutoff
+        );
+
+        if (obsList.isEmpty()) {
+            return new DrawdownEpisodesResponseDto(
+                schemeOptionId,
+                schemeName,
+                effectiveAsOf,
+                effectiveCutoff,
+                BigDecimal.ZERO,
+                0,
+                BigDecimal.ZERO,
+                "RECOVERED",
+                Collections.emptyList(),
+                "RSK-03 (Maximum Drawdown) and RSK-04 (Duration) are candidate methodologies."
+            );
+        }
+
+        List<DrawdownEpisodesResponseDto.DrawdownEpisodeItem> episodes = new ArrayList<>();
+        BigDecimal runningPeak = BigDecimal.ZERO;
+        LocalDate peakDate = obsList.get(0).getEffectiveDate();
+        BigDecimal troughNav = BigDecimal.ZERO;
+        LocalDate troughDate = peakDate;
+        BigDecimal maxEpisodeDrawdown = BigDecimal.ZERO;
+        int episodeIndex = 1;
+
+        for (NavObservation obs : obsList) {
+            BigDecimal nav = obs.getNavValue();
+            LocalDate dt = obs.getEffectiveDate();
+
+            if (nav.compareTo(runningPeak) >= 0) {
+                if (runningPeak.compareTo(BigDecimal.ZERO) > 0 && maxEpisodeDrawdown.compareTo(BigDecimal.valueOf(-0.01)) < 0) {
+                    int underwaterDays = (int) ChronoUnit.DAYS.between(peakDate, dt);
+                    int recoveryDays = (int) ChronoUnit.DAYS.between(troughDate, dt);
+                    episodes.add(new DrawdownEpisodesResponseDto.DrawdownEpisodeItem(
+                        episodeIndex++,
+                        peakDate,
+                        troughDate,
+                        dt,
+                        runningPeak,
+                        troughNav,
+                        maxEpisodeDrawdown.setScale(6, RoundingMode.HALF_UP),
+                        underwaterDays,
+                        recoveryDays,
+                        "RECOVERED"
+                    ));
+                }
+                runningPeak = nav;
+                peakDate = dt;
+                troughNav = nav;
+                troughDate = dt;
+                maxEpisodeDrawdown = BigDecimal.ZERO;
+            } else {
+                BigDecimal dd = nav.subtract(runningPeak).divide(runningPeak, 8, RoundingMode.HALF_UP);
+                if (dd.compareTo(maxEpisodeDrawdown) < 0) {
+                    maxEpisodeDrawdown = dd;
+                    troughNav = nav;
+                    troughDate = dt;
+                }
+            }
+        }
+
+        BigDecimal currentDrawdown = BigDecimal.ZERO;
+        String currentState = "RECOVERED";
+        if (runningPeak.compareTo(BigDecimal.ZERO) > 0 && maxEpisodeDrawdown.compareTo(BigDecimal.valueOf(-0.01)) < 0) {
+            LocalDate latestDt = obsList.get(obsList.size() - 1).getEffectiveDate();
+            BigDecimal latestNav = obsList.get(obsList.size() - 1).getNavValue();
+            currentDrawdown = latestNav.subtract(runningPeak).divide(runningPeak, 8, RoundingMode.HALF_UP);
+            currentState = "UNDERWATER";
+            int underwaterDays = (int) ChronoUnit.DAYS.between(peakDate, latestDt);
+            episodes.add(new DrawdownEpisodesResponseDto.DrawdownEpisodeItem(
+                episodeIndex,
+                peakDate,
+                troughDate,
+                null,
+                runningPeak,
+                troughNav,
+                maxEpisodeDrawdown.setScale(6, RoundingMode.HALF_UP),
+                underwaterDays,
+                null,
+                "ONGOING"
+            ));
+        }
+
+        BigDecimal maxDd = episodes.stream()
+            .map(DrawdownEpisodesResponseDto.DrawdownEpisodeItem::drawdownPercent)
+            .min(BigDecimal::compareTo)
+            .orElse(BigDecimal.ZERO);
+
+        int maxDuration = episodes.stream()
+            .mapToInt(DrawdownEpisodesResponseDto.DrawdownEpisodeItem::underwaterDays)
+            .max()
+            .orElse(0);
+
+        return new DrawdownEpisodesResponseDto(
+            schemeOptionId,
+            schemeName,
+            effectiveAsOf,
+            effectiveCutoff,
+            maxDd,
+            maxDuration,
+            currentDrawdown,
+            currentState,
+            episodes,
+            "RSK-03 (Maximum Drawdown) and RSK-04 (Duration) are candidate methodologies."
+        );
     }
 
     private String strDiag(Map<String, Object> diag, String key, String fallback) {

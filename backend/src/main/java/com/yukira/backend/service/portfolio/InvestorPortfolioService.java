@@ -47,7 +47,59 @@ public class InvestorPortfolioService {
     private final GoalDiscoveryService goalDiscoveryService;
     private final InvestorTargetAllocationRepository targetAllocationRepository;
     private final PortfolioComparisonQueryService portfolioComparisonQueryService;
+    private final com.yukira.backend.service.subscription.EntitlementService entitlementService;
+    private final InvestorWatchlistRepository watchlistRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InvestorPortfolioService(
+        InvestorRepository investorRepository,
+        InvestorPortfolioHoldingRepository portfolioHoldingRepository,
+        SchemeOptionRepository schemeOptionRepository,
+        NavObservationRepository navObservationRepository,
+        AnalyticalScoreRepository analyticalScoreRepository,
+        GoalDiscoveryService goalDiscoveryService,
+        InvestorTargetAllocationRepository targetAllocationRepository,
+        PortfolioComparisonQueryService portfolioComparisonQueryService,
+        com.yukira.backend.service.subscription.EntitlementService entitlementService,
+        InvestorWatchlistRepository watchlistRepository
+    ) {
+        this.investorRepository = investorRepository;
+        this.portfolioHoldingRepository = portfolioHoldingRepository;
+        this.schemeOptionRepository = schemeOptionRepository;
+        this.navObservationRepository = navObservationRepository;
+        this.analyticalScoreRepository = analyticalScoreRepository;
+        this.goalDiscoveryService = goalDiscoveryService;
+        this.targetAllocationRepository = targetAllocationRepository;
+        this.portfolioComparisonQueryService = portfolioComparisonQueryService;
+        this.entitlementService = entitlementService;
+        this.watchlistRepository = watchlistRepository;
+    }
+
+    public InvestorPortfolioService(
+        InvestorRepository investorRepository,
+        InvestorPortfolioHoldingRepository portfolioHoldingRepository,
+        SchemeOptionRepository schemeOptionRepository,
+        NavObservationRepository navObservationRepository,
+        AnalyticalScoreRepository analyticalScoreRepository,
+        GoalDiscoveryService goalDiscoveryService,
+        InvestorTargetAllocationRepository targetAllocationRepository,
+        PortfolioComparisonQueryService portfolioComparisonQueryService,
+        com.yukira.backend.service.subscription.EntitlementService entitlementService
+    ) {
+        this(
+            investorRepository,
+            portfolioHoldingRepository,
+            schemeOptionRepository,
+            navObservationRepository,
+            analyticalScoreRepository,
+            goalDiscoveryService,
+            targetAllocationRepository,
+            portfolioComparisonQueryService,
+            entitlementService,
+            null
+        );
+    }
 
     public InvestorPortfolioService(
         InvestorRepository investorRepository,
@@ -59,14 +111,17 @@ public class InvestorPortfolioService {
         InvestorTargetAllocationRepository targetAllocationRepository,
         PortfolioComparisonQueryService portfolioComparisonQueryService
     ) {
-        this.investorRepository = investorRepository;
-        this.portfolioHoldingRepository = portfolioHoldingRepository;
-        this.schemeOptionRepository = schemeOptionRepository;
-        this.navObservationRepository = navObservationRepository;
-        this.analyticalScoreRepository = analyticalScoreRepository;
-        this.goalDiscoveryService = goalDiscoveryService;
-        this.targetAllocationRepository = targetAllocationRepository;
-        this.portfolioComparisonQueryService = portfolioComparisonQueryService;
+        this(
+            investorRepository,
+            portfolioHoldingRepository,
+            schemeOptionRepository,
+            navObservationRepository,
+            analyticalScoreRepository,
+            goalDiscoveryService,
+            targetAllocationRepository,
+            portfolioComparisonQueryService,
+            null
+        );
     }
 
     /**
@@ -112,12 +167,55 @@ public class InvestorPortfolioService {
             .findByInvestorIdAndSchemeOptionId(investor.getId(), req.schemeOptionId())
             .orElseGet(InvestorPortfolioHolding::new);
 
+        boolean isNew = holding.getId() == null;
+        if (isNew && entitlementService != null) {
+            int currentCount = portfolioHoldingRepository.findByInvestorId(investor.getId()).size();
+            if (!entitlementService.canAddPortfolioHolding(investor, currentCount)) {
+                int maxAllowed = entitlementService.getMaxPortfolioHoldings(investor);
+                SubscriptionPlan plan = entitlementService.getEffectivePlan(investor);
+                String planName = plan != null ? plan.getName() : "Community Explorer";
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN,
+                        "Portfolio capacity reached for " + planName + " (" + maxAllowed + " holdings). Please upgrade your subscription on the Pricing or Account page to track additional positions."
+                );
+            }
+        }
+
         holding.setInvestor(investor);
         holding.setSchemeOption(option);
         holding.setUnits(req.units());
         holding.setCostBasisAmount(req.costBasisAmount());
 
         InvestorPortfolioHolding saved = portfolioHoldingRepository.save(holding);
+
+        if (watchlistRepository != null && (req.reasonSaved() != null || req.investigationQuestion() != null || req.nextStep() != null)) {
+            InvestorWatchlist watchlistEntry = watchlistRepository
+                .findByInvestorIdAndSchemeOptionId(investor.getId(), option.getId())
+                .orElseGet(() -> {
+                    InvestorWatchlist nw = new InvestorWatchlist();
+                    nw.setInvestor(investor);
+                    nw.setScheme(option.getPlan() != null ? option.getPlan().getScheme() : null);
+                    nw.setSchemeOption(option);
+                    return nw;
+                });
+            if (watchlistEntry.getScheme() == null && option.getPlan() != null) {
+                watchlistEntry.setScheme(option.getPlan().getScheme());
+            }
+            if (req.reasonSaved() != null) {
+                String clean = req.reasonSaved().trim();
+                watchlistEntry.setReasonSaved(clean.isEmpty() ? null : clean);
+            }
+            if (req.investigationQuestion() != null) {
+                String clean = req.investigationQuestion().trim();
+                watchlistEntry.setInvestigationQuestion(clean.isEmpty() ? null : clean);
+            }
+            if (req.nextStep() != null) {
+                String clean = req.nextStep().trim();
+                watchlistEntry.setNextStep(clean.isEmpty() ? null : clean);
+            }
+            watchlistRepository.save(watchlistEntry);
+        }
+
         return mapToDto(saved);
     }
 
@@ -156,8 +254,18 @@ public class InvestorPortfolioService {
         Investor investor = resolveInvestor(auth0Subject);
         List<InvestorPortfolioHolding> rawHoldings = portfolioHoldingRepository.findByInvestorId(investor.getId());
 
+        Map<Long, InvestorWatchlist> notesMap = new HashMap<>();
+        if (watchlistRepository != null) {
+            List<InvestorWatchlist> notes = watchlistRepository.findByInvestorId(investor.getId());
+            for (InvestorWatchlist n : notes) {
+                if (n.getSchemeOption() != null && n.getSchemeOption().getId() != null) {
+                    notesMap.put(n.getSchemeOption().getId(), n);
+                }
+            }
+        }
+
         List<PortfolioHoldingDto> holdings = rawHoldings.stream()
-            .map(this::mapToDto)
+            .map(h -> mapToDto(h, h.getSchemeOption() != null ? notesMap.get(h.getSchemeOption().getId()) : null))
             .collect(Collectors.toList());
 
         int totalHoldings = holdings.size();
@@ -168,20 +276,34 @@ public class InvestorPortfolioService {
                 Collections.emptyList(), Collections.emptyList(), 0,
                 Collections.emptyList(),
                 List.of("No external mutual fund holdings registered in portfolio."),
-                List.of("Add your externally held mutual fund scheme options to view deterministic portfolio analysis.")
+                List.of("Add your externally held mutual fund scheme options to view deterministic portfolio analysis."),
+                null, null, null, 0,
+                "No holdings present in this portfolio. Valuation coverage cannot be calculated.",
+                Collections.emptyList(),
+                0, 0, 0,
+                null, null,
+                "PORTFOLIO_EMPTY",
+                "No holdings present in this portfolio. Valuation freshness cannot be evaluated.",
+                null
             );
         }
 
         int valuedCount = 0;
+        int currentValuedCount = 0;
+        int staleValuedCount = 0;
+        int unavailableCount = 0;
         int scoredCount = 0;
         int missingCostBasisCount = 0;
 
         BigDecimal totalAvailableValue = BigDecimal.ZERO;
+        BigDecimal totalCurrentMarketValue = BigDecimal.ZERO;
+        BigDecimal totalLastKnownValue = BigDecimal.ZERO;
         BigDecimal totalInvestedAmount = BigDecimal.ZERO;
         boolean hasAnyInvestedAmount = false;
         boolean allHoldingsValued = true;
         boolean allHoldingsCostBasisProvided = true;
 
+        Set<Long> distinctSchemeOptionIds = new HashSet<>();
         Map<String, BigDecimal> categoryValueMap = new LinkedHashMap<>();
         Map<String, Integer> categoryCountMap = new LinkedHashMap<>();
 
@@ -193,9 +315,23 @@ public class InvestorPortfolioService {
         Set<String> historicalCutoffDates = new TreeSet<>();
 
         for (PortfolioHoldingDto h : holdings) {
+            if (h.schemeOptionId() != null) {
+                distinctSchemeOptionIds.add(h.schemeOptionId());
+            }
             if ("VALUATION_AVAILABLE".equals(h.valuationState()) && h.availableValue() != null) {
                 valuedCount++;
                 totalAvailableValue = totalAvailableValue.add(h.availableValue());
+                BigDecimal lastKnown = h.lastKnownValue() != null ? h.lastKnownValue() : h.availableValue();
+                totalLastKnownValue = totalLastKnownValue.add(lastKnown);
+
+                if ("VALUATION_CURRENT".equals(h.valuationFreshnessStatus())) {
+                    currentValuedCount++;
+                    if (h.currentMarketValue() != null) {
+                        totalCurrentMarketValue = totalCurrentMarketValue.add(h.currentMarketValue());
+                    }
+                } else {
+                    staleValuedCount++;
+                }
 
                 // Category allocation
                 String catKey = (h.category() != null && !h.category().isBlank()) ? h.category() : "Unspecified";
@@ -208,6 +344,7 @@ public class InvestorPortfolioService {
                 amcCountMap.put(amcKey, amcCountMap.getOrDefault(amcKey, 0) + 1);
             } else {
                 allHoldingsValued = false;
+                unavailableCount++;
             }
 
             if (h.investedAmount() != null) {
@@ -289,7 +426,11 @@ public class InvestorPortfolioService {
                 h.category(), h.subcategory(), h.planType(), h.optionType(), h.units(),
                 h.costBasisAmount(), h.investedAmount(), h.navValue(), h.navAsOfDate(),
                 h.valuationState(), h.availableValue(), h.absoluteGainLoss(), h.absoluteGainLossPercentage(),
-                h.analyticalScore(), h.dataQualityState(), h.createdAt(), h.yukiraScore(), weight
+                h.analyticalScore(), h.dataQualityState(), h.createdAt(), h.yukiraScore(), weight,
+                h.riskEvidence(), h.reasonSaved(), h.investigationQuestion(), h.nextStep(),
+                h.valuationFreshnessStatus(), h.freshnessExplanation(), h.lastKnownValue(), h.currentMarketValue(),
+                h.navAvailabilityTime(), h.navIngestionTime(), h.sourceArtifactHash(), h.revisionSeq(), h.qualityAssessment(),
+                h.isSavedInWatchlist(), h.savedWatchlistId(), h.holdingCompletenessStatus(), h.missingAttributes()
             );
             enrichedHoldings.add(enriched);
             if (weight != null) {
@@ -558,7 +699,11 @@ public class InvestorPortfolioService {
                 h.category(), h.subcategory(), h.planType(), h.optionType(), h.units(),
                 h.costBasisAmount(), h.investedAmount(), h.navValue(), h.navAsOfDate(),
                 h.valuationState(), h.availableValue(), h.absoluteGainLoss(), h.absoluteGainLossPercentage(),
-                h.analyticalScore(), h.dataQualityState(), h.createdAt(), h.yukiraScore(), h.portfolioWeight(), ev
+                h.analyticalScore(), h.dataQualityState(), h.createdAt(), h.yukiraScore(), h.portfolioWeight(), ev,
+                h.reasonSaved(), h.investigationQuestion(), h.nextStep(),
+                h.valuationFreshnessStatus(), h.freshnessExplanation(), h.lastKnownValue(), h.currentMarketValue(),
+                h.navAvailabilityTime(), h.navIngestionTime(), h.sourceArtifactHash(), h.revisionSeq(), h.qualityAssessment(),
+                h.isSavedInWatchlist(), h.savedWatchlistId(), h.holdingCompletenessStatus(), h.missingAttributes()
             );
             riskEnrichedHoldings.add(enrichedWithRisk);
 
@@ -634,6 +779,159 @@ public class InvestorPortfolioService {
             riskLimitations
         );
 
+        int distinctSchemeOptionsCount = distinctSchemeOptionIds.size();
+
+        // Valuation coverage message
+        String valuationCoverageMessage;
+        if (valuedCount == totalHoldings) {
+            valuationCoverageMessage = "Complete valuation coverage: All " + totalHoldings +
+                " holding(s) are valued using authoritative historical NAV observations.";
+        } else if (valuedCount > 0) {
+            valuationCoverageMessage = "Partial valuation coverage: " + valuedCount + " of " + totalHoldings +
+                " holding(s) have authoritative NAV observations. Total portfolio value and allocation breakdowns reflect ONLY the " +
+                valuedCount + " valued holding(s). " + (totalHoldings - valuedCount) + " holding(s) lack NAV observations.";
+        } else {
+            valuationCoverageMessage = "Unavailable valuation coverage: 0 of " + totalHoldings +
+                " holding(s) have authoritative NAV observations in the system. Portfolio value and allocation metrics cannot be computed deterministically.";
+        }
+
+        // Structured Investigation Prompts distinguishing Fact, Interpretation, and Suggested Action
+        List<PortfolioInvestigationItemDto> structuredInvestigations = new ArrayList<>();
+
+        if (valuedCount < totalHoldings && valuedCount > 0) {
+            structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                "PORTFOLIO_COVERAGE",
+                (totalHoldings - valuedCount) + " of " + totalHoldings + " holding(s) lack valid valuation data (" + valuedCount + " of " + totalHoldings + " valued).",
+                "Portfolio valuation and allocation percentages represent ONLY the valued universe (" + valuedCount + " holding(s)), not 100% of the portfolio.",
+                "Review unvalued positions to determine if missing observations can be resolved before relying on portfolio-level allocation totals.",
+                null,
+                null
+            ));
+        }
+
+        String latestValuationAsOfDate = historicalCutoffDates.isEmpty() ? null : ((TreeSet<String>) historicalCutoffDates).last();
+
+        String valuationFreshnessState;
+        if (valuedCount == 0) {
+            valuationFreshnessState = "PORTFOLIO_UNAVAILABLE";
+        } else if (currentValuedCount == totalHoldings) {
+            valuationFreshnessState = "PORTFOLIO_CURRENT";
+        } else if (currentValuedCount > 0) {
+            valuationFreshnessState = "PORTFOLIO_PARTIAL";
+        } else {
+            valuationFreshnessState = "PORTFOLIO_STALE";
+        }
+
+        BigDecimal totalCurrentMarketValueFinal = (currentValuedCount > 0) ? totalCurrentMarketValue : null;
+        BigDecimal totalLastKnownValueFinal = (valuedCount > 0) ? totalLastKnownValue : null;
+
+        String valuationFreshnessMessage;
+        if ("PORTFOLIO_CURRENT".equals(valuationFreshnessState)) {
+            valuationFreshnessMessage = "All " + totalHoldings + " holding(s) are valued using current NAV observations within the 3-day freshness threshold.";
+        } else if ("PORTFOLIO_PARTIAL".equals(valuationFreshnessState)) {
+            valuationFreshnessMessage = "Partial freshness: " + currentValuedCount + " holding(s) valued with current NAV; " +
+                staleValuedCount + " holding(s) valued using stale last-known NAV" +
+                (unavailableCount > 0 ? "; " + unavailableCount + " holding(s) unvalued." : ".");
+        } else if ("PORTFOLIO_STALE".equals(valuationFreshnessState)) {
+            valuationFreshnessMessage = "All " + valuedCount + " valued holding(s) reflect historical last-known NAV observations as of " +
+                (latestValuationAsOfDate != null ? latestValuationAsOfDate : "prior dates") +
+                " (lag exceeds 3-day AMFI threshold). No holdings meet present-day freshness threshold.";
+        } else {
+            valuationFreshnessMessage = "Valuation unavailable: none of the " + totalHoldings + " holding(s) have authoritative NAV observations in the system.";
+        }
+
+        if (staleValuedCount > 0) {
+            dataQualityLimitations.add(staleValuedCount + " holding(s) use historical NAV observations exceeding the 3-day AMFI freshness threshold. Displayed totals represent last-known positions, not current portfolio values.");
+            investigationQuestions.add("Why are recent NAV observations unavailable for " + staleValuedCount + " holding(s)? Check source artifact ingestion logs in Evidence Explorer.");
+        }
+
+        for (PortfolioHoldingDto h : holdings) {
+            if ("VALUATION_UNAVAILABLE".equals(h.valuationState())) {
+                structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                    "VALUATION_MISSING",
+                    "Holding '" + h.fundName() + "' (AMFI: " + h.amfiCode() + ", ISIN: " + h.isin() + ") has no recorded NAV observation in YUKIRA.",
+                    "This holding cannot be valued deterministically and is excluded from portfolio total value and allocation denominators.",
+                    "Inspect the fund profile and Evidence Explorer to confirm whether historical NAV observations or ingestion records exist for this scheme option.",
+                    h.schemeOptionId(),
+                    h.fundName()
+                ));
+            } else if ("VALUATION_STALE".equals(h.valuationFreshnessStatus())) {
+                structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                    "DATA_FRESHNESS",
+                    "Holding '" + h.fundName() + "' is valued using a stale historical NAV as of " + (h.navAsOfDate() != null ? h.navAsOfDate() : "N/A") + " (valuation lag exceeds 3-day freshness policy).",
+                    "The displayed value is a last-known historical valuation (" + (h.lastKnownValue() != null ? h.lastKnownValue().toPlainString() : "N/A") + ") and MUST NOT be interpreted as current portfolio value.",
+                    "Inspect the NAV observation ledger and source artifact in Evidence Explorer to verify publication and ingestion timestamps.",
+                    h.schemeOptionId(),
+                    h.fundName()
+                ));
+            }
+        }
+
+        if ("PORTFOLIO_STALE".equals(valuationFreshnessState)) {
+            structuredInvestigations.add(0, new PortfolioInvestigationItemDto(
+                "PORTFOLIO_VALUATION_STALE",
+                "All " + valuedCount + " valued holding(s) in this portfolio rely on historical last-known NAV observations (latest effective date: " + (latestValuationAsOfDate != null ? latestValuationAsOfDate : "N/A") + ").",
+                "Current portfolio value cannot be established under the AMFI 3-day freshness policy. Displayed totals represent last-known historical positions.",
+                "Verify whether updated AMFI NAV artifacts have been retrieved or whether the portfolio is being evaluated as-of a historical knowledge cutoff.",
+                null,
+                null
+            ));
+        }
+
+        if (concentrationAnalysis != null && concentrationAnalysis.topHoldingName() != null && concentrationAnalysis.topHoldingWeight() != null) {
+            structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                "CONCENTRATION_OBSERVATION",
+                "Top holding '" + concentrationAnalysis.topHoldingName() + "' represents " + concentrationAnalysis.topHoldingWeight().toPlainString() + "% of valued portfolio exposure.",
+                "Valued assets are concentrated in this single scheme option. Portfolio performance and drawdowns will be disproportionately driven by this instrument.",
+                "Inspect the top holding's fund profile, risk metrics (downside semideviation and max drawdown), and comparison with its category benchmark.",
+                concentrationAnalysis.topHoldingSchemeOptionId(),
+                concentrationAnalysis.topHoldingName()
+            ));
+        }
+
+        if (missingCostBasisCount > 0) {
+            structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                "COST_BASIS_MISSING",
+                missingCostBasisCount + " holding(s) do not have purchase cost basis recorded.",
+                "Absolute gain/loss and percentage return cannot be computed deterministically for uncosted positions.",
+                "Update your purchase price / cost basis per unit in holding details if you wish to track position-level gain/loss.",
+                null,
+                null
+            ));
+        }
+
+        if (holdingsWithRiskEvidence < valuedCount) {
+            structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                "RISK_EVIDENCE_GAP",
+                (valuedCount - holdingsWithRiskEvidence) + " valued holding(s) currently lack complete analytical risk evidence (e.g. RSK-01 Volatility, RSK-02 Downside Semideviation).",
+                "Risk drill-down coverage is partial. Individual fund risk metrics cannot be displayed for these scheme options.",
+                "Inspect the Evidence Explorer for these scheme options to check calculation-run status and benchmark availability.",
+                null,
+                null
+            ));
+        }
+
+        int unnotedHoldingsCount = 0;
+        PortfolioHoldingDto firstUnnoted = null;
+        for (PortfolioHoldingDto h : holdings) {
+            if (h.reasonSaved() == null || h.reasonSaved().isBlank()) {
+                unnotedHoldingsCount++;
+                if (firstUnnoted == null) {
+                    firstUnnoted = h;
+                }
+            }
+        }
+        if (unnotedHoldingsCount > 0) {
+            structuredInvestigations.add(new PortfolioInvestigationItemDto(
+                "RESEARCH_CONTEXT_GAP",
+                unnotedHoldingsCount + " of " + totalHoldings + " holding(s) do not have an investor-authored investment thesis or investigation question recorded.",
+                "Explicit allocation theses and risk questions help investors evaluate positions objectively before reacting to short-term market noise.",
+                "Attach an investment thesis, due-diligence question, or verification step via holding details or synchronize from your research workspace.",
+                firstUnnoted != null ? firstUnnoted.schemeOptionId() : null,
+                firstUnnoted != null ? firstUnnoted.fundName() : null
+            ));
+        }
+
         return new PortfolioSummaryDto(
             totalHoldings,
             valuedCount,
@@ -651,7 +949,18 @@ public class InvestorPortfolioService {
             investigationQuestions,
             concentrationAnalysis,
             portfolioAnalyticalScore,
-            portfolioRiskEvidence
+            portfolioRiskEvidence,
+            distinctSchemeOptionsCount,
+            valuationCoverageMessage,
+            structuredInvestigations,
+            currentValuedCount,
+            staleValuedCount,
+            unavailableCount,
+            totalCurrentMarketValueFinal,
+            totalLastKnownValueFinal,
+            valuationFreshnessState,
+            valuationFreshnessMessage,
+            latestValuationAsOfDate
         );
     }
 
@@ -813,6 +1122,15 @@ public class InvestorPortfolioService {
      * Maps an InvestorPortfolioHolding domain entity to a rich PortfolioHoldingDto.
      */
     private PortfolioHoldingDto mapToDto(InvestorPortfolioHolding holding) {
+        InvestorWatchlist note = null;
+        if (watchlistRepository != null && holding.getInvestor() != null && holding.getSchemeOption() != null) {
+            note = watchlistRepository.findByInvestorIdAndSchemeOptionId(
+                holding.getInvestor().getId(), holding.getSchemeOption().getId()).orElse(null);
+        }
+        return mapToDto(holding, note);
+    }
+
+    private PortfolioHoldingDto mapToDto(InvestorPortfolioHolding holding, InvestorWatchlist note) {
         SchemeOption option = holding.getSchemeOption();
         SchemePlan plan = option != null ? option.getPlan() : null;
         Scheme scheme = plan != null ? plan.getScheme() : null;
@@ -839,7 +1157,16 @@ public class InvestorPortfolioService {
         BigDecimal navValue = null;
         String navAsOfDate = null;
         String valuationState = "VALUATION_UNAVAILABLE";
+        String valuationFreshnessStatus = "VALUATION_UNAVAILABLE";
+        String freshnessExplanation = "No authoritative NAV observation recorded for this scheme option.";
         BigDecimal availableValue = null;
+        BigDecimal lastKnownValue = null;
+        BigDecimal currentMarketValue = null;
+        String navAvailabilityTime = null;
+        String navIngestionTime = null;
+        String sourceArtifactHash = null;
+        Integer revisionSeq = null;
+        String qualityAssessment = null;
 
         if (schemeOptionId != null) {
             Optional<NavObservation> navOpt = navObservationRepository
@@ -847,10 +1174,41 @@ public class InvestorPortfolioService {
             if (navOpt.isPresent()) {
                 NavObservation navObs = navOpt.get();
                 navValue = navObs.getNavValue();
-                navAsOfDate = navObs.getEffectiveDate() != null ? navObs.getEffectiveDate().toString() : null;
+                LocalDate effDate = navObs.getEffectiveDate();
+                navAsOfDate = effDate != null ? effDate.toString() : null;
                 valuationState = "VALUATION_AVAILABLE";
+
+                navAvailabilityTime = navObs.getAvailabilityTime() != null ? navObs.getAvailabilityTime().toString() : null;
+                navIngestionTime = navObs.getIngestionTime() != null ? navObs.getIngestionTime().toString() : null;
+                revisionSeq = navObs.getRevisionSeq();
+                qualityAssessment = navObs.getQualityAssessment();
+                if (navObs.getSourceArtifact() != null) {
+                    sourceArtifactHash = navObs.getSourceArtifact().getSha256Hash();
+                }
+
                 if (units != null && navValue != null) {
-                    availableValue = units.multiply(navValue).setScale(4, RoundingMode.HALF_UP);
+                    lastKnownValue = units.multiply(navValue).setScale(4, RoundingMode.HALF_UP);
+                    availableValue = lastKnownValue;
+                }
+
+                if (effDate != null) {
+                    long daysDiff = java.time.temporal.ChronoUnit.DAYS.between(effDate, LocalDate.now());
+                    if (daysDiff < 0) {
+                        daysDiff = 0;
+                    }
+                    if (daysDiff <= com.yukira.backend.service.ingestion.AmfiDataFreshnessService.FRESHNESS_THRESHOLD_DAYS) {
+                        valuationFreshnessStatus = "VALUATION_CURRENT";
+                        freshnessExplanation = "NAV observation effective date (" + effDate + ") meets AMFI daily reporting freshness threshold (" + daysDiff + " days lag <= 3 days).";
+                        currentMarketValue = lastKnownValue;
+                    } else {
+                        valuationFreshnessStatus = "VALUATION_STALE";
+                        freshnessExplanation = "NAV observation is historical (" + effDate + "). Lag is " + daysDiff + " days (exceeds 3-day freshness threshold). Represents last-known value, not current market value.";
+                        currentMarketValue = null;
+                    }
+                } else {
+                    valuationFreshnessStatus = "VALUATION_UNDETERMINED";
+                    freshnessExplanation = "Effective date is missing from NAV observation record. Freshness cannot be deterministically verified.";
+                    currentMarketValue = null;
                 }
             }
         }
@@ -874,13 +1232,57 @@ public class InvestorPortfolioService {
         String dataQualityState;
         if ("VALUATION_UNAVAILABLE".equals(valuationState)) {
             dataQualityState = "MISSING_VALUATION";
-        } else if (navAsOfDate != null && isHistoricalDate(navAsOfDate)) {
+        } else if ("VALUATION_STALE".equals(valuationFreshnessStatus)) {
             dataQualityState = "HISTORICAL_EVIDENCE";
         } else {
             dataQualityState = "AVAILABLE";
         }
 
         String createdAtStr = holding.getCreatedAt() != null ? holding.getCreatedAt().toString() : null;
+        String reasonSaved = note != null ? note.getReasonSaved() : null;
+        String investigationQuestion = note != null ? note.getInvestigationQuestion() : null;
+        String nextStep = note != null ? note.getNextStep() : null;
+
+        // Data Completeness & Usability Evaluation (Empirical, non-speculative)
+        List<String> missingAttributes = new ArrayList<>();
+        if (schemeOptionId == null) {
+            missingAttributes.add("MISSING_SCHEME_OPTION_IDENTITY");
+        }
+        if (("N/A".equals(amfiCode) || amfiCode.isBlank()) && ("N/A".equals(isin) || isin.isBlank())) {
+            missingAttributes.add("MISSING_MARKET_IDENTIFIERS");
+        }
+        if (units == null || units.compareTo(BigDecimal.ZERO) <= 0) {
+            missingAttributes.add("INVALID_UNITS");
+        }
+        if (costBasis == null) {
+            missingAttributes.add("MISSING_COST_BASIS");
+        }
+        if ("VALUATION_UNAVAILABLE".equals(valuationState)) {
+            missingAttributes.add("MISSING_VALUATION_NAV");
+        } else if ("VALUATION_STALE".equals(valuationFreshnessStatus)) {
+            missingAttributes.add("STALE_VALUATION_NAV");
+        }
+        if (reasonSaved == null || reasonSaved.isBlank()) {
+            missingAttributes.add("MISSING_RESEARCH_THESIS");
+        }
+        if (investigationQuestion == null || investigationQuestion.isBlank()) {
+            missingAttributes.add("MISSING_INVESTIGATION_QUESTION");
+        }
+        if (nextStep == null || nextStep.isBlank()) {
+            missingAttributes.add("MISSING_NEXT_STEP");
+        }
+
+        String holdingCompletenessStatus;
+        if (missingAttributes.isEmpty()) {
+            holdingCompletenessStatus = "COMPLETE";
+        } else if (missingAttributes.contains("MISSING_SCHEME_OPTION_IDENTITY") || missingAttributes.contains("MISSING_VALUATION_NAV") || missingAttributes.contains("INVALID_UNITS")) {
+            holdingCompletenessStatus = "ATTENTION_REQUIRED";
+        } else {
+            holdingCompletenessStatus = "PARTIAL";
+        }
+
+        boolean isSavedInWatchlist = (note != null);
+        Long savedWatchlistId = note != null ? note.getId() : null;
 
         return new PortfolioHoldingDto(
             holding.getId(),
@@ -905,7 +1307,25 @@ public class InvestorPortfolioService {
             analyticalScore,
             dataQualityState,
             createdAtStr,
-            yukiraScore
+            yukiraScore,
+            null,
+            null,
+            reasonSaved,
+            investigationQuestion,
+            nextStep,
+            valuationFreshnessStatus,
+            freshnessExplanation,
+            lastKnownValue,
+            currentMarketValue,
+            navAvailabilityTime,
+            navIngestionTime,
+            sourceArtifactHash,
+            revisionSeq,
+            qualityAssessment,
+            isSavedInWatchlist,
+            savedWatchlistId,
+            holdingCompletenessStatus,
+            missingAttributes
         );
     }
 

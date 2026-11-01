@@ -6,6 +6,7 @@ import com.yukira.backend.client.dto.CalculationDtos.MetricOutputItemDto;
 import com.yukira.backend.client.dto.CalculationDtos.ObservationItemDto;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.repository.*;
+import com.yukira.backend.universe.AnalyticalHorizon;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +59,38 @@ public class PeriodReturnCalculationService {
         boolean requiresSubstitution,
         String failureReason
     ) {}
+
+    public record SimpleReturnCalculationResult(
+        boolean isCalculated,
+        Double returnPercentage,
+        CalculationRun calculationRun
+    ) {
+        public boolean isCalculated() { return isCalculated; }
+        public Double getReturnPercentage() { return returnPercentage; }
+        public CalculationRun getCalculationRun() { return calculationRun; }
+    }
+
+    @Transactional
+    public SimpleReturnCalculationResult calculatePeriodReturn(
+        Long schemeOptionId,
+        LocalDate fromDate,
+        LocalDate toDate,
+        OffsetDateTime knowledgeCutoff
+    ) {
+        try {
+            CalculationRun run = executeRet02Calculation(schemeOptionId, fromDate, toDate, knowledgeCutoff, "CANDIDATE_V1");
+            if ("COMPLETED".equals(run.getRunStatus())) {
+                List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+                if (!results.isEmpty() && results.get(0).getMetricValue() != null) {
+                    double returnPct = results.get(0).getMetricValue().doubleValue() * 100.0;
+                    return new SimpleReturnCalculationResult(true, returnPct, run);
+                }
+            }
+            return new SimpleReturnCalculationResult(false, null, run);
+        } catch (Exception e) {
+            return new SimpleReturnCalculationResult(false, null, null);
+        }
+    }
 
     /**
      * Selects authoritative boundary observation within candidate 4-calendar-day lookback window.
@@ -339,7 +372,8 @@ public class PeriodReturnCalculationService {
     }
 
     /**
-     * Executes deterministic RET-03 (3Y CAGR) calculation run.
+     * Executes deterministic RET-03 (CAGR) calculation run.
+     * Defaults to authoritative 3Y horizon under frozen Phase 2H methodology.
      */
     @Transactional
     public CalculationRun executeRet03Calculation(
@@ -348,19 +382,35 @@ public class PeriodReturnCalculationService {
         OffsetDateTime knowledgeCutoffTime,
         String methodologyTag // e.g. "CANDIDATE_V1"
     ) {
+        return executeRet03Calculation(schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag, AnalyticalHorizon.THREE_YEAR);
+    }
+
+    /**
+     * Executes deterministic RET-03 CAGR calculation run for an explicit analytical horizon (3Y, 5Y, 10Y).
+     */
+    @Transactional
+    public CalculationRun executeRet03Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag,
+        AnalyticalHorizon horizon
+    ) {
         Objects.requireNonNull(schemeOptionId, "schemeOptionId must not be null");
         Objects.requireNonNull(requestedEndDate, "requestedEndDate must not be null");
         Objects.requireNonNull(knowledgeCutoffTime, "knowledgeCutoffTime must not be null for PIT compliance");
 
-        LocalDate requestedStartDate = requestedEndDate.minusYears(3);
+        final AnalyticalHorizon effHorizon = horizon != null ? horizon : AnalyticalHorizon.THREE_YEAR;
+        LocalDate requestedStartDate = effHorizon.calculateStartDate(requestedEndDate);
 
         SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
             .orElseThrow(() -> new IllegalArgumentException("SchemeOption not found: " + schemeOptionId));
 
+        String methodologyCode = effHorizon == AnalyticalHorizon.THREE_YEAR ? "RET_03_3Y_CAGR" : "RET_03_" + effHorizon.getCode() + "_CAGR";
         MethodologyVersion methodologyVersion = methodologyVersionRepository
-            .findByMethodologyCodeAndVersionTag("RET_03_3Y_CAGR", methodologyTag)
+            .findByMethodologyCodeAndVersionTag(methodologyCode, methodologyTag)
             .orElseGet(() -> methodologyGovernanceService.registerMethodologyVersion(new MethodologyVersion(
-                "RET_03_3Y_CAGR", methodologyTag, "CANDIDATE", "pending_commit"
+                methodologyCode, methodologyTag, "CANDIDATE", "pending_commit"
             ), "CALCULATION_SERVICE"));
 
         if (!methodologyVersion.isLocked()) {
@@ -381,7 +431,8 @@ public class PeriodReturnCalculationService {
 
         // Check if either boundary failed
         if (startSel.selectedObservation().isEmpty() || endSel.selectedObservation().isEmpty()) {
-            String errorMsg = String.format("Insufficient evidence for RET-03: start=[%s], end=[%s]",
+            String errorMsg = String.format("Insufficient evidence for RET-03 (%s): start=[%s], end=[%s]",
+                effHorizon.getCode(),
                 startSel.failureReason() != null ? startSel.failureReason() : "OK",
                 endSel.failureReason() != null ? endSel.failureReason() : "OK"
             );
@@ -390,7 +441,7 @@ public class PeriodReturnCalculationService {
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, "RET-03", "3Y", null, "PERCENTAGE", "INSUFFICIENT_DATA"
+                run, "RET-03", effHorizon.getCode(), null, "PERCENTAGE", "INSUFFICIENT_DATA"
             );
             metricResult.setErrorMessage(errorMsg);
 
@@ -398,6 +449,8 @@ public class PeriodReturnCalculationService {
             failureDiag.put("methodology_status", "CANDIDATE");
             failureDiag.put("methodology_tag", methodologyTag);
             failureDiag.put("benchmark_required", false);
+            failureDiag.put("requested_horizon", effHorizon.getCode());
+            failureDiag.put("horizon_years", effHorizon.getYears());
             failureDiag.put("requested_start_date", requestedStartDate.toString());
             failureDiag.put("requested_end_date", requestedEndDate.toString());
             failureDiag.put("knowledge_cutoff_time", knowledgeCutoffTime.toString());
@@ -423,7 +476,7 @@ public class PeriodReturnCalculationService {
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, "RET-03", "3Y", null, "PERCENTAGE", "INSUFFICIENT_DATA"
+                run, "RET-03", effHorizon.getCode(), null, "PERCENTAGE", "INSUFFICIENT_DATA"
             );
             metricResult.setErrorMessage(errorMsg);
             metricResultRepository.save(metricResult);
@@ -450,6 +503,13 @@ public class PeriodReturnCalculationService {
 
         // 4. Dispatch deterministic calculation to Quant Engine
         try {
+            Map<String, Object> engineParams = Map.of(
+                "methodology_status", "CANDIDATE",
+                "horizon", effHorizon.getCode(),
+                "lookback_years", effHorizon.getYears(),
+                "min_observations", effHorizon.getDefaultThreshold()
+            );
+
             CalculationRequestDto requestDto = new CalculationRequestDto(
                 "RET03-" + UUID.randomUUID().toString().substring(0, 8),
                 String.valueOf(schemeOptionId),
@@ -460,7 +520,7 @@ public class PeriodReturnCalculationService {
                 List.of("RET-03"),
                 navSeries,
                 Collections.emptyList(),
-                Map.of("methodology_status", "CANDIDATE")
+                engineParams
             );
 
             CalculationResponseDto response = quantEngineClient.executeCalculation(requestDto);
@@ -470,7 +530,7 @@ public class PeriodReturnCalculationService {
                 MetricResult metricResult = new MetricResult(
                     run,
                     "RET-03",
-                    "3Y",
+                    effHorizon.getCode(),
                     item.numericValue(),
                     "PERCENTAGE",
                     item.status() != null ? item.status() : "CALCULATED"
@@ -480,6 +540,8 @@ public class PeriodReturnCalculationService {
                 diagnostics.put("methodology_status", "CANDIDATE");
                 diagnostics.put("methodology_tag", methodologyTag);
                 diagnostics.put("benchmark_required", false);
+                diagnostics.put("requested_horizon", effHorizon.getCode());
+                diagnostics.put("horizon_years", effHorizon.getYears());
                 diagnostics.put("requested_start_date", requestedStartDate.toString());
                 diagnostics.put("requested_end_date", requestedEndDate.toString());
                 diagnostics.put("selected_start_date", startObs.getEffectiveDate().toString());
@@ -515,7 +577,7 @@ public class PeriodReturnCalculationService {
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, "RET-03", "3Y", null, "PERCENTAGE", "FAILED"
+                run, "RET-03", effHorizon.getCode(), null, "PERCENTAGE", "FAILED"
             );
             metricResult.setErrorMessage(errorMsg);
 
@@ -523,6 +585,8 @@ public class PeriodReturnCalculationService {
             failureDiag.put("methodology_status", "CANDIDATE");
             failureDiag.put("methodology_tag", methodologyTag);
             failureDiag.put("benchmark_required", false);
+            failureDiag.put("requested_horizon", effHorizon.getCode());
+            failureDiag.put("horizon_years", effHorizon.getYears());
             failureDiag.put("requested_start_date", requestedStartDate.toString());
             failureDiag.put("requested_end_date", requestedEndDate.toString());
             failureDiag.put("selected_start_date", startObs.getEffectiveDate().toString());

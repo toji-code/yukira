@@ -46,9 +46,11 @@ public class SecurityIdentifier implements Serializable {
     public void setSecurity(Security security) { this.security = security; }
 
     public String getIdType() { return idType; }
+    public String getIdentifierType() { return idType; }
     public void setIdType(String idType) { this.idType = idType; }
 
     public String getIdValue() { return idValue; }
+    public String getIdentifierValue() { return idValue; }
     public void setIdValue(String idValue) { this.idValue = idValue; }
 
     public LocalDate getValidFrom() { return validFrom; }

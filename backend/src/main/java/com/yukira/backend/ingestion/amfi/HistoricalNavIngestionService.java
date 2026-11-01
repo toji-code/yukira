@@ -32,12 +32,21 @@ import java.util.stream.Collectors;
 public class HistoricalNavIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(HistoricalNavIngestionService.class);
+    private static final java.time.format.DateTimeFormatter AMFI_URL_DATE = java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy", java.util.Locale.ENGLISH);
 
     private final AmfiSourceClient amfiSourceClient;
     private final AmfiNavIngestionService amfiNavIngestionService;
     private final SchemeOptionRepository schemeOptionRepository;
     private final NavObservationRepository navObservationRepository;
     private final SourceArtifactRepository sourceArtifactRepository;
+    private final Map<String, SourceArtifact> artifactChunkCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private com.yukira.backend.universe.ReferenceUniverseNavRecoveryService referenceUniverseNavRecoveryService;
+    private com.yukira.backend.service.IndianCapitalMarketCalendar indianCapitalMarketCalendar = new com.yukira.backend.service.IndianCapitalMarketCalendar();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setIndianCapitalMarketCalendar(com.yukira.backend.service.IndianCapitalMarketCalendar indianCapitalMarketCalendar) {
+        this.indianCapitalMarketCalendar = indianCapitalMarketCalendar;
+    }
 
     public record ControlledFundTarget(
         String label,
@@ -131,6 +140,8 @@ public class HistoricalNavIngestionService {
         new ControlledFundTarget("IDCW Variant", "118954", "INF179K01VL5", "9", "Flexi Cap Fund", "DIRECT", "IDCW")
     );
 
+    private final com.yukira.backend.universe.ReferenceUniverseService referenceUniverseService;
+
     public HistoricalNavIngestionService(
         AmfiSourceClient amfiSourceClient,
         AmfiNavIngestionService amfiNavIngestionService,
@@ -138,11 +149,24 @@ public class HistoricalNavIngestionService {
         NavObservationRepository navObservationRepository,
         SourceArtifactRepository sourceArtifactRepository
     ) {
+        this(amfiSourceClient, amfiNavIngestionService, schemeOptionRepository, navObservationRepository, sourceArtifactRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public HistoricalNavIngestionService(
+        AmfiSourceClient amfiSourceClient,
+        AmfiNavIngestionService amfiNavIngestionService,
+        SchemeOptionRepository schemeOptionRepository,
+        NavObservationRepository navObservationRepository,
+        SourceArtifactRepository sourceArtifactRepository,
+        @org.springframework.beans.factory.annotation.Autowired(required = false) com.yukira.backend.universe.ReferenceUniverseService referenceUniverseService
+    ) {
         this.amfiSourceClient = amfiSourceClient;
         this.amfiNavIngestionService = amfiNavIngestionService;
         this.schemeOptionRepository = schemeOptionRepository;
         this.navObservationRepository = navObservationRepository;
         this.sourceArtifactRepository = sourceArtifactRepository;
+        this.referenceUniverseService = referenceUniverseService;
     }
 
     /**
@@ -243,31 +267,39 @@ public class HistoricalNavIngestionService {
                 currentEnd = endDate;
             }
 
-            String targetUrl = amfiSourceClient.buildUrl(amfiSchemeCode, amcMfCode, currentStart, currentEnd);
-            String universeChunkUrl = amfiSourceClient.buildUniverseChunkUrl(currentStart, currentEnd);
-            boolean artifactExists = sourceArtifactRepository.existsByStorageUri(targetUrl)
-                || sourceArtifactRepository.existsByStorageUri(universeChunkUrl);
             int latestObservationCount = countLatestObservationsInWindow(schemeOptionId, currentStart, currentEnd);
             int expectedBusinessDays = countWeekdays(currentStart, currentEnd);
 
-            boolean isChunkAlreadyComplete = artifactExists || (latestObservationCount >= Math.max(1, expectedBusinessDays - 5));
-            if (isChunkAlreadyComplete) {
-                log.info("Artifact or complete observations already recorded for chunk {} to {} (schemeOptionId {}, amfiCode {}): latestObservations={}",
+            // Chunk is complete for this scheme option if observations already meet weekday expectation
+            if (latestObservationCount >= Math.max(1, expectedBusinessDays - 5)) {
+                log.info("Complete observations already recorded for chunk {} to {} (schemeOptionId {}, amfiCode {}): latestObservations={}",
                     currentStart, currentEnd, schemeOptionId, amfiSchemeCode, latestObservationCount);
-                if (latestObservationCount >= Math.max(1, expectedBusinessDays - 5)) {
-                    allMessages.add(String.format("Skipped %s to %s: ALREADY_COMPLETE (%d observations)", currentStart, currentEnd, latestObservationCount));
-                } else if (latestObservationCount > 0) {
-                    allMessages.add(String.format("Skipped %s to %s: SOURCE_DATA_LIMITED (%d observations)", currentStart, currentEnd, latestObservationCount));
-                } else {
-                    allMessages.add(String.format("Skipped %s to %s: NO_DATA / SHORT_FUND_HISTORY (0 observations in source artifact)", currentStart, currentEnd));
-                }
+                allMessages.add(String.format("Skipped %s to %s: ALREADY_COMPLETE (%d observations)", currentStart, currentEnd, latestObservationCount));
                 currentStart = currentEnd.plusDays(1);
                 continue;
             }
 
-            // Fetch source artifact from official AMFI portal
-            log.info("Fetching chunk: {} to {} for AMFI code {}", currentStart, currentEnd, amfiSchemeCode);
-            SourceArtifact artifact = amfiSourceClient.fetchAndPersistUniverseChunkArtifact(currentStart, currentEnd);
+            // Check if authentic source artifact is already persisted in repository for this date window
+            String fromStr = currentStart.format(AMFI_URL_DATE);
+            String toStr = currentEnd.format(AMFI_URL_DATE);
+            String dateFragment = String.format("frmdt=%s&todt=%s", fromStr, toStr);
+
+            SourceArtifact artifact = artifactChunkCache.get(dateFragment);
+            if (artifact == null) {
+                Optional<SourceArtifact> existingArtifact = sourceArtifactRepository.findTopByStorageUriContaining(dateFragment);
+                if (existingArtifact.isPresent() && existingArtifact.get().getPayloadBlob() != null && existingArtifact.get().getPayloadBlob().length > 0) {
+                    artifact = existingArtifact.get();
+                    artifactChunkCache.put(dateFragment, artifact);
+                    log.info("Reusing authentic source artifact #{} for chunk {} to {} (AMFI code {})", artifact.getId(), currentStart, currentEnd, amfiSchemeCode);
+                } else {
+                    log.info("Fetching chunk: {} to {} for AMFI code {}", currentStart, currentEnd, amfiSchemeCode);
+                    artifact = amfiSourceClient.fetchAndPersistUniverseChunkArtifact(currentStart, currentEnd);
+                    artifactChunkCache.put(dateFragment, artifact);
+                }
+            } else {
+                log.info("Reusing cached authentic source artifact #{} for chunk {} to {} (AMFI code {})", artifact.getId(), currentStart, currentEnd, amfiSchemeCode);
+            }
+
             IngestionSummary summary = amfiNavIngestionService.ingestArtifact(artifact, Set.of(amfiSchemeCode));
 
             totalParsed += summary.totalRowsParsed();
@@ -311,8 +343,7 @@ public class HistoricalNavIngestionService {
         int count = 0;
         LocalDate cursor = startDate;
         while (!cursor.isAfter(endDate)) {
-            java.time.DayOfWeek day = cursor.getDayOfWeek();
-            if (day != java.time.DayOfWeek.SATURDAY && day != java.time.DayOfWeek.SUNDAY) {
+            if (indianCapitalMarketCalendar != null ? indianCapitalMarketCalendar.isExpectedPublicationDay(cursor) : (cursor.getDayOfWeek() != java.time.DayOfWeek.SATURDAY && cursor.getDayOfWeek() != java.time.DayOfWeek.SUNDAY)) {
                 count++;
             }
             cursor = cursor.plusDays(1);
@@ -900,6 +931,111 @@ public class HistoricalNavIngestionService {
     }
 
     /**
+     * Executes targeted historical NAV backfill specifically scoped to the 5-category Direct-Growth reference universe (TSK-M1-03).
+     *
+     * Invariants:
+     * 1. Operates exclusively on eligible reference universe options (Flexi Cap, Large Cap, Large & Mid Cap, Mid Cap, Small Cap).
+     * 2. Prioritizes candidate options with zero history or insufficient history (< 700 trading days).
+     * 3. Executes in bounded 90-day chunked windows with exact-byte SHA-256 provenance and per-fund failure isolation.
+     * 4. Supports dry-run mode to inspect candidate selection without network or DB mutations.
+     */
+    @Transactional
+    public HistoricalBackfillRunSummaryDto executeReferenceUniverseBackfill(
+        int batchSize,
+        com.yukira.backend.universe.EquityUniverseCategory categoryFilter,
+        LocalDate startDate,
+        LocalDate endDate,
+        boolean dryRun
+    ) {
+        long startTime = System.currentTimeMillis();
+        OffsetDateTime startedAt = OffsetDateTime.now();
+        String runId = UUID.randomUUID().toString();
+        validateDateWindow(startDate, endDate);
+
+        List<SchemeOption> referenceOptions;
+        if (referenceUniverseService != null) {
+            referenceOptions = referenceUniverseService.getEligibleReferenceUniverseOptions();
+        } else {
+            referenceOptions = schemeOptionRepository.findAll().stream()
+                .filter(o -> o.getPlan() != null && "DIRECT".equalsIgnoreCase(o.getPlan().getPlanType()))
+                .filter(o -> "GROWTH".equalsIgnoreCase(o.getOptionType()))
+                .toList();
+        }
+
+        if (categoryFilter != null && referenceUniverseService != null) {
+            referenceOptions = referenceOptions.stream()
+                .filter(o -> referenceUniverseService.evaluateOption(o).category() == categoryFilter)
+                .toList();
+        }
+
+        // Query existing distinct observations to prioritize options needing data
+        List<Object[]> summaries = navObservationRepository.findDistinctValidNavSummaries();
+        Map<Long, Long> obsCountMap = new HashMap<>();
+        for (Object[] row : summaries) {
+            if (row != null && row[0] != null && row[3] != null) {
+                obsCountMap.put(((Number) row[0]).longValue(), ((Number) row[3]).longValue());
+            }
+        }
+
+        // Sort: zero observations first, then < 700 observations, then by option ID
+        List<SchemeOption> sortedCandidates = new ArrayList<>(referenceOptions);
+        sortedCandidates.sort(Comparator
+            .comparingLong((SchemeOption o) -> obsCountMap.getOrDefault(o.getId(), 0L))
+            .thenComparing(SchemeOption::getId)
+        );
+
+        int cohortLimit = Math.max(0, Math.min(batchSize, sortedCandidates.size()));
+        List<SchemeOption> selectedCohort = sortedCandidates.subList(0, cohortLimit);
+
+        if (dryRun) {
+            OffsetDateTime completedAt = OffsetDateTime.now();
+            List<TargetedBackfillFundResult> previewResults = new ArrayList<>();
+            int requestedChunks = (int) Math.ceil((endDate.toEpochDay() - startDate.toEpochDay() + 1) / 90.0);
+
+            for (SchemeOption opt : selectedCohort) {
+                long currentCount = obsCountMap.getOrDefault(opt.getId(), 0L);
+                String schemeName = (opt.getPlan() != null && opt.getPlan().getScheme() != null)
+                    ? opt.getPlan().getScheme().getName() : "Unknown Scheme";
+                previewResults.add(new TargetedBackfillFundResult(
+                    opt.getId(),
+                    opt.getAmfiCode(),
+                    schemeName,
+                    opt.getIsin(),
+                    startDate,
+                    endDate,
+                    null,
+                    null,
+                    requestedChunks,
+                    0,
+                    0,
+                    0,
+                    0,
+                    (int) currentCount,
+                    0,
+                    "DRY_RUN_PREVIEW",
+                    null,
+                    List.of(),
+                    List.of(),
+                    0L,
+                    null,
+                    "Dry-run candidate preview: current distinct dates = " + currentCount
+                ));
+            }
+
+            return new HistoricalBackfillRunSummaryDto(
+                runId, startedAt, completedAt, "DRY_RUN_REFERENCE_UNIVERSE", cohortLimit, selectedCohort.size(),
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                System.currentTimeMillis() - startTime, 0.0, previewResults,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0L, 0L, 0L, 0L,
+                0L, 0L, 0L, 0.0
+            );
+        }
+
+        return executeProductionCohortBackfillForCohort(selectedCohort, cohortLimit, startDate, endDate);
+    }
+
+    /**
      * Executes historical NAV backfill for an explicit list of SchemeOptions using shared universe chunk artifacts.
      */
     @Transactional
@@ -1284,5 +1420,183 @@ public class HistoricalNavIngestionService {
         report.put("sampleTargetCount", CONTROLLED_SAMPLE_TARGETS.size());
         report.put("funds", fundSummaries);
         return report;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setReferenceUniverseNavRecoveryService(com.yukira.backend.universe.ReferenceUniverseNavRecoveryService referenceUniverseNavRecoveryService) {
+        this.referenceUniverseNavRecoveryService = referenceUniverseNavRecoveryService;
+    }
+
+    /**
+     * Executes bounded stored-artifact recovery (Phase A1).
+     */
+    public com.yukira.backend.universe.NavRecoveryBatchExecutionResultDto executeStoredArtifactRecovery(
+        com.yukira.backend.universe.StoredArtifactRecoveryRequest request
+    ) {
+        if (referenceUniverseNavRecoveryService == null) {
+            throw new IllegalStateException("ReferenceUniverseNavRecoveryService is not configured");
+        }
+        return referenceUniverseNavRecoveryService.executeStoredArtifactRecovery(request);
+    }
+
+    /**
+     * Executes bounded targeted historical interval recovery (Phase A1).
+     */
+    public com.yukira.backend.universe.NavRecoveryBatchExecutionResultDto executeTargetedIntervalRecovery(
+        com.yukira.backend.universe.TargetedIntervalRecoveryRequest request
+    ) {
+        if (referenceUniverseNavRecoveryService == null) {
+            throw new IllegalStateException("ReferenceUniverseNavRecoveryService is not configured");
+        }
+        return referenceUniverseNavRecoveryService.executeTargetedIntervalRecovery(request);
+    }
+
+    /**
+     * Operationally recovers missing intervals for a specific scheme option (Phase A2).
+     */
+    public com.yukira.backend.universe.NavRecoveryFundOutcomeDto recoverOptionIntervals(
+        Long schemeOptionId,
+        java.time.LocalDate windowStart,
+        java.time.LocalDate windowEnd,
+        java.util.List<com.yukira.backend.universe.HistoricalNavGapInterval> explicitIntervals,
+        int maxIntervals,
+        boolean triggerCalculation
+    ) {
+        if (referenceUniverseNavRecoveryService == null) {
+            throw new IllegalStateException("ReferenceUniverseNavRecoveryService is not configured");
+        }
+        return referenceUniverseNavRecoveryService.recoverOptionIntervals(
+            schemeOptionId, windowStart, windowEnd, explicitIntervals, maxIntervals, triggerCalculation
+        );
+    }
+
+    /**
+     * Operationally recovers missing intervals by AMFI scheme code (Phase A2).
+     */
+    public com.yukira.backend.universe.NavRecoveryFundOutcomeDto recoverOptionByAmfiCode(
+        String amfiCode,
+        java.time.LocalDate windowStart,
+        java.time.LocalDate windowEnd,
+        boolean triggerCalculation
+    ) {
+        if (referenceUniverseNavRecoveryService == null) {
+            throw new IllegalStateException("ReferenceUniverseNavRecoveryService is not configured");
+        }
+        return referenceUniverseNavRecoveryService.recoverOptionByAmfiCode(
+            amfiCode, windowStart, windowEnd, triggerCalculation
+        );
+    }
+
+    /**
+     * Operationally recovers missing intervals for an option under an analytical horizon (Phase A3).
+     */
+    public com.yukira.backend.universe.NavRecoveryFundOutcomeDto recoverOptionHorizon(
+        Long schemeOptionId,
+        com.yukira.backend.universe.AnalyticalHorizon horizon,
+        java.time.LocalDate asOfDate,
+        Integer maxIntervals,
+        boolean triggerCalculation
+    ) {
+        if (referenceUniverseNavRecoveryService == null) {
+            throw new IllegalStateException("ReferenceUniverseNavRecoveryService is not configured");
+        }
+        return referenceUniverseNavRecoveryService.recoverOptionHorizon(
+            schemeOptionId, horizon, asOfDate, maxIntervals, triggerCalculation
+        );
+    }
+
+    /**
+     * Executes bounded multi-horizon recovery batch across eligible options (Phase A3).
+     */
+    public com.yukira.backend.universe.NavRecoveryBatchExecutionResultDto executeHorizonRecovery(
+        com.yukira.backend.universe.HorizonRecoveryRequest request
+    ) {
+        if (referenceUniverseNavRecoveryService == null) {
+            throw new IllegalStateException("ReferenceUniverseNavRecoveryService is not configured");
+        }
+        return referenceUniverseNavRecoveryService.executeHorizonRecovery(request);
+    }
+
+    public record NavDateGapIntervalDto(
+        LocalDate gapStartDate,
+        LocalDate gapEndDate,
+        int businessDaysMissing
+    ) {}
+
+    public record NavDateGapReportDto(
+        Long schemeOptionId,
+        String amfiCode,
+        LocalDate requestedStartDate,
+        LocalDate requestedEndDate,
+        int totalExpectedBusinessDays,
+        int actualObservationsCount,
+        int totalMissingDays,
+        double completenessRatio,
+        List<NavDateGapIntervalDto> gapIntervals
+    ) {}
+
+    /**
+     * Detects date gaps in historical NAV observations for a scheme option (Task 212).
+     */
+    @Transactional(readOnly = true)
+    public NavDateGapReportDto detectNavObservationGaps(Long schemeOptionId, LocalDate startDate, LocalDate endDate) {
+        SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
+            .orElseThrow(() -> new IllegalArgumentException("SchemeOption not found: " + schemeOptionId));
+
+        List<NavObservation> obsList = navObservationRepository
+            .findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(schemeOptionId, startDate, endDate);
+
+        Set<LocalDate> observedDates = obsList.stream()
+            .map(NavObservation::getEffectiveDate)
+            .collect(Collectors.toSet());
+
+        List<NavDateGapIntervalDto> gaps = new ArrayList<>();
+        LocalDate cur = startDate;
+        int expectedDays = 0;
+        int missingDays = 0;
+
+        LocalDate gapStart = null;
+        int currentGapLen = 0;
+
+        while (!cur.isAfter(endDate)) {
+            boolean isExpectedTradingDay = indianCapitalMarketCalendar != null
+                ? indianCapitalMarketCalendar.isExpectedPublicationDay(cur)
+                : (cur.getDayOfWeek() != java.time.DayOfWeek.SATURDAY && cur.getDayOfWeek() != java.time.DayOfWeek.SUNDAY);
+            if (isExpectedTradingDay) {
+                expectedDays++;
+                if (!observedDates.contains(cur)) {
+                    missingDays++;
+                    if (gapStart == null) {
+                        gapStart = cur;
+                    }
+                    currentGapLen++;
+                } else {
+                    if (gapStart != null) {
+                        gaps.add(new NavDateGapIntervalDto(gapStart, cur.minusDays(1), currentGapLen));
+                        gapStart = null;
+                        currentGapLen = 0;
+                    }
+                }
+            }
+            cur = cur.plusDays(1);
+        }
+
+        if (gapStart != null) {
+            gaps.add(new NavDateGapIntervalDto(gapStart, endDate, currentGapLen));
+        }
+
+        double ratio = expectedDays > 0 ? (double) obsList.size() / expectedDays : 1.0;
+
+        return new NavDateGapReportDto(
+            schemeOptionId,
+            option.getAmfiSchemeCode(),
+            startDate,
+            endDate,
+            expectedDays,
+            obsList.size(),
+            missingDays,
+            Math.min(1.0, ratio),
+            gaps
+        );
     }
 }

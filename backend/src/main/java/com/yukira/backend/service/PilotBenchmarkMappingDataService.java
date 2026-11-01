@@ -39,9 +39,14 @@ public class PilotBenchmarkMappingDataService {
 
         List<BenchmarkMappingItemDto> items = new ArrayList<>();
         Set<String> processedAmfiCodes = new HashSet<>();
+        Set<String> processedSchemeCodes = new HashSet<>();
 
         for (SchemeOption opt : allActive) {
+            String schemeCode = opt.getPlan() != null && opt.getPlan().getScheme() != null ? opt.getPlan().getScheme().getCode() : null;
             if (opt.getAmfiCode() == null || !processedAmfiCodes.add(opt.getAmfiCode())) {
+                continue;
+            }
+            if (schemeCode != null && !processedSchemeCodes.add(schemeCode)) {
                 continue;
             }
 

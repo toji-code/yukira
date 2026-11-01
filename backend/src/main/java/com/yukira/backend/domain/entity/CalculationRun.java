@@ -85,12 +85,21 @@ public class CalculationRun implements Serializable {
     public void setBenchmark(Benchmark benchmark) { this.benchmark = benchmark; }
 
     public LocalDate getAsOfDate() { return asOfDate; }
+    public LocalDate getAnalysisCutoff() { return asOfDate; }
     public void setAsOfDate(LocalDate asOfDate) { this.asOfDate = asOfDate; }
 
     public OffsetDateTime getKnowledgeCutoffTime() { return knowledgeCutoffTime; }
+    public OffsetDateTime getKnowledgeCutoff() { return knowledgeCutoffTime; }
     public void setKnowledgeCutoffTime(OffsetDateTime knowledgeCutoffTime) { this.knowledgeCutoffTime = knowledgeCutoffTime; }
 
     public MethodologyVersion getMethodologyVersion() { return methodologyVersion; }
+    public String getMetricCode() {
+        if (methodologyVersion != null) {
+            if (methodologyVersion.getMetricDefinition() != null) return methodologyVersion.getMetricDefinition().getMetricCode();
+            return methodologyVersion.getMethodologyCode();
+        }
+        return null;
+    }
     public void setMethodologyVersion(MethodologyVersion methodologyVersion) { this.methodologyVersion = methodologyVersion; }
 
     public String getEngineSoftwareVersion() { return engineSoftwareVersion; }
@@ -100,6 +109,7 @@ public class CalculationRun implements Serializable {
     public void setInputSnapshotSha256(String inputSnapshotSha256) { this.inputSnapshotSha256 = inputSnapshotSha256; }
 
     public OffsetDateTime getExecutionStartedAt() { return executionStartedAt; }
+    public OffsetDateTime getCreatedAt() { return executionStartedAt; }
     public void setExecutionStartedAt(OffsetDateTime executionStartedAt) { this.executionStartedAt = executionStartedAt; }
 
     public OffsetDateTime getExecutionCompletedAt() { return executionCompletedAt; }

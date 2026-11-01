@@ -180,6 +180,20 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
           { label: "Funds", href: "/funds" },
           { label: `Run #${data.provenance.calculationRunId}`, href: `/analysis/${data.provenance.calculationRunId}` },
         ]}
+        action={
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/funds/${data.context.schemeId || data.context.schemeOptionId || 1}${data.context.schemeOptionId ? `?option=${data.context.schemeOptionId}` : ""}`}
+              className="btn btn-secondary flex items-center gap-1.5"
+              title="View Canonical Fund Profile & Research Brief"
+            >
+              <svg className="h-3.5 w-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Canonical Fund Profile &amp; Brief →</span>
+            </Link>
+          </div>
+        }
       >
         {showParamPanel && (
           <form
@@ -290,24 +304,20 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
         return "Sortino Ratio (3Y): annualized excess return per unit of downside semideviation below risk-free benchmark.";
       case "RAT-03":
         return "Treynor Ratio (3Y): annualized excess return per unit of systematic equity market risk (Beta).";
-      case "REL-01":
-        return "Beta (3Y): slope coefficient from OLS regression of daily fund excess returns against benchmark excess returns.";
-      case "REL-02":
-        return "Tracking Error (3Y): annualized standard deviation of excess returns relative to benchmark.";
-      case "REL-03":
-        return "Jensen's Alpha (3Y): annualized intercept from single-index excess-return regression.";
-      case "REL-04":
-        return "Downside Beta (3Y): market sensitivity conditioned exclusively on negative benchmark trading days.";
-      case "REL-05":
-        return "Upside Beta (3Y): market sensitivity conditioned exclusively on positive benchmark trading days.";
-      case "REL-06":
-        return "Annualized Mean Active Return (3Y): mean daily active return scaled by 252 trading days.";
       case "RAT-04":
         return "Information Ratio (3Y): ratio of annualized mean active return to annualized tracking error.";
+      case "REL-01":
+        return "Tracking Error (3Y): annualized standard deviation of excess returns relative to benchmark.";
+      case "REL-02":
+        return "Jensen's Alpha (3Y): annualized intercept from single-index excess-return regression.";
+      case "REL-03":
+        return "Information Ratio (Alternative): active return to benchmark tracking error ratio.";
       case "MKT-01":
-        return "Equity Beta (3Y): slope coefficient from single-index excess-return OLS regression against benchmark.";
+        return "Portfolio Beta (3Y): slope coefficient from single-index excess-return OLS regression against benchmark.";
       case "MKT-02":
         return "Downside Beta (3Y): market sensitivity conditioned exclusively on trading days where benchmark return is negative.";
+      case "RET-07":
+        return "3-Year Active Return: annualized geometric excess growth rate of fund over category benchmark.";
       case "RET-03":
         return "3-Year CAGR: compound annualized growth rate normalized across 36 calendar months using 365.25 calendar days per year convention.";
       case "RET-02":
@@ -333,34 +343,28 @@ export default function CalculationAnalysisPage({ params }: PageProps) {
       case "RSK-07":
         return "Candidate methodology. Sub-sample tail average subject to estimation variance during calm market regimes.";
       case "RAT-01":
-        return "Approved methodology. Symmetrical standard deviation penalty treats upside and downside dispersion equally.";
+        return "Candidate methodology. Symmetrical standard deviation penalty treats upside and downside dispersion equally.";
       case "RAT-02":
         return "Candidate methodology. Downside semideviation divisor convention under empirical regime testing.";
       case "RAT-03":
-        return "Approved methodology. Applicable only when systematic Beta > 0; meaningful for diversified equity portfolios.";
+        return "Candidate methodology. Applicable only when systematic Beta > 0; meaningful for diversified equity portfolios.";
       case "RAT-04":
-        return "Candidate methodology. Undefined when tracking error is zero.";
+        return "Candidate methodology. Undefined when tracking error is zero; penalizes high active risk.";
       case "REL-01":
-        return "Approved/Candidate methodology. Linear excess-return OLS model assuming constant market sensitivity.";
-      case "REL-02":
         return "Candidate methodology. Benchmark tracking error subject to index synchronization tolerances.";
-      case "REL-03":
+      case "REL-02":
         return "Candidate methodology. Jensen's Alpha assumes stationary single-index capital asset pricing dynamics.";
-      case "REL-04":
-        return "Candidate methodology. Requires minimum downside benchmark trading days.";
-      case "REL-05":
-        return "Candidate methodology. Requires minimum upside benchmark trading days.";
-      case "REL-06":
-        return "Candidate methodology. Mean active daily return scaled to annual horizon.";
       case "MKT-01":
-        return "Approved methodology. Linear excess-return OLS model assuming constant market sensitivity; beta varies across market regimes.";
+        return "Candidate methodology. Linear excess-return OLS model assuming constant market sensitivity; beta varies across market regimes.";
       case "MKT-02":
-        return "Approved methodology. Requires a minimum of 100 negative benchmark trading days in lookback window.";
+        return "Candidate methodology. Requires a minimum of 100 negative benchmark trading days in lookback window.";
+      case "RET-07":
+        return "Candidate methodology. Raw active return unadjusted for systematic factor exposure or beta tilts.";
       case "RET-03":
         return "Approved annualization (365.25/D convention). Point-to-point annualized CAGR masks multi-month intermediate drawdowns and volatility.";
       case "RET-02":
       default:
-        return "Candidate methodology. Discrete period return only; unvalidated for live investor decision support.";
+        return "Operational baseline. Discrete period return only; unvalidated for live investor decision support.";
     }
   };
 

@@ -8,6 +8,7 @@ import com.yukira.backend.client.dto.CalculationDtos.MetricOutputItemDto;
 import com.yukira.backend.client.dto.CalculationDtos.ObservationItemDto;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.repository.*;
+import com.yukira.backend.universe.AnalyticalHorizon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -65,7 +66,6 @@ public class CalculationOrchestratorService {
         this.pitObservationResolutionService = pitObservationResolutionService;
     }
 
-
     @Transactional
     public CalculationRun executeCalculationRun(
         Long schemeOptionId,
@@ -79,8 +79,9 @@ public class CalculationOrchestratorService {
         SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
             .orElseThrow(() -> new IllegalArgumentException("SchemeOption not found: " + schemeOptionId));
 
-        Benchmark benchmark = benchmarkRepository.findById(benchmarkId)
-            .orElseThrow(() -> new IllegalArgumentException("Benchmark not found: " + benchmarkId));
+        Benchmark benchmark = benchmarkId != null
+            ? benchmarkRepository.findById(benchmarkId).orElseThrow(() -> new IllegalArgumentException("Benchmark not found: " + benchmarkId))
+            : null;
 
         MethodologyVersion methodologyVersion = methodologyVersionRepository
             .findByMethodologyCodeAndVersionTag("CORE_QUANT", methodologyTag)
@@ -88,48 +89,51 @@ public class CalculationOrchestratorService {
                 "CORE_QUANT", methodologyTag, "CANDIDATE", "0000000000000000000000000000000000000000"
             )));
 
-        // Resolve calculation horizon start date
+        // Resolve calculation horizon start date and canonical AnalyticalHorizon
+        AnalyticalHorizon analyticalHorizon = AnalyticalHorizon.THREE_YEAR;
         LocalDate startDate = null;
         if (parameters != null) {
-            if (parameters.containsKey("start_date")) {
-                startDate = LocalDate.parse(parameters.get("start_date").toString());
+            if (parameters.containsKey("horizon")) {
+                analyticalHorizon = AnalyticalHorizon.fromCode(parameters.get("horizon").toString());
             } else if (parameters.containsKey("lookback_years")) {
                 int years = Integer.parseInt(parameters.get("lookback_years").toString());
-                startDate = asOfDate.minusYears(years);
+                analyticalHorizon = AnalyticalHorizon.fromCode(String.valueOf(years));
+            }
+            if (parameters.containsKey("start_date")) {
+                startDate = LocalDate.parse(parameters.get("start_date").toString());
+            } else {
+                startDate = analyticalHorizon.calculateStartDate(asOfDate);
             }
         }
         if (startDate == null) {
-            startDate = asOfDate.minusYears(3);
+            startDate = analyticalHorizon.calculateStartDate(asOfDate);
         }
         final LocalDate effStartDate = startDate;
+        final AnalyticalHorizon effHorizon = analyticalHorizon;
 
         // 1. Authoritative PIT Revision-Resolution Query
         List<NavObservation> candidates = navObservationRepository
             .findAuthoritativeObservationsAsOfCutoff(schemeOptionId, asOfDate, knowledgeCutoffTime);
-        Map<LocalDate, List<NavObservation>> groupedByDate = new TreeMap<>();
+        Map<LocalDate, NavObservation> dedupNav = new TreeMap<>();
         for (NavObservation obs : candidates) {
             if (!obs.getEffectiveDate().isBefore(effStartDate) && !obs.getEffectiveDate().isAfter(asOfDate)) {
-                groupedByDate.computeIfAbsent(obs.getEffectiveDate(), k -> new ArrayList<>()).add(obs);
+                dedupNav.putIfAbsent(obs.getEffectiveDate(), obs);
             }
         }
-        List<NavObservation> navObservations = new ArrayList<>();
-        for (Map.Entry<LocalDate, List<NavObservation>> entry : groupedByDate.entrySet()) {
-            LocalDate date = entry.getKey();
-            var pitResult = pitObservationResolutionService.resolveAuthoritativeObservation(schemeOptionId, date, knowledgeCutoffTime);
-            if (pitResult.authoritativeObservation().isPresent()) {
-                navObservations.add(pitResult.authoritativeObservation().get());
-            }
-        }
+        List<NavObservation> navObservations = new ArrayList<>(dedupNav.values());
 
-        List<BenchmarkObservation> rawBm = benchmarkObservationRepository
-            .findAuthoritativeObservationsAsOfCutoff(benchmarkId, asOfDate, knowledgeCutoffTime);
-        Map<LocalDate, BenchmarkObservation> dedupBm = new TreeMap<>();
-        for (BenchmarkObservation b : rawBm) {
-            if (!b.getEffectiveDate().isBefore(effStartDate) && !b.getEffectiveDate().isAfter(asOfDate)) {
-                dedupBm.putIfAbsent(b.getEffectiveDate(), b);
+        List<BenchmarkObservation> benchmarkObservations = Collections.emptyList();
+        if (benchmark != null) {
+            List<BenchmarkObservation> rawBm = benchmarkObservationRepository
+                .findAuthoritativeObservationsAsOfCutoff(benchmarkId, asOfDate, knowledgeCutoffTime);
+            Map<LocalDate, BenchmarkObservation> dedupBm = new TreeMap<>();
+            for (BenchmarkObservation b : rawBm) {
+                if (!b.getEffectiveDate().isBefore(effStartDate) && !b.getEffectiveDate().isAfter(asOfDate)) {
+                    dedupBm.putIfAbsent(b.getEffectiveDate(), b);
+                }
             }
+            benchmarkObservations = new ArrayList<>(dedupBm.values());
         }
-        List<BenchmarkObservation> benchmarkObservations = new ArrayList<>(dedupBm.values());
 
         List<RiskFreeObservation> rawRf = riskFreeObservationRepository != null
             ? riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff("FBIL_91D_TBILL", asOfDate, knowledgeCutoffTime)
@@ -141,7 +145,6 @@ public class CalculationOrchestratorService {
             }
         }
         List<RiskFreeObservation> riskFreeObservations = new ArrayList<>(dedupRf.values());
-
 
         // 2. Build input series DTOs
         List<ObservationItemDto> navSeries = navObservations.stream()
@@ -184,21 +187,25 @@ public class CalculationOrchestratorService {
         run = calculationRunRepository.save(run);
 
         // 4b. Persist immutable calculation input observation references
+        List<CalculationRunInputObservation> inputObsList = new ArrayList<>(
+            navObservations.size() + benchmarkObservations.size() + riskFreeObservations.size()
+        );
         for (NavObservation nav : navObservations) {
-            calculationRunInputObservationRepository.save(new CalculationRunInputObservation(
+            inputObsList.add(new CalculationRunInputObservation(
                 run, nav, nav.getEffectiveDate(), nav.getRevisionSeq()
             ));
         }
         for (BenchmarkObservation bm : benchmarkObservations) {
-            calculationRunInputObservationRepository.save(new CalculationRunInputObservation(
+            inputObsList.add(new CalculationRunInputObservation(
                 run, bm, bm.getEffectiveDate(), bm.getRevisionSeq()
             ));
         }
         for (RiskFreeObservation rf : riskFreeObservations) {
-            calculationRunInputObservationRepository.save(new CalculationRunInputObservation(
+            inputObsList.add(new CalculationRunInputObservation(
                 run, rf, rf.getEffectiveDate(), rf.getRevisionSeq()
             ));
         }
+        calculationRunInputObservationRepository.saveAll(inputObsList);
 
         try {
             // 5. Build request and call Quant Engine
@@ -214,10 +221,20 @@ public class CalculationOrchestratorService {
                     .add(requestedCode);
             }
 
+            Map<String, Object> engineParams = new HashMap<>();
+            if (parameters != null) {
+                engineParams.putAll(parameters);
+            }
+            engineParams.putIfAbsent("horizon", effHorizon.getCode());
+            engineParams.putIfAbsent("lookback_years", effHorizon.getYears());
+            engineParams.putIfAbsent("min_observations", effHorizon.getDefaultThreshold());
+            engineParams.putIfAbsent("start_date", effStartDate.toString());
+            engineParams.putIfAbsent("end_date", asOfDate.toString());
+
             CalculationRequestDto requestDto = new CalculationRequestDto(
                 requestId,
                 String.valueOf(schemeOptionId),
-                String.valueOf(benchmarkId),
+                benchmarkId != null ? String.valueOf(benchmarkId) : null,
                 asOfDate.toString(),
                 knowledgeCutoffTime.toString(),
                 methodologyTag,
@@ -225,7 +242,7 @@ public class CalculationOrchestratorService {
                 navSeries,
                 benchmarkSeries,
                 riskFreeSeries,
-                parameters != null ? parameters : Collections.emptyMap()
+                engineParams
             );
 
             CalculationResponseDto response = quantEngineClient.executeCalculation(requestDto);
@@ -239,7 +256,20 @@ public class CalculationOrchestratorService {
                         List.of(item.metricCode())
                     );
                     for (String metricCode : requestedCodes) {
-                        String periodType = item.periodType() != null ? item.periodType() : "1Y";
+                        String periodType;
+                        if (item.periodType() != null && !item.periodType().isBlank()) {
+                            if ("LATEST_SNAPSHOT".equalsIgnoreCase(item.periodType())) {
+                                periodType = "LATEST_SNAPSHOT";
+                            } else if (("3Y".equalsIgnoreCase(item.periodType()) || "1Y".equalsIgnoreCase(item.periodType()) || "PERIOD".equalsIgnoreCase(item.periodType()))
+                                && effHorizon != AnalyticalHorizon.THREE_YEAR) {
+                                periodType = effHorizon.getCode();
+                            } else {
+                                periodType = item.periodType();
+                            }
+                        } else {
+                            periodType = effHorizon.getCode();
+                        }
+
                         String metricKey = metricCode + "|" + periodType;
                         if (!persistedMetricKeys.add(metricKey)) {
                             continue;
@@ -248,15 +278,23 @@ public class CalculationOrchestratorService {
                             run,
                             metricCode,
                             periodType,
-                            item.numericValue(),
+                            item.numericValue() != null ? item.numericValue().setScale(10, java.math.RoundingMode.HALF_UP) : null,
                             item.units() != null ? item.units() : "UNKNOWN",
                             item.status() != null ? item.status() : "CALCULATED"
                         );
                         result.setStringValue(item.stringValue());
                         result.setErrorMessage(item.errorMessage());
+
+                        Map<String, Object> diags = new HashMap<>();
                         if (item.diagnostics() != null) {
-                            result.setDiagnostics(objectMapper.writeValueAsString(item.diagnostics()));
+                            diags.putAll(item.diagnostics());
                         }
+                        diags.putIfAbsent("requested_horizon", effHorizon.getCode());
+                        diags.putIfAbsent("effective_start_date", effStartDate.toString());
+                        diags.putIfAbsent("as_of_date", asOfDate.toString());
+                        diags.putIfAbsent("min_observations_threshold", effHorizon.getDefaultThreshold());
+                        result.setDiagnostics(objectMapper.writeValueAsString(diags));
+
                         metricResultRepository.save(result);
                     }
                 }

@@ -89,6 +89,8 @@ class MetricIdentityAndCrossSliceConsistencyTest {
             new ExpectedMetricIdentity("Simple Period Return", "RETURNS", "PERFORMANCE", "PERCENTAGE", false, false));
         expectedRegistry.put("RET-03",
             new ExpectedMetricIdentity("3-Year Compound Annual Growth Rate", "RETURNS", "PERFORMANCE", "PERCENTAGE", false, false));
+        expectedRegistry.put("RET-07",
+            new ExpectedMetricIdentity("3-Year Annualized Active Return", "RETURNS", "PERFORMANCE", "PERCENTAGE", true, false));
 
         // Risk family. Absolute dispersion measures, not benchmark-relative.
         expectedRegistry.put("RSK-01",
@@ -107,6 +109,8 @@ class MetricIdentityAndCrossSliceConsistencyTest {
             new ExpectedMetricIdentity("Historical Expected Shortfall (95% 3Y)", "RISK", "TAIL_RISK", "PERCENTAGE", false, false));
 
         // Risk-adjusted family.
+        expectedRegistry.put("RAT-01",
+            new ExpectedMetricIdentity("Sharpe Ratio (3Y)", "RISK_ADJUSTED", "RISK_RETURN", "RATIO", false, true));
         expectedRegistry.put("RAT-02",
             new ExpectedMetricIdentity("Sortino Ratio 3Y", "RISK_ADJUSTED", "RISK_RETURN", "RATIO", false, true));
         expectedRegistry.put("RAT-03",
@@ -165,7 +169,7 @@ class MetricIdentityAndCrossSliceConsistencyTest {
                 "Metric " + code + " must require point-in-time resolution");
         }
 
-        assertEquals(20, expectedRegistry.size(), "Registry contract table size changed unexpectedly");
+        assertEquals(22, expectedRegistry.size(), "Registry contract table size changed unexpectedly");
 
         // The active live registry must be exactly the contract: no missing row, no undeclared extra row.
         Set<String> activeLiveCodes = metricDefinitionRepository.findAll().stream()

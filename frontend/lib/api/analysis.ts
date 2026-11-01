@@ -10,6 +10,8 @@ import {
   TrackingConsistencyResponse,
   BetaDynamicsResponse,
   BenchmarkRelationshipResponse,
+  MetricHorizonEligibilityDto,
+  BenchmarkObservationSeriesDto,
 } from '@/types/analysis';
 
 export async function fetchAnalysis<T = AnalysisResponse>(runId: number): Promise<T> {
@@ -137,4 +139,33 @@ export async function fetchBenchmarkRelationship(
   if (benchmarkId) params.append('benchmarkId', benchmarkId.toString());
   const queryString = params.toString() ? `?${params.toString()}` : '';
   return apiFetch<BenchmarkRelationshipResponse>(`/api/v1/analysis/benchmark-relationship/${schemeOptionId}${queryString}`);
+}
+
+export async function fetchHorizonEligibility(
+  horizon?: string
+): Promise<MetricHorizonEligibilityDto[]> {
+  const query = horizon ? `?horizon=${encodeURIComponent(horizon)}` : '';
+  return apiFetch<MetricHorizonEligibilityDto[]>(`/api/v1/analysis/horizon-eligibility${query}`);
+}
+
+export async function fetchSchemeOptionHorizonEligibility(
+  schemeOptionId: number,
+  horizon?: string
+): Promise<MetricHorizonEligibilityDto[]> {
+  const query = horizon ? `?horizon=${encodeURIComponent(horizon)}` : '';
+  return apiFetch<MetricHorizonEligibilityDto[]>(`/api/v1/analysis/horizon-eligibility/${schemeOptionId}${query}`);
+}
+
+export async function fetchBenchmarkSeries(
+  schemeOptionId: number,
+  startDate?: string,
+  analysisCutoff?: string,
+  knowledgeCutoff?: string
+): Promise<BenchmarkObservationSeriesDto> {
+  const params = new URLSearchParams();
+  if (startDate) params.append('startDate', startDate);
+  if (analysisCutoff) params.append('analysisCutoff', analysisCutoff);
+  if (knowledgeCutoff) params.append('knowledgeCutoff', knowledgeCutoff);
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return apiFetch<BenchmarkObservationSeriesDto>(`/api/v1/schemes/options/${schemeOptionId}/benchmark-series${queryString}`);
 }

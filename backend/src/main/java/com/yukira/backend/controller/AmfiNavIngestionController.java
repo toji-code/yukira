@@ -37,16 +37,43 @@ public class AmfiNavIngestionController {
     private final AmfiUniverseIngestionService universeIngestionService;
     private final HistoricalNavIngestionService historicalNavIngestionService;
 
+    private final com.yukira.backend.service.ingestion.AmfiNavRefreshScheduler navRefreshScheduler;
+
     public AmfiNavIngestionController(
         AmfiNavRefreshService navRefreshService,
         AmfiDataFreshnessService dataFreshnessService,
         AmfiUniverseIngestionService universeIngestionService,
-        HistoricalNavIngestionService historicalNavIngestionService
+        HistoricalNavIngestionService historicalNavIngestionService,
+        @org.springframework.beans.factory.annotation.Autowired(required = false) com.yukira.backend.service.ingestion.AmfiNavRefreshScheduler navRefreshScheduler
     ) {
         this.navRefreshService = navRefreshService;
         this.dataFreshnessService = dataFreshnessService;
         this.universeIngestionService = universeIngestionService;
         this.historicalNavIngestionService = historicalNavIngestionService;
+        this.navRefreshScheduler = navRefreshScheduler;
+    }
+
+    /**
+     * Retrieves status of the scheduled daily NAV refresh job (Phase A2).
+     *
+     * GET /api/v1/ingestion/amfi/scheduler
+     */
+    @GetMapping("/scheduler")
+    public ResponseEntity<?> getSchedulerStatus() {
+        if (navRefreshScheduler == null) {
+            return ResponseEntity.ok(Map.of(
+                "schedulerConfigured", false,
+                "message", "AmfiNavRefreshScheduler is not active in this profile"
+            ));
+        }
+        return ResponseEntity.ok(Map.of(
+            "schedulerConfigured", true,
+            "enabled", navRefreshScheduler.isRefreshEnabled(),
+            "lastRunTime", navRefreshScheduler.getLastRunTime() != null ? navRefreshScheduler.getLastRunTime().toString() : "N/A",
+            "lastRunStatus", navRefreshScheduler.getLastRunStatus(),
+            "lastObservationsIngested", navRefreshScheduler.getLastObservationsIngested(),
+            "lastDuplicatesSkipped", navRefreshScheduler.getLastDuplicatesSkipped()
+        ));
     }
 
     /**

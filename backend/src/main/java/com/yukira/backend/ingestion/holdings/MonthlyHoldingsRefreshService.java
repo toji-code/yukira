@@ -374,14 +374,24 @@ public class MonthlyHoldingsRefreshService {
         OffsetDateTime now = OffsetDateTime.now();
         List<PilotFundHoldingsStatusDto> pilotStatusList = new ArrayList<>();
 
-        List<String> pilotAmfiCodes = List.of(
-            PilotBootstrapService.PILOT_AMFI_CODE,    // 118955 HDFC Flexi Cap
-            PilotBootstrapService.PPFAS_AMFI_CODE,    // 122639 PPFAS Flexi Cap
-            PilotBootstrapService.PPFAS_TAX_AMFI_CODE // 147481 PPFAS Tax Saver
-        );
+        List<String> registeredAmfiCodes = new ArrayList<>();
+        if (sourceRegistry != null) {
+            for (MonthlyHoldingsSourceRegistry.RegisteredFundConfig cfg : sourceRegistry.getAllRegisteredFunds()) {
+                if (cfg.amfiCode() != null && !registeredAmfiCodes.contains(cfg.amfiCode())) {
+                    registeredAmfiCodes.add(cfg.amfiCode());
+                }
+            }
+        }
+        if (registeredAmfiCodes.isEmpty()) {
+            registeredAmfiCodes = List.of(
+                PilotBootstrapService.PILOT_AMFI_CODE,    // 118955 HDFC Flexi Cap
+                PilotBootstrapService.PPFAS_AMFI_CODE,    // 122639 PPFAS Flexi Cap
+                PilotBootstrapService.PPFAS_TAX_AMFI_CODE // 147481 PPFAS Tax Saver
+            );
+        }
 
         if (schemeOptionRepository != null && snapshotRepository != null) {
-            for (String amfi : pilotAmfiCodes) {
+            for (String amfi : registeredAmfiCodes) {
                 Optional<com.yukira.backend.domain.entity.SchemeOption> opt = schemeOptionRepository.findByAmfiCode(amfi);
                 if (opt.isPresent()) {
                     com.yukira.backend.domain.entity.SchemeOption option = opt.get();

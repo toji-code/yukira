@@ -13,6 +13,9 @@ import java.util.Optional;
 @Repository
 public interface SchemeOptionRepository extends JpaRepository<SchemeOption, Long>, JpaSpecificationExecutor<SchemeOption> {
     Optional<SchemeOption> findByAmfiCode(String amfiCode);
+    default Optional<SchemeOption> findByAmfiSchemeCode(String amfiSchemeCode) {
+        return findByAmfiCode(amfiSchemeCode);
+    }
     Optional<SchemeOption> findByIsin(String isin);
     @Query("""
         SELECT DISTINCT o FROM SchemeOption o
@@ -23,6 +26,10 @@ public interface SchemeOptionRepository extends JpaRepository<SchemeOption, Long
         ORDER BY o.id ASC
         """)
     List<SchemeOption> findByPlanSchemeId(@Param("schemeId") Long schemeId);
+
+    default List<SchemeOption> findBySchemeId(Long schemeId) {
+        return findByPlanSchemeId(schemeId);
+    }
 
     long countByStatus(String status);
     long countByPlanPlanType(String planType);
@@ -39,4 +46,16 @@ public interface SchemeOptionRepository extends JpaRepository<SchemeOption, Long
         WHERE o.id IN :ids
         """)
     List<SchemeOption> findComparisonIdentitiesByIdIn(@Param("ids") List<Long> ids);
+
+    @Query("""
+        SELECT DISTINCT o FROM SchemeOption o
+        JOIN FETCH o.plan p
+        JOIN FETCH p.scheme s
+        JOIN FETCH s.amc a
+        WHERE UPPER(p.planType) = 'DIRECT'
+          AND UPPER(o.optionType) = 'GROWTH'
+          AND o.status = 'ACTIVE'
+        ORDER BY o.id ASC
+        """)
+    List<SchemeOption> findDirectGrowthActiveCandidates();
 }

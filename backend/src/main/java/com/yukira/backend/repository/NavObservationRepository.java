@@ -48,7 +48,89 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
         @Param("knowledgeCutoffTime") OffsetDateTime knowledgeCutoffTime
     );
 
+    /**
+     * Canonical Point-in-Time (PIT) NAV Series Query (Tasks 368, 369, 370).
+     * Enforces strict window-aware revision selection:
+     * - effective_date <= asOfDate AND availability_time <= knowledgeCutoffTime
+     * - Picks exactly ONE latest revision per effective date (max revision_seq at knowledge cutoff)
+     *   using SQL window function ROW_NUMBER().
+     * - Future revisions published after knowledge cutoff are strictly excluded.
+     */
+    @Query(value = """
+        WITH ranked_nav AS (
+            SELECT n.*,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY n.effective_date
+                       ORDER BY n.availability_time DESC, n.revision_seq DESC, n.ingestion_time DESC, n.id DESC
+                   ) AS rn
+            FROM nav_observation n
+            WHERE n.scheme_option_id = :schemeOptionId
+              AND n.effective_date <= :asOfDate
+              AND n.availability_time <= :knowledgeCutoffTime
+              AND (n.revision_status IS NULL OR n.revision_status != 'RETRACTED')
+              AND (n.quality_assessment IS NULL OR n.quality_assessment != 'INVALID')
+        )
+        SELECT id, scheme_option_id, effective_date, availability_time, revision_seq,
+               nav_value, is_latest_revision, quality_assessment, verification_status,
+               revision_status, freshness_status, presence_status, integrity_status,
+               source_artifact_id, ingestion_time
+        FROM ranked_nav
+        WHERE rn = 1
+        ORDER BY effective_date ASC
+        """, nativeQuery = true)
+    List<NavObservation> findCanonicalPitNavSeries(
+        @Param("schemeOptionId") Long schemeOptionId,
+        @Param("asOfDate") LocalDate asOfDate,
+        @Param("knowledgeCutoffTime") OffsetDateTime knowledgeCutoffTime
+    );
+
+    @Query(value = """
+        WITH ranked_nav AS (
+            SELECT n.*,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY n.effective_date
+                       ORDER BY n.availability_time DESC, n.revision_seq DESC, n.ingestion_time DESC, n.id DESC
+                   ) AS rn
+            FROM nav_observation n
+            WHERE n.scheme_option_id = :schemeOptionId
+              AND n.effective_date >= :startDate
+              AND n.effective_date <= :endDate
+              AND n.availability_time <= :knowledgeCutoffTime
+              AND (n.revision_status IS NULL OR n.revision_status != 'RETRACTED')
+              AND (n.quality_assessment IS NULL OR n.quality_assessment != 'INVALID')
+        )
+        SELECT id, scheme_option_id, effective_date, availability_time, revision_seq,
+               nav_value, is_latest_revision, quality_assessment, verification_status,
+               revision_status, freshness_status, presence_status, integrity_status,
+               source_artifact_id, ingestion_time
+        FROM ranked_nav
+        WHERE rn = 1
+        ORDER BY effective_date ASC
+        """, nativeQuery = true)
+    List<NavObservation> findCanonicalPitNavSeriesInWindow(
+        @Param("schemeOptionId") Long schemeOptionId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("knowledgeCutoffTime") OffsetDateTime knowledgeCutoffTime
+    );
+
+    @Query(value = """
+        SELECT n.*
+        FROM nav_observation n
+        WHERE n.scheme_option_id = :schemeOptionId
+          AND n.effective_date <= :asOfDate
+          AND n.availability_time <= :knowledgeCutoffTime
+        ORDER BY n.effective_date DESC, n.availability_time DESC, n.revision_seq DESC
+        LIMIT 1
+        """, nativeQuery = true)
+    java.util.Optional<NavObservation> findLatestAuthoritativeObservationAsOfCutoff(
+        @Param("schemeOptionId") Long schemeOptionId,
+        @Param("asOfDate") LocalDate asOfDate,
+        @Param("knowledgeCutoffTime") OffsetDateTime knowledgeCutoffTime
+    );
+
     List<NavObservation> findBySchemeOptionId(Long schemeOptionId);
+    List<NavObservation> findBySchemeOptionIdOrderByEffectiveDateAsc(Long schemeOptionId);
     List<NavObservation> findBySchemeOptionIdAndEffectiveDate(Long schemeOptionId, LocalDate effectiveDate);
     @Query(value = """
         SELECT * FROM nav_observation
@@ -84,4 +166,63 @@ public interface NavObservationRepository extends JpaRepository<NavObservation, 
 
     @Query("SELECT n.schemeOption.id, MIN(n.effectiveDate), MAX(n.effectiveDate), COUNT(n) FROM NavObservation n GROUP BY n.schemeOption.id")
     List<Object[]> findSchemeOptionNavDateSummaries();
+
+    @Query("""
+        SELECT n.schemeOption.id,
+               MIN(n.effectiveDate),
+               MAX(n.effectiveDate),
+               COUNT(DISTINCT n.effectiveDate),
+               SUM(CASE WHEN n.qualityAssessment = 'INVALID' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN n.sourceArtifact IS NULL THEN 1 ELSE 0 END)
+        FROM NavObservation n
+        WHERE n.isLatestRevision = true
+        GROUP BY n.schemeOption.id
+        """)
+    List<Object[]> findDistinctValidNavSummaries();
+
+    @Query("""
+        SELECT MIN(n.effectiveDate),
+               MAX(n.effectiveDate),
+               COUNT(DISTINCT n.effectiveDate),
+               SUM(CASE WHEN n.qualityAssessment = 'INVALID' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN n.sourceArtifact IS NULL THEN 1 ELSE 0 END)
+        FROM NavObservation n
+        WHERE n.schemeOption.id = :schemeOptionId
+          AND n.isLatestRevision = true
+        """)
+    List<Object[]> findDistinctValidNavSummaryBySchemeOptionId(@Param("schemeOptionId") Long schemeOptionId);
+
+    @Query("""
+        SELECT n.schemeOption.id,
+               MIN(n.effectiveDate),
+               MAX(n.effectiveDate),
+               COUNT(DISTINCT n.effectiveDate)
+        FROM NavObservation n
+        WHERE n.isLatestRevision = true
+          AND n.effectiveDate >= :startDate
+          AND n.effectiveDate <= :endDate
+        GROUP BY n.schemeOption.id
+        """)
+    List<Object[]> findDistinctValidNavSummariesInDateRange(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+        SELECT MIN(n.effectiveDate),
+               MAX(n.effectiveDate),
+               COUNT(DISTINCT n.effectiveDate),
+               SUM(CASE WHEN n.qualityAssessment = 'INVALID' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN n.sourceArtifact IS NULL THEN 1 ELSE 0 END)
+        FROM NavObservation n
+        WHERE n.schemeOption.id = :schemeOptionId
+          AND n.isLatestRevision = true
+          AND n.effectiveDate >= :startDate
+          AND n.effectiveDate <= :endDate
+        """)
+    List<Object[]> findDistinctValidNavSummaryBySchemeOptionIdInDateRange(
+        @Param("schemeOptionId") Long schemeOptionId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }

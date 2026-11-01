@@ -72,9 +72,13 @@ public class AiOutputValidationService {
         dto.whatHappened().forEach(s -> prose.append(s).append(" "));
         dto.interpretation().forEach(s -> prose.append(s).append(" "));
         dto.riskFactors().forEach(s -> prose.append(s).append(" "));
+        if (dto.returnCharacteristics() != null) dto.returnCharacteristics().forEach(s -> prose.append(s).append(" "));
+        if (dto.riskCharacteristics() != null) dto.riskCharacteristics().forEach(s -> prose.append(s).append(" "));
+        if (dto.horizonInterpretation() != null) dto.horizonInterpretation().forEach(s -> prose.append(s).append(" "));
         if (dto.dataQualityCaveats() != null) dto.dataQualityCaveats().forEach(s -> prose.append(s).append(" "));
         if (dto.invalidationFactors() != null) dto.invalidationFactors().forEach(s -> prose.append(s).append(" "));
         if (dto.investigationQuestions() != null) dto.investigationQuestions().forEach(s -> prose.append(s).append(" "));
+        if (dto.claims() != null) dto.claims().forEach(c -> prose.append(c.claimText()).append(" "));
 
         String fullText = prose.toString();
 

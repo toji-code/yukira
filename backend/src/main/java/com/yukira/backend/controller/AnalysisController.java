@@ -23,6 +23,12 @@ public class AnalysisController {
     private final PortfolioComparisonQueryService portfolioComparisonQueryService;
     private final com.yukira.backend.repository.CalculationRunRepository calculationRunRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.yukira.backend.service.RollingReturnAnalyticsService rollingReturnAnalyticsService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.yukira.backend.service.DrawdownEpisodeAnalyticsService drawdownEpisodeAnalyticsService;
+
     public AnalysisController(
         AnalysisService analysisService,
         SchemeOptionRepository schemeOptionRepository,
@@ -515,7 +521,7 @@ public class AnalysisController {
      * Executes real Rolling Return and Outperformance Consistency Analysis (RET-05 / RET-06).
      * Deterministic Julian 365.25 annualization, synchronous pairing vs NIFTY 500 TRI, strict PIT enforcement.
      */
-    @GetMapping("/rolling/{schemeOptionId}")
+    @GetMapping(value = "/rolling/{schemeOptionId}", params = "!horizon")
     public ResponseEntity<?> getRollingConsistency(
         @PathVariable Long schemeOptionId,
         @RequestParam(required = false) String asOfDate,
@@ -771,9 +777,126 @@ public class AnalysisController {
             ));
         }
 
-        BetaDynamicsResponse response = analysisService.executeBetaCalculation(
-            schemeOptionId, date, cutoff, benchmarkId, horizon
+        BetaDynamicsResponse response = analysisService.executeBetaCalculation(schemeOptionId, date, cutoff, benchmarkId, horizon);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/performance-periods/{schemeOptionId}")
+    public ResponseEntity<?> getPerformancePeriods(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+        java.time.LocalDate date = (asOfDate != null && !asOfDate.isBlank())
+            ? java.time.LocalDate.parse(asOfDate)
+            : java.time.LocalDate.now();
+        java.time.OffsetDateTime cutoff = (knowledgeCutoffTime != null && !knowledgeCutoffTime.isBlank())
+            ? java.time.OffsetDateTime.parse(knowledgeCutoffTime)
+            : java.time.OffsetDateTime.now();
+
+        PerformancePeriodsResponseDto response = analysisService.evaluatePerformancePeriods(
+            schemeOptionId, date, cutoff
         );
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/drawdown-episodes/{schemeOptionId}")
+    public ResponseEntity<?> getDrawdownEpisodes(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(required = false) String asOfDate,
+        @RequestParam(required = false) String knowledgeCutoffTime
+    ) {
+        if (!schemeOptionRepository.existsById(schemeOptionId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "error", "SCHEME_OPTION_NOT_FOUND",
+                "message", String.format("SchemeOption #%d does not exist in the canonical registry.", schemeOptionId)
+            ));
+        }
+        java.time.LocalDate date = (asOfDate != null && !asOfDate.isBlank())
+            ? java.time.LocalDate.parse(asOfDate)
+            : java.time.LocalDate.now();
+        java.time.OffsetDateTime cutoff = (knowledgeCutoffTime != null && !knowledgeCutoffTime.isBlank())
+            ? java.time.OffsetDateTime.parse(knowledgeCutoffTime)
+            : java.time.OffsetDateTime.now();
+
+        DrawdownEpisodesResponseDto response = analysisService.getDrawdownEpisodes(
+            schemeOptionId, date, cutoff
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Drawdown episode depth and recovery analytics (Task 225).
+     */
+    @GetMapping("/drawdown-analytics/{schemeOptionId}")
+    public ResponseEntity<?> getDrawdownAnalytics(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(name = "startDate", required = false) String startDate,
+        @RequestParam(name = "analysisCutoff", required = false) String analysisCutoff,
+        @RequestParam(name = "knowledgeCutoff", required = false) String knowledgeCutoff,
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        if (drawdownEpisodeAnalyticsService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", "SERVICE_UNAVAILABLE", "message", "DrawdownEpisodeAnalyticsService not available"));
+        }
+        java.time.LocalDate start = (startDate != null && !startDate.isBlank()) ? java.time.LocalDate.parse(startDate) : null;
+        java.time.LocalDate end = (analysisCutoff != null && !analysisCutoff.isBlank()) ? java.time.LocalDate.parse(analysisCutoff) : null;
+        java.time.OffsetDateTime kc = (knowledgeCutoff != null && !knowledgeCutoff.isBlank()) ? java.time.OffsetDateTime.parse(knowledgeCutoff) : java.time.OffsetDateTime.now();
+
+        return ResponseEntity.ok(drawdownEpisodeAnalyticsService.analyzeDrawdownEpisodes(schemeOptionId, start, end, kc, limit));
+    }
+
+    /**
+     * Rolling return distribution and frequency analysis (Task 226).
+     */
+    @GetMapping(value = {"/rolling/{schemeOptionId}", "/rolling-returns/{schemeOptionId}"}, params = "horizon")
+    public ResponseEntity<?> getRollingReturns(
+        @PathVariable Long schemeOptionId,
+        @RequestParam(name = "horizon", defaultValue = "1Y") String horizon,
+        @RequestParam(name = "startDate", required = false) String startDate,
+        @RequestParam(name = "endDate", required = false) String endDate,
+        @RequestParam(name = "knowledgeCutoff", required = false) String knowledgeCutoff
+    ) {
+        if (rollingReturnAnalyticsService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", "SERVICE_UNAVAILABLE", "message", "RollingReturnAnalyticsService not available"));
+        }
+        java.time.LocalDate start = (startDate != null && !startDate.isBlank()) ? java.time.LocalDate.parse(startDate) : null;
+        java.time.LocalDate end = (endDate != null && !endDate.isBlank()) ? java.time.LocalDate.parse(endDate) : null;
+        java.time.OffsetDateTime kc = (knowledgeCutoff != null && !knowledgeCutoff.isBlank()) ? java.time.OffsetDateTime.parse(knowledgeCutoff) : java.time.OffsetDateTime.now();
+
+        return ResponseEntity.ok(rollingReturnAnalyticsService.calculateRollingReturns(schemeOptionId, horizon, start, end, kc));
+    }
+
+    /**
+     * Metric Evidence Drill-Down & Verification Path Endpoint (Task 229).
+     */
+    @GetMapping("/evidence-drilldown/{runId}")
+    public ResponseEntity<?> getEvidenceDrilldown(@PathVariable Long runId) {
+        var runOpt = calculationRunRepository.findById(runId);
+        if (runOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "CALCULATION_RUN_NOT_FOUND", "message", "Calculation run #" + runId + " not found."));
+        }
+        var run = runOpt.get();
+        return ResponseEntity.ok(Map.ofEntries(
+            Map.entry("runId", run.getId()),
+            Map.entry("metricCode", run.getMetricCode() != null ? run.getMetricCode() : "N/A"),
+            Map.entry("runStatus", run.getRunStatus()),
+            Map.entry("schemeOptionId", run.getSchemeOption() != null ? run.getSchemeOption().getId() : 0L),
+            Map.entry("schemeName", run.getSchemeOption() != null ? run.getSchemeOption().getOptionName() : "Unknown"),
+            Map.entry("analysisCutoff", run.getAnalysisCutoff() != null ? run.getAnalysisCutoff().toString() : "N/A"),
+            Map.entry("knowledgeCutoff", run.getKnowledgeCutoff() != null ? run.getKnowledgeCutoff().toString() : "N/A"),
+            Map.entry("inputSnapshotSha256", run.getInputSnapshotSha256() != null ? run.getInputSnapshotSha256() : "N/A"),
+            Map.entry("methodologyVersion", run.getMethodologyVersion() != null ? run.getMethodologyVersion().getVersionTag() : "N/A"),
+            Map.entry("executionStartedAt", run.getExecutionStartedAt() != null ? run.getExecutionStartedAt().toString() : "N/A"),
+            Map.entry("executionCompletedAt", run.getExecutionCompletedAt() != null ? run.getExecutionCompletedAt().toString() : "N/A"),
+            Map.entry("epistemicWarning", "Governed financial calculation: input observations cryptographically fingerprinted; zero LLM approximation.")
+        ));
     }
 }

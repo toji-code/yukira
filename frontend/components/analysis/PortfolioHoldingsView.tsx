@@ -103,11 +103,19 @@ export function PortfolioHoldingsView({ schemeOptionId, schemeCode }: PortfolioH
   const calculatedRawSum = holdings.length > 0
     ? holdings.reduce((sum, h) => sum + (typeof h.weight === "number" ? h.weight : 0), 0)
     : null;
+  const rawSumPct =
+    calculatedRawSum != null
+      ? calculatedRawSum > 1
+        ? calculatedRawSum
+        : calculatedRawSum * 100
+      : null;
+  const undisclosedResidual =
+    rawSumPct != null ? `${Math.max(0, 100 - rawSumPct).toFixed(2)}%` : "Not available";
   const coverage =
     snapshot?.formattedCoverage ||
     snapshot?.formattedTotalPortfolioWeight ||
-    (calculatedRawSum != null && calculatedRawSum > 0
-      ? `${(calculatedRawSum > 1 ? calculatedRawSum : calculatedRawSum * 100).toFixed(2)}%`
+    (rawSumPct != null && rawSumPct > 0
+      ? `${rawSumPct.toFixed(2)}%`
       : "Not available");
   const sourceHash = snapshot?.sourceSha256Hash || snapshot?.sourceArtifactHash || "Not available";
   const sourceTitle = snapshot?.sourceDocumentTitle || "Official AMC Monthly Disclosure";
@@ -127,7 +135,7 @@ export function PortfolioHoldingsView({ schemeOptionId, schemeCode }: PortfolioH
       />
 
       {/* CONCENTRATION SUMMARY METRICS STRIP */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div className="panel-inset p-3 bg-surface-raised">
           <span className="def-label">Top 5 Disclosed Weight</span>
           <span className="data-value-sm font-mono mt-1 block text-text-primary">
@@ -161,6 +169,16 @@ export function PortfolioHoldingsView({ schemeOptionId, schemeCode }: PortfolioH
           </span>
           <span className="mono-meta mt-1 block text-text-tertiary">
             Raw unforced sum (no 100% normalization)
+          </span>
+        </div>
+
+        <div className="panel-inset p-3 bg-surface-raised col-span-2 sm:col-span-1">
+          <span className="def-label">Undisclosed Residual</span>
+          <span className="data-value-sm font-mono mt-1 block text-text-secondary">
+            {undisclosedResidual}
+          </span>
+          <span className="mono-meta mt-1 block text-text-tertiary">
+            Cash, receivables, or omitted items
           </span>
         </div>
       </div>
@@ -294,6 +312,9 @@ export function PortfolioHoldingsView({ schemeOptionId, schemeCode }: PortfolioH
           <ul className="space-y-2 text-[12px] text-text-secondary">
             <li className="leading-snug">
               <strong className="text-text-primary">Denominator:</strong> Disclosed Net Assets (AUM). Total weight sum = <span className="font-mono text-text-primary">{coverage}</span> (No synthetic scaling or forced normalization).
+            </li>
+            <li className="leading-snug">
+              <strong className="text-text-primary">Undisclosed Residual:</strong> <span className="font-mono text-text-primary">{undisclosedResidual}</span>. Not assumed to be zero. Represents cash, net current receivables, TREPS collateral, or sub-threshold holdings not enumerated in AMC monthly disclosure sheets.
             </li>
             <li className="leading-snug">
               <strong className="text-text-primary">Non-Equity Positions:</strong> Sovereign Debt, REITs, Cash/TREPS &amp; Derivative Liabilities included in reconciliation.

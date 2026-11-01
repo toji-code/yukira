@@ -34,10 +34,30 @@ public class QuantEngineClient {
     }
 
     public CalculationResponseDto executeCalculation(CalculationRequestDto request) {
-        return restClient.post()
-            .uri("/api/v1/calculate")
-            .body(request)
-            .retrieve()
-            .body(CalculationResponseDto.class);
+        int maxAttempts = 3;
+        Exception lastEx = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return restClient.post()
+                    .uri("/api/v1/calculate")
+                    .body(request)
+                    .retrieve()
+                    .body(CalculationResponseDto.class);
+            } catch (Exception e) {
+                lastEx = e;
+                if (attempt < maxAttempts) {
+                    try {
+                        Thread.sleep(100L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        if (lastEx instanceof RuntimeException re) {
+            throw re;
+        }
+        throw new RuntimeException("Quant engine calculation failed after retries", lastEx);
     }
 }

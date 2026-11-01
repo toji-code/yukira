@@ -30,6 +30,14 @@ public class AmfiNavParser {
      * Never silently coercing or discarding malformed rows.
      */
     public List<AmfiNavRecord> parse(byte[] payloadBytes) {
+        return parse(payloadBytes, null);
+    }
+
+    /**
+     * Parses raw AMFI historical NAV payload bytes deterministically,
+     * optionally filtered by target AMFI scheme codes to prevent massive heap consumption.
+     */
+    public List<AmfiNavRecord> parse(byte[] payloadBytes, java.util.Set<String> targetAmfiCodes) {
         List<AmfiNavRecord> records = new ArrayList<>();
         if (payloadBytes == null || payloadBytes.length == 0) {
             return records;
@@ -93,6 +101,10 @@ public class AmfiNavParser {
                     // Non-numeric scheme code on delimited row -> malformed or unexpected header
                     records.add(AmfiNavRecord.malformed(lineNumber, line, "Malformed row: non-numeric Scheme Code: '" + schemeCode + "'"));
                     continue;
+                }
+
+                if (targetAmfiCodes != null && !targetAmfiCodes.isEmpty() && !targetAmfiCodes.contains(schemeCode)) {
+                    continue; // Skip non-targeted scheme early to prevent massive heap consumption
                 }
 
                 String schemeName = (schemeNameCol < tokens.length) ? tokens[schemeNameCol].trim() : "";

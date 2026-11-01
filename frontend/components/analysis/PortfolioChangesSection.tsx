@@ -526,6 +526,16 @@ export function PortfolioChangesSection({
       ) : (
         /* POSITION-LEVEL DRIFT TABLE */
         <div className="space-y-3">
+          {activeTab === "EXITS" && (
+            <div className="p-3 bg-amber-950/30 border border-amber-800/50 rounded text-amber-300 text-xs flex items-start gap-2">
+              <span className="font-bold text-amber-400">Epistemic Notice (Task 143):</span>
+              <span>
+                Removed from disclosed holdings (exited or dropped below mandatory disclosure threshold).
+                Indian mutual fund portfolio disclosures only report securities above regulatory thresholds;
+                positions may have been reduced below disclosure limits rather than completely liquidated.
+              </span>
+            </div>
+          )}
           <div className="scroll-region max-h-96">
             <table className="data-table text-[12.5px]">
               <thead>
@@ -600,7 +610,7 @@ export function PortfolioChangesSection({
             What to Investigate Further • Due Diligence Prompts
           </span>
           <span className="text-[11px] text-text-tertiary italic">
-            Disclosures reflect net portfolio shifts, not confirmed trade executions.
+            Disclosures reflect net portfolio shifts, not confirmed trade executions. Disclosed weights represent reported portfolio percentages without artificial reallocation.
           </span>
         </div>
 

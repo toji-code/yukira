@@ -16,15 +16,19 @@ const LINK_COLUMNS = [
     head: 'Explore',
     links: [
       { href: '/', label: 'Overview' },
-      { href: '/funds', label: 'Explore funds' },
+      { href: '/funds', label: 'Discover funds' },
       { href: '/compare', label: 'Compare' },
-      { href: '/watchlist', label: 'Watchlist' },
+      { href: '/watchlist', label: 'Saved research' },
+      { href: '/data-status', label: 'Data status & freshness' },
+      { href: '/discover', label: 'Goal discovery' },
     ],
   },
   {
-    head: 'Account',
+    head: 'Account & Portfolio',
     links: [
-      { href: '/portfolio', label: 'My portfolio' },
+      { href: '/portfolio', label: 'Portfolio' },
+      { href: '/account', label: 'Investor account' },
+      { href: '/pricing', label: 'Plans & pricing' },
       { href: '/auth/login', label: 'Sign in' },
     ],
   },
@@ -32,7 +36,7 @@ const LINK_COLUMNS = [
     head: 'Methodology',
     links: [
       { href: '/methodology', label: 'Methodology & governance' },
-      { href: '/funds/HDFC_FLEXI', label: 'Data lineage' },
+      { href: '/funds/HDFC_FLEXI', label: 'Canonical pilot' },
       {
         href: 'https://www.amfiindia.com',
         label: 'AMFI portal',

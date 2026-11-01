@@ -116,6 +116,7 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
 					<excludedGroups>${excludedGroups}</excludedGroups>
+					<argLine>-Xmx2048m</argLine>
 				</configuration>
 			</plugin>
 		</plugins>

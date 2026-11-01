@@ -6,6 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import { PageContainer, SectionHeading } from '@/components/layout/PageContainer';
 import { SchemeOption } from '@/types/domain';
 import { fetchAllSchemeOptions } from '@/lib/api/schemes';
+import { useUser } from '@auth0/nextjs-auth0/client';
+import { ConfirmRemoveModal } from '@/components/portfolio/ConfirmRemoveModal';
+import { EditHoldingModal } from '@/components/portfolio/EditHoldingModal';
 import {
   fetchPortfolioSummary,
   addPortfolioHolding,
@@ -23,15 +26,22 @@ import { PortfolioScoreHistoryView } from '@/components/portfolio/PortfolioScore
 import { GroundedAiInterpretationPanel } from '@/components/analysis/GroundedAiInterpretationPanel';
 import { DataFreshnessIndicator } from '@/components/portfolio/DataFreshnessIndicator';
 import { PortfolioIntelligenceSection } from '@/components/portfolio/PortfolioIntelligenceSection';
+import { PortfolioRiskDiversificationSection } from '@/components/portfolio/PortfolioRiskDiversificationSection';
+import { PortfolioMonitoringPanel } from '@/components/monitoring/PortfolioMonitoringPanel';
+import { TransactionsAndPerformanceSection } from '@/components/portfolio/TransactionsAndPerformanceSection';
 import { CasImportModal } from '@/components/portfolio/CasImportModal';
 import { ResearchPortfolioView } from '@/components/portfolio/ResearchPortfolioView';
+import { EvidenceQualitySummary } from '@/components/epistemic/EvidenceQualitySummary';
+import { PortfolioCashFlowTimeline } from '@/components/portfolio/PortfolioCashFlowTimeline';
+import { FifoTaxLotsAndDriftSection } from '@/components/portfolio/FifoTaxLotsAndDriftSection';
 
 function PortfolioPageContent() {
+  const { user } = useUser();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') || searchParams.get('view');
-  const [userSelectedMode, setUserSelectedMode] = useState<'holdings' | 'research' | null>(null);
-  const portfolioMode = userSelectedMode ?? (tabParam === 'research' ? 'research' : 'holdings');
-  const setPortfolioMode = (mode: 'holdings' | 'research') => setUserSelectedMode(mode);
+  const [userSelectedMode, setUserSelectedMode] = useState<'holdings' | 'transactions' | 'research' | 'timeline' | 'accounting' | null>(null);
+  const portfolioMode = userSelectedMode ?? (tabParam === 'transactions' ? 'transactions' : tabParam === 'research' ? 'research' : tabParam === 'timeline' ? 'timeline' : tabParam === 'accounting' || tabParam === 'lots' ? 'accounting' : 'holdings');
+  const setPortfolioMode = (mode: 'holdings' | 'transactions' | 'research' | 'timeline' | 'accounting') => setUserSelectedMode(mode);
 
   const [summary, setSummary] = useState<PortfolioSummaryDto | null>(null);
   const [options, setOptions] = useState<SchemeOption[]>([]);
@@ -42,10 +52,19 @@ function PortfolioPageContent() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isCasModalOpen, setIsCasModalOpen] = useState(false);
 
+  // Edit & explicit removal modal state
+  const [holdingToEdit, setHoldingToEdit] = useState<PortfolioHoldingDto | null>(null);
+  const [holdingToRemove, setHoldingToRemove] = useState<PortfolioHoldingDto | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
+
   // Form state
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [unitsInput, setUnitsInput] = useState<string>('');
   const [costBasisInput, setCostBasisInput] = useState<string>('');
+  const [reasonSavedInput, setReasonSavedInput] = useState<string>('');
+  const [questionInput, setQuestionInput] = useState<string>('');
+  const [nextStepInput, setNextStepInput] = useState<string>('');
 
   useEffect(() => {
     let ignore = false;
@@ -75,6 +94,44 @@ function PortfolioPageContent() {
     };
   }, []);
 
+  // Auto-open Add Holding modal if addOption query param is present, prefilling research context
+  useEffect(() => {
+    const addOptionParam = searchParams.get('addOption');
+    if (addOptionParam) {
+      setSelectedOptionId(addOptionParam);
+      const reasonParam = searchParams.get('reason');
+      const questionParam = searchParams.get('question');
+      const nextStepParam = searchParams.get('nextStep');
+      if (reasonParam) setReasonSavedInput(reasonParam);
+      if (questionParam) setQuestionInput(questionParam);
+      if (nextStepParam) setNextStepInput(nextStepParam);
+      setIsImportModalOpen(true);
+    }
+  }, [searchParams]);
+
+  // Smooth scroll to target holding if hash is provided (e.g. /portfolio#holding-118955)
+  useEffect(() => {
+    if (!loading && typeof window !== 'undefined' && window.location.hash) {
+      const targetId = window.location.hash.slice(1);
+      const el = document.getElementById(targetId);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    }
+  }, [loading]);
+
+  const savedResearchCount = React.useMemo(() => {
+    if (!summary?.holdings) return 0;
+    return summary.holdings.filter((h) => Boolean(h.isSavedInWatchlist)).length;
+  }, [summary?.holdings]);
+
+  const completeHoldingsCount = React.useMemo(() => {
+    if (!summary?.holdings) return 0;
+    return summary.holdings.filter((h) => h.holdingCompletenessStatus === 'COMPLETE').length;
+  }, [summary?.holdings]);
+
   const handleAddHolding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOptionId || !unitsInput) return;
@@ -86,12 +143,22 @@ function PortfolioPageContent() {
       const units = parseFloat(unitsInput);
       const costBasis = costBasisInput ? parseFloat(costBasisInput) : undefined;
 
-      await addPortfolioHolding(optionId, units, costBasis);
+      await addPortfolioHolding(
+        optionId,
+        units,
+        costBasis,
+        reasonSavedInput.trim() || undefined,
+        questionInput.trim() || undefined,
+        nextStepInput.trim() || undefined
+      );
 
       // Reset form
       setSelectedOptionId('');
       setUnitsInput('');
       setCostBasisInput('');
+      setReasonSavedInput('');
+      setQuestionInput('');
+      setNextStepInput('');
 
       // Reload summary
       const updatedSummary = await fetchPortfolioSummary();
@@ -103,11 +170,14 @@ function PortfolioPageContent() {
     }
   };
 
-  const handleRemoveHolding = async (holding: PortfolioHoldingDto) => {
+  const confirmRemoveHolding = async () => {
+    if (!holdingToRemove) return;
     try {
       setSubmitting(true);
       setError(null);
-      await removePortfolioHolding(holding.schemeOptionId);
+      await removePortfolioHolding(holdingToRemove.schemeOptionId);
+      setIsRemoveModalOpen(false);
+      setHoldingToRemove(null);
       const updatedSummary = await fetchPortfolioSummary();
       setSummary(updatedSummary);
     } catch (err: unknown) {
@@ -138,6 +208,17 @@ function PortfolioPageContent() {
           <span>📋 Tracked External Holdings</span>
         </button>
         <button
+          onClick={() => setPortfolioMode('transactions')}
+          className={`flex items-center gap-2 px-4 py-2.5 font-mono text-[12px] font-semibold border-b-2 transition-colors ${
+            portfolioMode === 'transactions'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-tertiary hover:text-text-primary'
+          }`}
+        >
+          <span>📈 Transactions & Performance (XIRR)</span>
+          <span className="status-badge state-verified text-[9px]">DETERMINISTIC</span>
+        </button>
+        <button
           onClick={() => setPortfolioMode('research')}
           className={`flex items-center gap-2 px-4 py-2.5 font-mono text-[12px] font-semibold border-b-2 transition-colors ${
             portfolioMode === 'research'
@@ -148,10 +229,48 @@ function PortfolioPageContent() {
           <span>🔬 Multi-Fund Look-Through & Research</span>
           <span className="status-badge state-verified text-[9px]">INTERACTIVE</span>
         </button>
+        <button
+          onClick={() => setPortfolioMode('timeline')}
+          className={`flex items-center gap-2 px-4 py-2.5 font-mono text-[12px] font-semibold border-b-2 transition-colors ${
+            portfolioMode === 'timeline'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-tertiary hover:text-text-primary'
+          }`}
+        >
+          <span>⏱️ Cash Flow Timeline & Snapshots</span>
+          <span className="status-badge state-verified text-[9px]">PIT HISTORICAL</span>
+        </button>
+        <button
+          onClick={() => setPortfolioMode('accounting')}
+          className={`flex items-center gap-2 px-4 py-2.5 font-mono text-[12px] font-semibold border-b-2 transition-colors ${
+            portfolioMode === 'accounting'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-tertiary hover:text-text-primary'
+          }`}
+        >
+          <span>🧾 FIFO Tax Lots &amp; Drift</span>
+          <span className="status-badge state-verified text-[9px]">TAX ACCOUNTING</span>
+        </button>
       </div>
 
-      {portfolioMode === 'research' ? (
+      {portfolioMode === 'accounting' ? (
+        <FifoTaxLotsAndDriftSection />
+      ) : portfolioMode === 'research' ? (
         <ResearchPortfolioView />
+      ) : portfolioMode === 'transactions' ? (
+        <div className="space-y-8">
+          <TransactionsAndPerformanceSection
+            holdings={summary?.holdings || []}
+            availableOptions={options}
+            onDataChanged={async () => {
+              const updated = await fetchPortfolioSummary();
+              setSummary(updated);
+            }}
+          />
+          <FifoTaxLotsAndDriftSection />
+        </div>
+      ) : portfolioMode === 'timeline' ? (
+        <PortfolioCashFlowTimeline />
       ) : (
         <>
           {/* Portfolio Quick Actions Header */}
@@ -218,27 +337,149 @@ function PortfolioPageContent() {
           setSummary(updated);
         }}
       />
+
+      <ConfirmRemoveModal
+        isOpen={isRemoveModalOpen}
+        onClose={() => {
+          setIsRemoveModalOpen(false);
+          setHoldingToRemove(null);
+        }}
+        onConfirm={confirmRemoveHolding}
+        holding={holdingToRemove}
+        submitting={submitting}
+      />
+
+      <EditHoldingModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setHoldingToEdit(null);
+        }}
+        onSuccess={async () => {
+          const updated = await fetchPortfolioSummary();
+          setSummary(updated);
+        }}
+        holding={holdingToEdit}
+      />
+
+      {/* Investor Workspace Identity & Tenant Isolation Banner */}
+      <div className="mb-6 panel-inset p-3 bg-surface border border-border/80 flex flex-wrap items-center justify-between gap-3 text-[12px] font-mono">
+        <div className="flex items-center gap-2 text-text-secondary">
+          <span className="text-accent">●</span>
+          <span>Tenant Workspace:</span>
+          {user ? (
+            <span className="text-text-primary font-semibold">
+              {user.email || user.name || 'Private Investor Portfolio'}
+            </span>
+          ) : (
+            <span className="text-text-tertiary">
+              Standard Account Portfolio Session (Isolated)
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-text-tertiary text-[11px]">
+          <span>Authority: <strong>Deterministic (nav_observation ledger)</strong></span>
+          <span>•</span>
+          <span>Capacity: <strong>Entitlement-enforced</strong></span>
+        </div>
+      </div>
+
+      {/* Research & Data Completeness Integration Strip */}
+      <div className="mb-6 panel p-3.5 bg-surface-raised/40 border border-border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-start gap-2.5">
+          <span className="text-accent text-sm">🔬</span>
+          <div className="space-y-0.5">
+            <span className="font-semibold text-text-primary">Research &amp; Holding Data Completeness Integration:</span>
+            <p className="text-text-secondary leading-relaxed font-sans text-[12px]">
+              {savedResearchCount} of {summary?.totalHoldings ?? 0} holdings have matching entries in your Investor Research Workspace. {completeHoldingsCount} of {summary?.totalHoldings ?? 0} positions have complete valuation and cost-basis data.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/watchlist"
+          className="btn btn-secondary btn-sm shrink-0 whitespace-nowrap self-start md:self-auto text-accent border-accent/30 hover:bg-accent/10"
+          title="Open Investor Research Workspace to review saved due-diligence hypotheses"
+        >
+          <span>Open Research Workspace (Watchlist) →</span>
+        </Link>
+      </div>
+
       {/* Overview Top Metric Cards */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-5">
         <div className="metric-tile">
-          <span className="eyebrow">Total Holdings</span>
+          <span className="eyebrow">Holdings & Schemes</span>
           <div className="metric-rule" />
-          <p className="data-value-lg">{summary ? summary.totalHoldings : 0}</p>
+          <div className="flex items-baseline gap-2">
+            <p className="data-value-lg">{summary ? summary.totalHoldings : 0}</p>
+            {summary && summary.distinctSchemeOptionsCount !== undefined && (
+              <span className="font-mono text-[11px] text-text-tertiary">
+                ({summary.distinctSchemeOptionsCount} schemes)
+              </span>
+            )}
+          </div>
           <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">
-            Externally tracked scheme options
+            Exact mutual-fund scheme options
           </p>
         </div>
 
         <div className="metric-tile">
-          <span className="eyebrow">Total Available Value</span>
+          <span className="eyebrow">Current Market Value</span>
           <div className="metric-rule" />
-          {summary && summary.totalAvailableValue !== null ? (
-            <p className="data-value-lg">{formatCurrency(summary.totalAvailableValue)}</p>
+          {summary && summary.totalCurrentMarketValue !== null && summary.totalCurrentMarketValue !== undefined ? (
+            <p className="data-value-lg text-emerald-400">{formatCurrency(summary.totalCurrentMarketValue)}</p>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="data-value-lg text-text-disabled">—</span>
+              <span className="status-badge state-candidate text-[9px]">VALUATION STALE</span>
+            </div>
+          )}
+          <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">
+            {summary && summary.totalCurrentMarketValue !== null && summary.totalCurrentMarketValue !== undefined
+              ? 'Valued with fresh observations (≤ 3d lag)'
+              : 'Zero positions meet 3-day freshness threshold'}
+          </p>
+        </div>
+
+        <div className="metric-tile">
+          <span className="eyebrow">Last-Known Valuation</span>
+          <div className="metric-rule" />
+          {summary && (summary.totalLastKnownValue !== null || summary.totalAvailableValue !== null) ? (
+            <div className="flex items-baseline gap-2">
+              <p className="data-value-lg text-amber-300">
+                {formatCurrency(summary.totalLastKnownValue ?? summary.totalAvailableValue ?? 0)}
+              </p>
+              <span className="status-badge state-candidate text-[9px]">LAST KNOWN</span>
+            </div>
           ) : (
             <p className="data-value-lg data-unavailable">Valuation Unavailable</p>
           )}
           <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">
-            Deterministic valuation from NAV ledger
+            As of {summary?.valuationAsOfDate || 'historical NAV cutoff'}
+          </p>
+        </div>
+
+        <div className="metric-tile">
+          <span className="eyebrow">Freshness Breakdown</span>
+          <div className="metric-rule" />
+          <div className="flex items-center gap-1.5 font-mono text-[12px] font-semibold">
+            <span className="text-emerald-400">{summary?.currentValuedHoldingsCount ?? 0} Fresh</span>
+            <span className="text-text-tertiary">/</span>
+            <span className="text-amber-300">{summary?.staleValuedHoldingsCount ?? (summary?.valuedHoldingsCount ?? 0)} Stale</span>
+            <span className="text-text-tertiary">/</span>
+            <span className="text-rose-400">{summary?.unavailableHoldingsCount ?? (summary ? summary.totalHoldings - summary.valuedHoldingsCount : 0)} Unvalued</span>
+          </div>
+          <div className="mt-1">
+            {summary && (
+              <span className={`status-badge text-[10px] ${
+                summary.valuationFreshnessState === 'PORTFOLIO_CURRENT' ? 'state-verified' :
+                summary.valuationFreshnessState === 'PORTFOLIO_STALE' ? 'state-candidate' : 'state-unavailable'
+              }`}>
+                {summary.valuationFreshnessState ?? 'PORTFOLIO_UNVALUED'}
+              </span>
+            )}
+          </div>
+          <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">
+            AMFI daily reporting freshness policy (3d)
           </p>
         </div>
 
@@ -268,42 +509,94 @@ function PortfolioPageContent() {
               : 'Exposure-weighted YUKIRA aggregation'}
           </p>
         </div>
-
-        <div className="metric-tile">
-          <span className="eyebrow">Valuation Coverage</span>
-          <div className="metric-rule" />
-          <div className="flex items-center gap-2">
-            <span className="data-value-lg font-mono">
-              {summary ? `${summary.valuedHoldingsCount}/${summary.totalHoldings}` : '0/0'}
-            </span>
-            {summary && (
-              <span className={`status-badge ${
-                summary.valuationCoverageState === 'VALUATION_COMPLETE' ? 'state-verified' :
-                summary.valuationCoverageState === 'VALUATION_PARTIAL' ? 'state-candidate' : 'state-unavailable'
-              }`}>
-                {summary.valuationCoverageState}
-              </span>
-            )}
-          </div>
-          <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">
-            Holdings with verified NAV data
-          </p>
-        </div>
-
-        <div className="metric-tile">
-          <span className="eyebrow">Analytical Coverage</span>
-          <div className="metric-rule" />
-          <div className="flex items-center gap-2">
-            <span className="data-value-lg font-mono">
-              {summary ? `${summary.scoredHoldingsCount}/${summary.totalHoldings}` : '0/0'}
-            </span>
-            <span className="status-badge state-candidate">YUKIRA_SCORE_V1</span>
-          </div>
-          <p className="mt-auto pt-2 font-mono text-[11px] text-text-tertiary">
-            Funds with analytical quality scores
-          </p>
-        </div>
       </div>
+
+      {/* Unified Portfolio Evidence Quality, Freshness & Valuation Center */}
+      {summary && (
+        <div className="mb-6">
+          <EvidenceQualitySummary
+            variant="panel"
+            title="Portfolio Valuation Freshness, Coverage & Asset Limitations"
+            subtitle={`${summary.totalHoldings} Tracked Positions · ${summary.distinctSchemeOptionsCount ?? summary.totalHoldings} Registered Schemes`}
+            contextName="Tracked Investor Portfolio"
+            asOfDate={summary.valuationAsOfDate || '2024-01-15'}
+            freshnessState={
+              summary.valuationFreshnessState === 'PORTFOLIO_CURRENT'
+                ? 'CURRENT'
+                : summary.valuationFreshnessState === 'PORTFOLIO_STALE'
+                ? 'STALE'
+                : 'UNAVAILABLE'
+            }
+            freshnessPolicy="AMFI Daily NAV Cadence Policy (≤ 3 calendar days lag)"
+            observationCount={summary.totalHoldings}
+            coverageState={
+              summary.valuationCoverageState === 'VALUATION_COMPLETE'
+                ? 'COMPLETE'
+                : summary.valuationCoverageState === 'VALUATION_PARTIAL'
+                ? 'PARTIAL'
+                : 'INSUFFICIENT'
+            }
+            coverageNote={`${summary.currentValuedHoldingsCount ?? 0} Fresh, ${summary.staleValuedHoldingsCount ?? summary.valuedHoldingsCount} Stale (Last Known), ${summary.unavailableHoldingsCount ?? 0} Unvalued.`}
+            completenessState={
+              summary.valuationCoverageState === 'VALUATION_COMPLETE'
+                ? 'COMPLETE'
+                : 'PARTIAL'
+            }
+            completenessNote={
+              summary.valuationCoverageMessage ||
+              `${summary.valuedHoldingsCount} of ${summary.totalHoldings} holdings have recorded NAV ledger observations. Unvalued positions are excluded from totals rather than guessed.`
+            }
+            methodologyStatus="APPROVED"
+            methodologyVersion="Deterministic Portfolio Valuation Ledger (Units × Realized NAV)"
+            interpretationConsequence={
+              summary.valuationFreshnessState === 'PORTFOLIO_STALE' || summary.valuationAsOfDate === '2024-01-15' ? (
+                <span>
+                  <strong>Valuation Freshness Limitation:</strong> Holdings are evaluated at last-known historical NAV observations ({summary.valuationAsOfDate || '2024-01-15'}). Under AMFI rules, observations older than 3 days are classified as <strong>STALE</strong>. The total of <strong>{formatCurrency(summary.totalLastKnownValue ?? summary.totalAvailableValue ?? 0)}</strong> is a mathematically exact historical calculation, but it <strong>MUST NOT</strong> be described or treated as current market equity value.
+                </span>
+              ) : summary.valuationFreshnessState === 'PORTFOLIO_CURRENT' ? (
+                <span>
+                  All holdings are valued with fresh NAV observations meeting the strict AMFI 3-day freshness threshold.
+                </span>
+              ) : (
+                <span>
+                  NAV observations are missing for some external holdings. Total portfolio value reflects only valued positions; no values are approximated.
+                </span>
+              )
+            }
+            nextStepLabel="Inspect Data Quality & Cadence in Evidence Explorer"
+            nextStepHref="/funds/1#data-quality"
+          />
+        </div>
+      )}
+
+      {/* Valuation Coverage Notice Banners */}
+      {summary && summary.valuationCoverageState === 'VALUATION_PARTIAL' && (
+        <div className="mb-6 panel-inset p-3.5 bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+          <span className="text-amber-400 text-base leading-none mt-0.5">⚠️</span>
+          <div className="space-y-1">
+            <h4 className="text-[12px] font-semibold text-amber-300 font-mono">
+              Partial Valuation Notice
+            </h4>
+            <p className="text-[12px] text-text-secondary leading-relaxed">
+              {summary.valuationCoverageMessage || `${summary.valuedHoldingsCount} of ${summary.totalHoldings} holdings have authoritative NAV data. Total portfolio value and allocation calculations reflect ONLY the valued positions.`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {summary && summary.valuationCoverageState === 'VALUATION_UNAVAILABLE' && summary.totalHoldings > 0 && (
+        <div className="mb-6 panel-inset p-3.5 bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
+          <span className="text-rose-400 text-base leading-none mt-0.5">ℹ️</span>
+          <div className="space-y-1">
+            <h4 className="text-[12px] font-semibold text-rose-300 font-mono">
+              Valuation Unavailable
+            </h4>
+            <p className="text-[12px] text-text-secondary leading-relaxed">
+              {summary.valuationCoverageMessage || 'None of the tracked holdings currently have NAV observations recorded in the database. Market value cannot be calculated deterministically.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {summary && summary.holdings.length > 0 && (
         <div className="space-y-6 mb-6">
@@ -634,8 +927,36 @@ function PortfolioPageContent() {
             <PortfolioComparisonView holdings={summary.holdings || []} />
           )}
 
+          {/* Portfolio Monitoring & Evidence Drift (Task 12) */}
+          <PortfolioMonitoringPanel />
+
           {/* Institutional Portfolio Intelligence & Look-Through Exposure Section */}
-          <PortfolioIntelligenceSection holdings={summary?.holdings || []} />
+          <PortfolioIntelligenceSection
+            holdings={summary?.holdings || []}
+            onHoldingUpdated={async () => {
+              const updated = await fetchPortfolioSummary();
+              setSummary(updated);
+            }}
+          />
+
+          {/* Institutional Portfolio Risk & Diversification Intelligence (Task 16) */}
+          <PortfolioRiskDiversificationSection
+            holdings={summary?.holdings || []}
+            onHoldingUpdated={async () => {
+              const updated = await fetchPortfolioSummary();
+              setSummary(updated);
+            }}
+          />
+
+          {/* Investor Performance & Transaction Ledger (Task 10) */}
+          <TransactionsAndPerformanceSection
+            holdings={summary?.holdings || []}
+            availableOptions={options}
+            onDataChanged={async () => {
+              const updated = await fetchPortfolioSummary();
+              setSummary(updated);
+            }}
+          />
 
           {/* Portfolio Analytical Exposure & Concentration Section */}
           {summary && summary.holdings.length > 0 && conc && (
@@ -749,18 +1070,61 @@ function PortfolioPageContent() {
                   const scoreVal = yScore?.score !== undefined ? yScore.score : holding.analyticalScore?.scoreValue;
 
                   return (
-                    <div key={holding.id} className="panel">
+                    <div
+                      key={holding.id}
+                      id={`holding-${holding.schemeOptionId || holding.id}`}
+                      className="panel transition-colors hover:border-text-primary/30"
+                    >
                       <div className="panel-header flex-wrap gap-2">
                         <div className="min-w-0 flex-1">
-                          <Link
-                            href={`/funds/${holding.schemeOptionId}`}
-                            className="text-[15px] font-semibold text-text-primary hover:text-accent"
-                          >
-                            {holding.fundName}
-                          </Link>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Link
+                              href={`/funds/${holding.schemeOptionId}?option=${holding.schemeOptionId}&from=/portfolio`}
+                              className="text-[15px] font-semibold text-text-primary hover:text-accent"
+                            >
+                              {holding.fundName}
+                            </Link>
+
+                            {holding.isSavedInWatchlist ? (
+                              <Link
+                                href={`/watchlist#saved-${holding.schemeOptionId}`}
+                                className="status-badge state-approved text-[9px] hover:underline font-bold"
+                                title="Saved in Investor Research Workspace. Click to view research notes."
+                              >
+                                🔬 SAVED IN RESEARCH ↗
+                              </Link>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setHoldingToEdit(holding);
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="status-badge text-[9px] font-mono text-text-tertiary bg-surface-raised border border-border/50 hover:text-text-primary cursor-pointer"
+                                title="Click to record research thesis or investigation questions"
+                              >
+                                + ATTACH RESEARCH THESIS
+                              </button>
+                            )}
+
+                            <span className={`status-badge text-[9px] font-mono ${
+                              holding.holdingCompletenessStatus === 'COMPLETE' ? 'state-approved' :
+                              holding.holdingCompletenessStatus === 'ATTENTION_REQUIRED' ? 'state-rejected' : 'state-candidate'
+                            }`}>
+                              DATA: {holding.holdingCompletenessStatus || 'PARTIAL'}
+                            </span>
+                          </div>
+
                           <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-[11px]">
                             <span className="status-badge state-verified">{holding.planType}</span>
                             <span className="status-badge state-verified">{holding.optionType}</span>
+                            <span className={`status-badge text-[10px] ${
+                              holding.valuationFreshnessStatus === 'VALUATION_CURRENT' ? 'state-verified' :
+                              holding.valuationFreshnessStatus === 'VALUATION_STALE' ? 'state-candidate' : 'state-unavailable'
+                            }`}>
+                              {holding.valuationFreshnessStatus === 'VALUATION_CURRENT' ? 'VALUATION CURRENT' :
+                               holding.valuationFreshnessStatus === 'VALUATION_STALE' ? 'VALUATION STALE (LAST KNOWN)' :
+                               holding.valuationFreshnessStatus === 'VALUATION_UNDETERMINED' ? 'FRESHNESS UNDETERMINED' : 'VALUATION UNAVAILABLE'}
+                            </span>
                             <span className="text-text-tertiary">AMC: {holding.amcName}</span>
                             <span className="text-text-tertiary">AMFI: {holding.amfiCode}</span>
                             <span className="text-text-tertiary">ISIN: {holding.isin}</span>
@@ -768,23 +1132,56 @@ function PortfolioPageContent() {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
+                          {holding.isSavedInWatchlist ? (
+                            <Link
+                              href={`/watchlist#saved-${holding.schemeOptionId}`}
+                              className="btn btn-secondary btn-sm flex items-center gap-1 text-[11px] text-accent border-accent/30 hover:bg-accent/10"
+                              title="Inspect saved notes in Research Workspace"
+                            >
+                              <span>Research</span>
+                              <span className="text-[10px]">↗</span>
+                            </Link>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setHoldingToEdit(holding);
+                                setIsEditModalOpen(true);
+                              }}
+                              className="btn btn-secondary btn-sm text-[11px] text-accent"
+                              title="Record investment thesis or questions"
+                            >
+                              + Thesis
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setHoldingToEdit(holding);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            Edit
+                          </button>
                           <Link
-                            href={`/funds/${holding.schemeOptionId}#scorecard`}
+                            href={`/funds/${holding.schemeOptionId}?option=${holding.schemeOptionId}&from=/portfolio#scorecard`}
                             className="btn btn-secondary btn-sm flex items-center gap-1"
                           >
-                            <span>Open Scorecard</span>
+                            <span>Scorecard</span>
                             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                             </svg>
                           </Link>
                           <Link
-                            href={`/funds/${holding.schemeOptionId}`}
+                            href={`/funds/${holding.schemeOptionId}?option=${holding.schemeOptionId}&from=/portfolio`}
                             className="btn btn-secondary btn-sm"
                           >
                             Profile
                           </Link>
                           <button
-                            onClick={() => handleRemoveHolding(holding)}
+                            onClick={() => {
+                              setHoldingToRemove(holding);
+                              setIsRemoveModalOpen(true);
+                            }}
                             disabled={submitting}
                             className="btn btn-danger btn-sm"
                             aria-label="Remove holding"
@@ -820,13 +1217,22 @@ function PortfolioPageContent() {
                         </div>
 
                         <div>
-                          <dt className="def-label">Available Value</dt>
+                          <dt className="def-label">Valuation (Last Known)</dt>
                           <dd className="data-value-sm font-mono">
-                            {holding.availableValue !== null ? (
-                              formatCurrency(holding.availableValue)
+                            {holding.lastKnownValue !== null && holding.lastKnownValue !== undefined ? (
+                              <span className="text-amber-300 font-semibold">{formatCurrency(holding.lastKnownValue)}</span>
+                            ) : holding.availableValue !== null ? (
+                              <span className="text-amber-300 font-semibold">{formatCurrency(holding.availableValue)}</span>
                             ) : (
                               <span className="text-text-disabled">Unavailable</span>
                             )}
+                            <span className="block text-[10px] text-text-tertiary">
+                              {holding.valuationFreshnessStatus === 'VALUATION_CURRENT'
+                                ? 'Current Value'
+                                : holding.valuationFreshnessStatus === 'VALUATION_STALE'
+                                ? 'Last Known (Historical)'
+                                : 'Unvalued'}
+                            </span>
                           </dd>
                         </div>
 
@@ -900,6 +1306,311 @@ function PortfolioPageContent() {
                         )}
                       </dl>
 
+                      {/* Holding Data Completeness & Action Checklist */}
+                      <div className="border-t border-border px-4 py-3 bg-surface-raised/20 space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="eyebrow text-[10px] text-text-tertiary">
+                              DATA COMPLETENESS &amp; ACTION CHECKLIST
+                            </span>
+                            <span className={`status-badge text-[9px] font-mono ${
+                              holding.holdingCompletenessStatus === 'COMPLETE' ? 'state-approved' :
+                              holding.holdingCompletenessStatus === 'ATTENTION_REQUIRED' ? 'state-rejected' : 'state-candidate'
+                            }`}>
+                              {holding.holdingCompletenessStatus || 'PARTIAL'}
+                            </span>
+                          </div>
+                          <span className="font-mono text-[10px] text-text-tertiary">
+                            {holding.missingAttributes && holding.missingAttributes.length > 0
+                              ? `${holding.missingAttributes.length} item(s) require attention`
+                              : 'All core attributes verified'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 font-mono text-[11px]">
+                          {/* 1. Identity & Market Codes */}
+                          <div className="panel-inset p-2.5 bg-surface border border-border/70 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-text-muted text-[10px]">Scheme Option Identity</span>
+                                {holding.schemeOptionId ? (
+                                  <span className="text-emerald-400 font-bold text-[10px]">✓ USABLE</span>
+                                ) : (
+                                  <span className="text-rose-400 font-bold text-[10px]">✕ MISSING</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-text-primary mt-1 font-sans font-semibold">
+                                Option #{holding.schemeOptionId}
+                              </p>
+                              <p className="text-[10px] text-text-tertiary mt-0.5 truncate">
+                                AMFI: {holding.amfiCode !== 'N/A' ? holding.amfiCode : 'Missing'} • ISIN: {holding.isin !== 'N/A' ? holding.isin : 'Missing'}
+                              </p>
+                            </div>
+                            <div className="pt-2 mt-auto border-t border-border/40 flex items-center justify-between">
+                              <span className="text-[9px] text-text-tertiary">Catalog Verified</span>
+                              <Link
+                                href={`/funds/${holding.schemeOptionId}`}
+                                className="text-[10px] text-accent hover:underline"
+                              >
+                                View Fund →
+                              </Link>
+                            </div>
+                          </div>
+
+                          {/* 2. Position Units & Cost Basis */}
+                          <div className="panel-inset p-2.5 bg-surface border border-border/70 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-text-muted text-[10px]">Units &amp; Cost Basis</span>
+                                {holding.costBasisAmount !== null && holding.costBasisAmount !== undefined ? (
+                                  <span className="text-emerald-400 font-bold text-[10px]">✓ COMPLETE</span>
+                                ) : (
+                                  <span className="text-amber-400 font-bold text-[10px]">⚠️ COST BASIS MISSING</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-text-primary mt-1 font-sans font-semibold">
+                                {holding.units} units recorded
+                              </p>
+                              <p className="text-[10px] text-text-tertiary mt-0.5">
+                                {holding.costBasisAmount !== null && holding.costBasisAmount !== undefined
+                                  ? `Cost: ${formatCurrency(holding.costBasisAmount)} / unit`
+                                  : 'Gain/loss cannot be computed without cost'}
+                              </p>
+                            </div>
+                            <div className="pt-2 mt-auto border-t border-border/40 flex items-center justify-between">
+                              <span className="text-[9px] text-text-tertiary">
+                                {holding.costBasisAmount ? 'Gain/loss enabled' : 'Optional cost'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setHoldingToEdit(holding);
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="text-[10px] text-accent hover:underline font-mono"
+                              >
+                                {holding.costBasisAmount ? 'Edit Cost' : '+ Add Cost'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 3. Valuation NAV & Freshness */}
+                          <div className="panel-inset p-2.5 bg-surface border border-border/70 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-text-muted text-[10px]">Valuation &amp; Freshness</span>
+                                {holding.valuationFreshnessStatus === 'VALUATION_CURRENT' ? (
+                                  <span className="text-emerald-400 font-bold text-[10px]">✓ CURRENT</span>
+                                ) : holding.valuationFreshnessStatus === 'VALUATION_STALE' ? (
+                                  <span className="text-amber-300 font-bold text-[10px]">⏳ HISTORICAL</span>
+                                ) : (
+                                  <span className="text-rose-400 font-bold text-[10px]">✕ UNAVAILABLE</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-text-primary mt-1 font-sans font-semibold">
+                                {holding.navValue !== null ? formatCurrency(holding.navValue) : 'Observation missing'}
+                              </p>
+                              <p className="text-[10px] text-text-tertiary mt-0.5">
+                                {holding.valuationFreshnessStatus === 'VALUATION_STALE'
+                                  ? `As of ${holding.navAsOfDate || 'historical cutoff'} (> 3d lag)`
+                                  : holding.valuationFreshnessStatus === 'VALUATION_CURRENT'
+                                  ? `As of ${holding.navAsOfDate || 'today'} (within 3d)`
+                                  : 'Valuation cannot be evaluated'}
+                              </p>
+                            </div>
+                            <div className="pt-2 mt-auto border-t border-border/40 flex items-center justify-between">
+                              <span className="text-[9px] text-text-tertiary">Ledger Provenance</span>
+                              <Link
+                                href={`/funds/${holding.schemeOptionId}`}
+                                className="text-[10px] text-accent hover:underline"
+                              >
+                                Evidence →
+                              </Link>
+                            </div>
+                          </div>
+
+                          {/* 4. Research Thesis & Investigation Question */}
+                          <div className="panel-inset p-2.5 bg-surface border border-border/70 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-text-muted text-[10px]">Research Context</span>
+                                {holding.reasonSaved ? (
+                                  <span className="text-emerald-400 font-bold text-[10px]">✓ RECORDED</span>
+                                ) : (
+                                  <span className="text-amber-400 font-bold text-[10px]">⚠️ THESIS MISSING</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-text-primary mt-1 font-sans font-semibold truncate" title={holding.reasonSaved || 'No investment thesis documented'}>
+                                {holding.reasonSaved ? holding.reasonSaved : 'No thesis documented'}
+                              </p>
+                              <p className="text-[10px] text-text-tertiary mt-0.5 truncate">
+                                {holding.investigationQuestion ? holding.investigationQuestion : 'No active due-diligence question'}
+                              </p>
+                            </div>
+                            <div className="pt-2 mt-auto border-t border-border/40 flex items-center justify-between">
+                              <span className="text-[9px] text-text-tertiary">
+                                {holding.isSavedInWatchlist ? 'Synced' : 'Holding only'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setHoldingToEdit(holding);
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="text-[10px] text-accent hover:underline font-mono"
+                              >
+                                {holding.reasonSaved ? 'Edit Thesis' : '+ Add Thesis'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Valuation Arithmetic & Provenance Breakdown */}
+                      <div className="border-t border-border/80 px-4 py-3 bg-surface-raised/40 space-y-2.5 font-mono text-[11px]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-text-tertiary">Valuation Math:</span>
+                            {holding.valuationState === 'VALUATION_AVAILABLE' && holding.navValue !== null ? (
+                              <span className="text-text-primary">
+                                {holding.units} units × {formatCurrency(holding.navValue)} NAV (effective {holding.navAsOfDate || 'N/A'}) = <strong className="text-accent">{formatCurrency(holding.lastKnownValue ?? holding.availableValue ?? 0)}</strong>
+                              </span>
+                            ) : (
+                              <span className="text-amber-400">
+                                NAV observation unavailable in database. Valuation cannot be evaluated.
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`status-badge text-[10px] ${
+                              holding.valuationFreshnessStatus === 'VALUATION_CURRENT' ? 'state-verified' :
+                              holding.valuationFreshnessStatus === 'VALUATION_STALE' ? 'state-candidate' : 'state-unavailable'
+                            }`}>
+                              {holding.valuationFreshnessStatus === 'VALUATION_CURRENT' ? 'FRESH DATA' :
+                               holding.valuationFreshnessStatus === 'VALUATION_STALE' ? 'STALE (HISTORICAL)' :
+                               holding.valuationFreshnessStatus === 'VALUATION_UNDETERMINED' ? 'UNDETERMINED' : 'UNAVAILABLE'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Freshness Explanation */}
+                        {holding.freshnessExplanation && (
+                          <p className="text-[11px] text-text-secondary font-sans leading-relaxed">
+                            ℹ️ {holding.freshnessExplanation}
+                          </p>
+                        )}
+
+                        {/* Provenance Metadata & Evidence Inspection */}
+                        <div className="pt-2 border-t border-border/60 grid grid-cols-1 sm:grid-cols-4 gap-2 text-[10px] text-text-tertiary">
+                          <div>
+                            <span className="block text-text-muted">Effective Date:</span>
+                            <span className="font-mono text-text-secondary">{holding.navAsOfDate || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="block text-text-muted">Availability Time:</span>
+                            <span className="font-mono text-text-secondary truncate block" title={holding.navAvailabilityTime || 'N/A'}>
+                              {holding.navAvailabilityTime ? holding.navAvailabilityTime.substring(0, 19).replace('T', ' ') : 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-text-muted">Ingestion Time:</span>
+                            <span className="font-mono text-text-secondary truncate block" title={holding.navIngestionTime || 'N/A'}>
+                              {holding.navIngestionTime ? holding.navIngestionTime.substring(0, 19).replace('T', ' ') : 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-text-muted">Source Artifact Hash:</span>
+                            <span className="font-mono text-text-secondary truncate block" title={holding.sourceArtifactHash || 'N/A'}>
+                              {holding.sourceArtifactHash ? `${holding.sourceArtifactHash.substring(0, 12)}...` : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 text-[10px]">
+                          <span className="text-text-muted">
+                            Revision Seq: <strong>{holding.revisionSeq ?? 1}</strong> • Quality: <strong className="text-emerald-400">{holding.qualityAssessment || 'VALID'}</strong>
+                          </span>
+                          <Link
+                            href={`/funds/${holding.schemeOptionId}`}
+                            className="text-accent hover:underline flex items-center gap-1 font-mono"
+                          >
+                            <span>Inspect Provenance in Fund Profile</span>
+                            <span>→</span>
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Attached Investor Research Notes & Questions */}
+                      {(holding.reasonSaved || holding.investigationQuestion || holding.nextStep) ? (
+                        <div className="border-t border-border px-4 py-3 bg-surface space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="eyebrow text-accent flex items-center gap-1.5">
+                              <span>Investor Research Context &amp; Notes</span>
+                              {holding.isSavedInWatchlist && (
+                                <Link
+                                  href={`/watchlist#saved-${holding.schemeOptionId}`}
+                                  className="status-badge state-approved text-[9px] hover:underline font-bold"
+                                  title="Synchronized with Investor Research Workspace"
+                                >
+                                  SYNCED WITH WATCHLIST ↗
+                                </Link>
+                              )}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href="/watchlist"
+                                className="text-[11px] font-mono text-text-tertiary hover:text-accent underline"
+                              >
+                                View in Workspace
+                              </Link>
+                              <button
+                                onClick={() => {
+                                  setHoldingToEdit(holding);
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="text-[11px] font-mono text-accent hover:underline font-semibold"
+                              >
+                                Edit Notes
+                              </button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 font-mono text-[11px]">
+                            {holding.reasonSaved && (
+                              <div className="panel-inset p-2.5 bg-surface-raised">
+                                <span className="text-text-muted text-[10px] block">Reason Tracked / Thesis</span>
+                                <p className="text-text-secondary mt-1 font-sans text-[12px]">{holding.reasonSaved}</p>
+                              </div>
+                            )}
+                            {holding.investigationQuestion && (
+                              <div className="panel-inset p-2.5 bg-surface-raised">
+                                <span className="text-text-muted text-[10px] block">Key Investigation Question</span>
+                                <p className="text-amber-300 mt-1 font-sans text-[12px]">{holding.investigationQuestion}</p>
+                              </div>
+                            )}
+                            {holding.nextStep && (
+                              <div className="panel-inset p-2.5 bg-surface-raised">
+                                <span className="text-text-muted text-[10px] block">Next Verification Checkpoint</span>
+                                <p className="text-accent mt-1 font-sans text-[12px]">{holding.nextStep}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-t border-border px-4 py-2.5 bg-surface/80 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+                          <div className="flex items-center gap-2 text-text-tertiary">
+                            <span>📝</span>
+                            <span>No investment thesis or investigation questions attached to this holding.</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setHoldingToEdit(holding);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="text-accent hover:underline font-semibold"
+                          >
+                            + Record Investment Thesis &amp; Questions
+                          </button>
+                        </div>
+                      )}
+
                       {/* YUKIRA Analytical Quality & Dimensions Breakdown Panel */}
                       <div className="border-t border-border bg-surface-raised p-3.5 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -954,7 +1665,10 @@ function PortfolioPageContent() {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               {/* Category Allocation */}
               <div className="panel p-4">
-                <h3 className="eyebrow mb-3">Exposure by Category</h3>
+                <h3 className="eyebrow mb-1">Exposure by Category</h3>
+                <p className="font-mono text-[10px] text-text-tertiary mb-3">
+                  Allocations describe the valued last-known universe ({formatCurrency(summary.totalLastKnownValue ?? summary.totalAvailableValue ?? 0)}). Unvalued positions are excluded from the denominator. If input NAVs are stale, percentages reflect historical weights rather than live trading allocations.
+                </p>
                 {summary.categoryAllocations.length === 0 ? (
                   <p className="text-[12px] text-text-tertiary">No category valuations available.</p>
                 ) : (
@@ -979,7 +1693,10 @@ function PortfolioPageContent() {
 
               {/* AMC Concentration */}
               <div className="panel p-4">
-                <h3 className="eyebrow mb-3">Exposure by AMC</h3>
+                <h3 className="eyebrow mb-1">Exposure by AMC</h3>
+                <p className="font-mono text-[10px] text-text-tertiary mb-3">
+                  Allocations describe the valued last-known universe ({formatCurrency(summary.totalLastKnownValue ?? summary.totalAvailableValue ?? 0)}). Unvalued positions are excluded from the denominator. If input NAVs are stale, percentages reflect historical weights rather than live trading allocations.
+                </p>
                 {summary.amcAllocations.length === 0 ? (
                   <p className="text-[12px] text-text-tertiary">No AMC valuations available.</p>
                 ) : (
@@ -1004,28 +1721,88 @@ function PortfolioPageContent() {
             </div>
           )}
 
-          {/* Data Quality & Investigation Panel */}
+          {/* Data-Driven Investigation Prompts Panel */}
           {summary && (
             <div className="panel p-4 space-y-4">
-              <h3 className="eyebrow text-accent">Data Quality Evidence & Investigation</h3>
-
-              {summary.dataQualityLimitations.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
                 <div>
+                  <h3 className="eyebrow text-accent">Data-Driven Investigation Prompts</h3>
+                  <p className="font-mono text-[11px] text-text-tertiary mt-0.5">
+                    Objective observations distinguishing verified facts from potential interpretations and verification checkpoints.
+                  </p>
+                </div>
+                <span className="status-badge state-candidate text-[10px]">
+                  {summary.structuredInvestigations?.length || 0} PROMPTS IDENTIFIED
+                </span>
+              </div>
+
+              {/* Structured prompt cards */}
+              {summary.structuredInvestigations && summary.structuredInvestigations.length > 0 ? (
+                <div className="space-y-3 font-mono text-[11px]">
+                  {summary.structuredInvestigations.map((item, idx) => (
+                    <div key={idx} className="panel-inset p-3 bg-surface space-y-2 border border-border">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
+                        <span className={`status-badge text-[10px] ${
+                          item.category === 'VALUATION_MISSING' ? 'state-unavailable' :
+                          item.category === 'PORTFOLIO_COVERAGE' ? 'state-candidate' :
+                          item.category === 'CONCENTRATION_OBSERVATION' ? 'state-verified' : 'state-candidate'
+                        }`}>
+                          {item.category.replace(/_/g, ' ')}
+                        </span>
+                        {item.schemeOptionId && (
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/funds/${item.schemeOptionId}`}
+                              className="text-accent hover:underline text-[11px] font-sans font-medium"
+                            >
+                              Fund Profile →
+                            </Link>
+                            <Link
+                              href={`/funds/${item.schemeOptionId}#scorecard`}
+                              className="text-text-tertiary hover:text-text-primary text-[11px] font-sans"
+                            >
+                              Evidence Explorer →
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 pt-1">
+                        <div>
+                          <span className="text-text-muted text-[10px] block font-sans font-medium">Fact / Observation</span>
+                          <p className="text-text-primary mt-0.5 font-sans text-[12px] leading-relaxed">
+                            {item.fact}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-text-muted text-[10px] block font-sans font-medium">Analytical Interpretation</span>
+                          <p className="text-text-secondary mt-0.5 font-sans text-[12px] leading-relaxed">
+                            {item.interpretation}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-text-muted text-[10px] block font-sans font-medium">Suggested Next Step</span>
+                          <p className="text-accent mt-0.5 font-sans text-[12px] leading-relaxed">
+                            {item.suggestedAction}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[12px] font-mono text-text-tertiary">
+                  No critical data limitations or high concentration flags identified for current holdings.
+                </p>
+              )}
+
+              {/* General data quality limitations */}
+              {summary.dataQualityLimitations.length > 0 && (
+                <div className="border-t border-border pt-3">
                   <h4 className="text-[12px] font-semibold text-text-secondary mb-1.5">Data Quality Limitations</h4>
                   <ul className="list-disc list-inside space-y-1 text-[12px] text-text-tertiary font-mono">
                     {summary.dataQualityLimitations.map((lim, idx) => (
                       <li key={idx}>{lim}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {summary.investigationQuestions.length > 0 && (
-                <div className="border-t border-border pt-3">
-                  <h4 className="text-[12px] font-semibold text-text-secondary mb-1.5">Actionable Investigation Questions</h4>
-                  <ul className="list-disc list-inside space-y-1 text-[12px] text-accent font-mono">
-                    {summary.investigationQuestions.map((q, idx) => (
-                      <li key={idx}>{q}</li>
                     ))}
                   </ul>
                 </div>
@@ -1103,6 +1880,49 @@ function PortfolioPageContent() {
                     <p className="mt-1 font-mono text-[10px] text-text-tertiary">
                       Leave blank if cost basis is unknown. Gain/loss analytics will evaluate only when cost basis is provided.
                     </p>
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <span className="eyebrow text-accent">Research Context & Notes (Optional)</span>
+                    <div>
+                      <label htmlFor="reason-saved-input" className="field-label">
+                        Allocation Thesis / Reason Tracked
+                      </label>
+                      <input
+                        id="reason-saved-input"
+                        type="text"
+                        value={reasonSavedInput}
+                        onChange={(e) => setReasonSavedInput(e.target.value)}
+                        className="field"
+                        placeholder="e.g. Core active large-cap position"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="question-input" className="field-label">
+                        Investigation Question
+                      </label>
+                      <input
+                        id="question-input"
+                        type="text"
+                        value={questionInput}
+                        onChange={(e) => setQuestionInput(e.target.value)}
+                        className="field"
+                        placeholder="e.g. Assess downside drawdown vs benchmark"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="next-step-input" className="field-label">
+                        Next Verification Checkpoint
+                      </label>
+                      <input
+                        id="next-step-input"
+                        type="text"
+                        value={nextStepInput}
+                        onChange={(e) => setNextStepInput(e.target.value)}
+                        className="field"
+                        placeholder="e.g. Check quarterly rolling CAGR consistency"
+                      />
+                    </div>
                   </div>
 
                   <button

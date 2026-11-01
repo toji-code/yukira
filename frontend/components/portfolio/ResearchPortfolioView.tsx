@@ -12,6 +12,7 @@ import {
   saveResearchPortfolio,
   fetchStressReplayEpisodes,
   executePortfolioStressReplay,
+  fetchPortfolioSummary,
   HistoricalMarketEpisodeDto,
   PortfolioStressReplayResponseDto,
   MultiFundLookThroughResponseDto,
@@ -221,6 +222,40 @@ export function ResearchPortfolioView() {
     }
   };
 
+  const handleLoadTrackedPortfolio = async () => {
+    setLoading(true);
+    try {
+      const summary = await fetchPortfolioSummary();
+      if (summary.holdings && summary.holdings.length > 0) {
+        const totalVal = summary.totalAvailableValue || 0;
+        const funds: ResearchPortfolioFundItemDto[] = summary.holdings.map(h => {
+          let weight = 0;
+          if (h.portfolioWeight && h.portfolioWeight > 0) {
+            weight = h.portfolioWeight;
+          } else if (totalVal > 0 && h.currentMarketValue) {
+            weight = parseFloat(((h.currentMarketValue / totalVal) * 100).toFixed(2));
+          } else {
+            weight = parseFloat((100.0 / summary.holdings.length).toFixed(2));
+          }
+          return {
+            schemeOptionId: h.schemeOptionId,
+            allocationWeight: weight,
+          };
+        });
+        setSelectedFunds(funds);
+        runLookThrough(funds, asOfDate);
+        setStatusMessage(`Loaded ${funds.length} tracked portfolio holdings with investor capital weights.`);
+        setTimeout(() => setStatusMessage(null), 4000);
+      } else {
+        setError('No tracked holdings found in your portfolio workspace. Add holdings or import CAS statement first.');
+      }
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to load tracked portfolio holdings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 4. Candidate Simulation Handler
   const handleRunSimulation = async () => {
     if (!candidateOptionId || proposedAllocation <= 0 || proposedAllocation >= 100) {
@@ -356,6 +391,13 @@ export function ResearchPortfolioView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleLoadTrackedPortfolio}
+            className="px-3.5 py-1.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-400 font-mono text-[11.5px] font-semibold hover:bg-cyan-900/40 transition-all flex items-center gap-1.5"
+            title="Load your actual tracked portfolio holdings and capital weights into look-through analysis"
+          >
+            <span>📋 Load My Tracked Holdings</span>
+          </button>
           <button
             onClick={handleLoadPilot}
             className="px-3.5 py-1.5 rounded bg-surface border border-border text-text-primary font-mono text-[11.5px] hover:bg-surface-raised transition-all flex items-center gap-1.5"
@@ -550,6 +592,54 @@ export function ResearchPortfolioView() {
           </div>
         </div>
       </div>
+
+      {/* Equal-Weight Assumption vs Actual Weights Banner */}
+      {lookThroughData && (
+        <div className={`p-3.5 rounded-lg border flex flex-wrap items-center justify-between gap-3 text-xs font-mono ${
+          lookThroughData.isEqualWeightAssumption
+            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className="font-bold">
+              {lookThroughData.isEqualWeightAssumption ? '⚠️ EQUAL-WEIGHT CONVENTION APPLIED' : '✓ INVESTOR CAPITAL ALLOCATION APPLIED'}
+            </span>
+            <span className="text-text-secondary">
+              {lookThroughData.isEqualWeightAssumption
+                ? 'Portfolio look-through exposures are calculated assuming equal allocation across constituent funds. Not reflective of your actual capital weighting.'
+                : 'Exposures are calculated using exact specified capital allocation weights summing to 100%.'}
+            </span>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded bg-surface border border-border">
+            {lookThroughData.isEqualWeightAssumption ? 'UNWEIGHTED MODEL' : 'EXACT CAPITAL WEIGHTED'}
+          </span>
+        </div>
+      )}
+
+      {/* Institutional Non-Advisory Epistemic Disclaimer */}
+      <div className="panel p-3 bg-surface border-l-2 border-l-accent flex items-start gap-2 text-[11px] font-mono text-text-muted">
+        <span className="text-accent font-bold shrink-0">ℹ</span>
+        <p>
+          <strong className="text-text-secondary">NON-ADVISORY INSTITUTIONAL DISCLOSURE:</strong> All underlying security look-through calculations, sector aggregations, concentration scores, and risk stress simulations are deterministic empirical computations grounded in statutory fund disclosures. YUKIRA does not offer portfolio recommendations, asset allocation advice, or buy/sell/hold ratings.
+        </p>
+      </div>
+
+      {/* Allocator Due Diligence Investigation Prompts */}
+      {lookThroughData?.investigationPrompts && lookThroughData.investigationPrompts.length > 0 && (
+        <div className="panel p-4 bg-surface space-y-2 border-l-2 border-l-primary">
+          <div className="flex items-center justify-between">
+            <span className="mono-meta text-primary font-semibold">ALLOCATOR DUE DILIGENCE</span>
+            <span className="text-[10px] font-mono uppercase text-text-tertiary">Portfolio Investigation Questions</span>
+          </div>
+          <ul className="space-y-1.5 text-xs text-text-secondary list-disc list-inside">
+            {lookThroughData.investigationPrompts.map((prompt, idx) => (
+              <li key={idx} className="leading-relaxed">
+                <span className="text-text-primary font-medium">{prompt}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* SECTION 2: TOP KPI METRIC TILES */}
       {conc && (

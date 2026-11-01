@@ -12,7 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -27,6 +29,8 @@ public class CasImportService {
     private final PortfolioImportRepository importRepository;
     private final PortfolioImportHoldingRepository importHoldingRepository;
     private final InvestorPortfolioHoldingRepository investorHoldingRepository;
+    private final PortfolioImportTransactionRepository importTransactionRepository;
+    private final InvestorTransactionRepository investorTransactionRepository;
     private final SourceArtifactRepository sourceArtifactRepository;
     private final DataSourceRepository dataSourceRepository;
     private final CasParser casParser;
@@ -37,6 +41,8 @@ public class CasImportService {
         PortfolioImportRepository importRepository,
         PortfolioImportHoldingRepository importHoldingRepository,
         InvestorPortfolioHoldingRepository investorHoldingRepository,
+        PortfolioImportTransactionRepository importTransactionRepository,
+        InvestorTransactionRepository investorTransactionRepository,
         SourceArtifactRepository sourceArtifactRepository,
         DataSourceRepository dataSourceRepository,
         CasParser casParser,
@@ -46,6 +52,8 @@ public class CasImportService {
         this.importRepository = importRepository;
         this.importHoldingRepository = importHoldingRepository;
         this.investorHoldingRepository = investorHoldingRepository;
+        this.importTransactionRepository = importTransactionRepository;
+        this.investorTransactionRepository = investorTransactionRepository;
         this.sourceArtifactRepository = sourceArtifactRepository;
         this.dataSourceRepository = dataSourceRepository;
         this.casParser = casParser;
@@ -90,7 +98,7 @@ public class CasImportService {
         // Parse file (passing optional password, password is NEVER logged or persisted)
         CasParser.ParseResult parseResult = casParser.parse(new ByteArrayInputStream(payloadBytes), filename, password);
 
-        boolean isParseFailed = !"SUCCESS".equals(parseResult.parseStatus());
+        boolean isParseFailed = !"SUCCESS".equals(parseResult.parseStatus()) && (parseResult.records().isEmpty() && parseResult.transactions().isEmpty());
 
         PortfolioImport portfolioImport = new PortfolioImport();
         portfolioImport.setInvestor(investor);
@@ -139,6 +147,41 @@ public class CasImportService {
         portfolioImport.setHoldings(stagedHoldings);
 
         PortfolioImport savedImport = importRepository.save(portfolioImport);
+
+        // Stage transactions if statement contains dated transaction history
+        if (parseResult.transactions() != null && !parseResult.transactions().isEmpty()) {
+            List<PortfolioImportTransaction> stagedTxs = new ArrayList<>();
+            for (CasImportParsedTransactionDto ptx : parseResult.transactions()) {
+                CasImportParsedRecordDto schemeLookup = new CasImportParsedRecordDto(
+                    ptx.rawSchemeName(), ptx.folioNumber(), ptx.isin(), ptx.amfiCode(), ptx.units(), null, null, ptx.nav()
+                );
+                CasSchemeResolutionService.ResolutionResult res = resolutionService.resolve(schemeLookup);
+                String normalizedType = normalizeType(ptx.rawTypeDescription());
+                String dedupHash = computeTxDedupHash(investor.getId(), ptx.transactionDate(), normalizedType, ptx.units(), ptx.amount());
+
+                PortfolioImportTransaction pit = new PortfolioImportTransaction();
+                pit.setPortfolioImport(savedImport);
+                pit.setRawSchemeName(ptx.rawSchemeName());
+                pit.setFolioNumber(ptx.folioNumber());
+                pit.setIsin(ptx.isin());
+                pit.setAmfiCode(ptx.amfiCode());
+                pit.setTransactionDate(ptx.transactionDate());
+                pit.setRawTypeDescription(ptx.rawTypeDescription());
+                pit.setNormalizedType(normalizedType);
+                pit.setUnits(ptx.units());
+                pit.setNav(ptx.nav());
+                pit.setAmount(ptx.amount());
+                pit.setResolvedSchemeOption(res.schemeOption());
+                pit.setResolutionStatus(res.status());
+                pit.setResolutionMethod(res.method());
+                pit.setResolutionNotes(res.notes());
+                pit.setDedupHash(dedupHash);
+
+                stagedTxs.add(pit);
+            }
+            importTransactionRepository.saveAll(stagedTxs);
+            log.info("Staged {} transactions for CAS Import #{}", stagedTxs.size(), savedImport.getId());
+        }
 
         log.info("Staged CAS Import #{} (Artifact #{}, SHA-256 {}) for investor #{}: {} detected, {} resolved, {} unresolved, {} ambiguous",
             savedImport.getId(), savedArtifact.getId(), sha256Hash.substring(0, 8), investor.getId(), parseResult.records().size(), resolvedCount, unresolvedCount, ambiguousCount);
@@ -228,12 +271,51 @@ public class CasImportService {
             }
         }
 
+        // Process staged transactions into investor_transaction ledger
+        List<PortfolioImportTransaction> stagedTxs = importTransactionRepository.findByPortfolioImportIdOrderByTransactionDateDesc(importId);
+        int txAdded = 0;
+        int txDuplicates = 0;
+
+        for (PortfolioImportTransaction pit : stagedTxs) {
+            if ("RESOLVED".equals(pit.getResolutionStatus()) && pit.getResolvedSchemeOption() != null) {
+                boolean exists = pit.getDedupHash() != null && investorTransactionRepository.existsByInvestorIdAndDedupHash(investor.getId(), pit.getDedupHash());
+                if (!exists) {
+                    InvestorTransaction itx = new InvestorTransaction();
+                    itx.setInvestor(investor);
+                    itx.setSchemeOption(pit.getResolvedSchemeOption());
+                    itx.setTransactionType(pit.getNormalizedType());
+                    itx.setTransactionDate(pit.getTransactionDate());
+                    itx.setSettlementDate(pit.getTransactionDate());
+                    itx.setUnits(pit.getUnits() != null ? pit.getUnits() : BigDecimal.ZERO);
+                    itx.setNav(pit.getNav());
+                    BigDecimal amt = pit.getAmount() != null ? pit.getAmount() : BigDecimal.ZERO;
+                    itx.setGrossAmount(amt);
+                    itx.setNetAmount(amt);
+                    itx.setChargesOrTaxes(BigDecimal.ZERO);
+                    itx.setDividendAmount(BigDecimal.ZERO);
+                    itx.setSourceAttribution("CAS_IMPORT");
+                    itx.setOriginalDescription(pit.getRawTypeDescription());
+                    itx.setImportBatchId(String.valueOf(importId));
+                    itx.setReconciliationStatus("UNRECONCILED");
+                    itx.setIsReversed(false);
+                    itx.setDedupHash(pit.getDedupHash());
+
+                    investorTransactionRepository.save(itx);
+                    txAdded++;
+                } else {
+                    pit.setResolutionStatus("DUPLICATE");
+                    importTransactionRepository.save(pit);
+                    txDuplicates++;
+                }
+            }
+        }
+
         portfolioImport.setStatus("CONFIRMED");
         portfolioImport.setConfirmedAt(ZonedDateTime.now());
         importRepository.save(portfolioImport);
 
-        log.info("Confirmed CAS Import #{}: {} scheme holdings added, {} updated, {} unresolved skipped",
-            importId, addedCount, updatedCount, unresolvedSkipped);
+        log.info("Confirmed CAS Import #{}: {} scheme holdings added, {} updated, {} unresolved skipped, {} transactions persisted, {} duplicates skipped",
+            importId, addedCount, updatedCount, unresolvedSkipped, txAdded, txDuplicates);
 
         return new CasImportConfirmResponseDto(
             importId,
@@ -243,7 +325,7 @@ public class CasImportService {
             0,
             unresolvedSkipped,
             portfolioImport.getConfirmedAt(),
-            List.of("Import confirmed successfully in " + effectiveMode + " mode with scheme-level multi-folio aggregation.")
+            List.of("Import confirmed successfully in " + effectiveMode + " mode with " + txAdded + " transactions recorded into ledger.")
         );
     }
 
@@ -269,7 +351,7 @@ public class CasImportService {
             casProvider = "KFINTECH";
         }
 
-        List<CasImportHoldingDetailDto> holdingDtos = imp.getHoldings().stream().map(h -> {
+        List<CasImportHoldingDetailDto> holdingDtos = imp.getHoldings() != null ? imp.getHoldings().stream().map(h -> {
             String fundName = h.getResolvedSchemeOption() != null && h.getResolvedSchemeOption().getPlan() != null && h.getResolvedSchemeOption().getPlan().getScheme() != null
                 ? h.getResolvedSchemeOption().getPlan().getScheme().getName()
                 : null;
@@ -294,7 +376,7 @@ public class CasImportService {
                 h.getResolutionMethod(),
                 h.getResolutionNotes()
             );
-        }).toList();
+        }).toList() : List.of();
 
         return new CasImportResultDto(
             imp.getId(),
@@ -316,6 +398,38 @@ public class CasImportService {
             holdingDtos,
             limitations
         );
+    }
+
+    private String normalizeType(String raw) {
+        if (raw == null) return "PURCHASE";
+        String s = raw.trim().toUpperCase(Locale.ROOT);
+        if (s.contains("SIP") || s.contains("SYSTEMATIC")) return "SIP_PURCHASE";
+        if (s.contains("STP IN") || s.contains("STP PURCHASE")) return "STP_PURCHASE";
+        if (s.contains("STP OUT") || s.contains("STP REDEMPTION")) return "STP_REDEMPTION";
+        if (s.contains("SWITCH IN") || s.contains("SWITCH-IN")) return "SWITCH_IN";
+        if (s.contains("SWITCH OUT") || s.contains("SWITCH-OUT")) return "SWITCH_OUT";
+        if (s.contains("PURCHASE") || s.contains("SUBSCRIPTION") || s.contains("NEW FUND")) return "PURCHASE";
+        if (s.contains("REDEMPTION") || s.contains("REPURCHASE") || s.contains("WITHDRAWAL")) return "REDEMPTION";
+        if (s.contains("DIVIDEND REINVEST") || s.contains("IDCW REINVEST")) return "DIVIDEND_REINVESTMENT";
+        if (s.contains("DIVIDEND") || s.contains("IDCW")) return "DIVIDEND_PAYOUT";
+        if (s.contains("BONUS")) return "BONUS";
+        if (s.contains("REVERSAL")) return "REVERSAL";
+        return "OTHER";
+    }
+
+    private String computeTxDedupHash(Long investorId, LocalDate date, String type, BigDecimal units, BigDecimal amt) {
+        String raw = investorId + ":" + date + ":" + type + ":" + (units != null ? units.stripTrailingZeros() : "0") + ":" + (amt != null ? amt.stripTrailingZeros() : "0");
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(raw.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return UUID.randomUUID().toString();
+        }
     }
 
     private String computeSha256(byte[] data) {

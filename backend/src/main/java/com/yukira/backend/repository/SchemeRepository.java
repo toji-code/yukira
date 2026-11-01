@@ -13,6 +13,8 @@ public interface SchemeRepository extends JpaRepository<Scheme, Long>, JpaSpecif
     @EntityGraph(attributePaths = {"amc"})
     Optional<Scheme> findByCode(String code);
 
+    java.util.List<Scheme> findByNameContainingIgnoreCase(String name);
+
     @Override
     @EntityGraph(attributePaths = {"amc"})
     Optional<Scheme> findById(Long id);

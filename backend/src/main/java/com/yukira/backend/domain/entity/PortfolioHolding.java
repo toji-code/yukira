@@ -40,6 +40,7 @@ public class PortfolioHolding implements Serializable {
     public Security getSecurity() { return security; }
     public void setSecurity(Security security) { this.security = security; }
     public BigDecimal getReportedWeight() { return reportedWeight; }
+    public BigDecimal getWeightPercentage() { return reportedWeight; }
     public void setReportedWeight(BigDecimal reportedWeight) { this.reportedWeight = reportedWeight; }
     public BigDecimal getMarketValue() { return marketValue; }
     public void setMarketValue(BigDecimal marketValue) { this.marketValue = marketValue; }

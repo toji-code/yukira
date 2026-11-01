@@ -34,7 +34,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * PIT observation resolution -> calculation_run persistence -> quant engine dispatch
  * -> metric_result persistence -> BetaDynamicsResponse DTO assembly.
  */
+import org.springframework.transaction.annotation.Transactional;
+
 @SpringBootTest
+@Transactional
 @SuppressWarnings({"null", "deprecation"})
 class BetaDynamicsEndToEndIntegrationTest {
 

@@ -10,22 +10,22 @@ export interface SectionNavItem {
 }
 
 export const FUND_SECTIONS: SectionNavItem[] = [
-  { id: "identity", label: "Fund Identity", shortLabel: "Identity", badge: "Sec 1" },
-  { id: "coverage", label: "Data Coverage", shortLabel: "Coverage", badge: "Sec 2" },
-  { id: "return-quality", label: "Return Quality", shortLabel: "Return", badge: "Dim 1" },
-  { id: "risk", label: "Total Risk", shortLabel: "Risk", badge: "Dim 2" },
-  { id: "drawdown", label: "Drawdown & Stress", shortLabel: "Drawdown", badge: "Dim 3" },
-  { id: "tail-risk", label: "Tail Risk", shortLabel: "Tail Risk", badge: "Dim 4" },
-  { id: "risk-adjusted", label: "Risk-Adjusted", shortLabel: "Risk-Adj", badge: "Dim 5" },
-  { id: "beta-dynamics", label: "Rolling Beta & Regimes", shortLabel: "Beta Dynamics", badge: "Dim 5.4" },
-  { id: "benchmark-relationship", label: "Benchmark Rel", shortLabel: "Benchmark", badge: "Dim 5.5" },
-  { id: "portfolio", label: "Portfolio Structure", shortLabel: "Portfolio", badge: "Dim 6" },
-  { id: "factor-exposure", label: "Factor Exposure & Drift", shortLabel: "Factor Drift", badge: "Dim 6.5" },
-  { id: "construction-risk", label: "Construction Risk & Reliability", shortLabel: "Reliability", badge: "Dim 6.6" },
-  { id: "investment-modes", label: "SIP & Lumpsum", shortLabel: "SIP/Lump", badge: "Sec 3" },
-  { id: "provenance", label: "AMFI Lineage", shortLabel: "Lineage" },
-  { id: "data-quality", label: "Data Quality", shortLabel: "Quality" },
-  { id: "decision-support", label: "Decision Support", shortLabel: "Decision" },
+  { id: "identity", label: "1. Identity & Classification", shortLabel: "Identity", badge: "Sec 1" },
+  { id: "coverage", label: "2. Historical Coverage & Sufficiency", shortLabel: "Coverage", badge: "Sec 2" },
+  { id: "return-quality", label: "3. Performance & CAGR", shortLabel: "Performance", badge: "Dim 1" },
+  { id: "risk", label: "4. Risk & Volatility", shortLabel: "Risk", badge: "Dim 2" },
+  { id: "drawdown", label: "5. Downside Stress & Drawdown", shortLabel: "Drawdown", badge: "Dim 3" },
+  { id: "tail-risk", label: "6. Tail Risk & Expected Shortfall", shortLabel: "Tail Risk", badge: "Dim 4" },
+  { id: "risk-adjusted", label: "7. Risk-Adjusted Efficiency", shortLabel: "Risk-Adj", badge: "Dim 5" },
+  { id: "beta-dynamics", label: "8. Dual Beta & Market Capture", shortLabel: "Beta", badge: "Dim 5.4" },
+  { id: "benchmark-relationship", label: "9. Benchmark Relationship", shortLabel: "Benchmark", badge: "Dim 5.5" },
+  { id: "portfolio", label: "10. Portfolio Holdings & Changes", shortLabel: "Holdings", badge: "Dim 6" },
+  { id: "factor-exposure", label: "11. Factor Exposure & Style Drift", shortLabel: "Factors", badge: "Dim 6.5" },
+  { id: "construction-risk", label: "12. Construction Risk & Liquidity", shortLabel: "Construction", badge: "Dim 6.6" },
+  { id: "investment-modes", label: "13. SIP vs Lump Sum Behavior", shortLabel: "Modes", badge: "Sec 3" },
+  { id: "provenance", label: "14. Governance & Provenance", shortLabel: "Governance", badge: "Sec 4" },
+  { id: "data-quality", label: "15. Freshness & Data Quality", shortLabel: "Quality", badge: "Sec 5" },
+  { id: "decision-support", label: "16. Peer Percentile Standing", shortLabel: "Peers", badge: "Sec 6" },
 ];
 
 export function FundSectionNav() {

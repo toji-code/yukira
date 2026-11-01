@@ -61,6 +61,24 @@ public class SchemeOption implements Serializable {
     @Transient
     private Integer snapshotCount;
 
+    @Transient
+    private Boolean inReferenceUniverse;
+
+    @Transient
+    private String universeCategory;
+
+    @Transient
+    private String universeExclusionReason;
+
+    @Transient
+    private String historySufficiencyStatus;
+
+    @Transient
+    private Long distinctObservationCount;
+
+    @Transient
+    private String earliestNavDate;
+
     public SchemeOption() {}
 
     public SchemeOption(SchemePlan plan, String optionType, String amfiCode, String isin) {
@@ -74,12 +92,20 @@ public class SchemeOption implements Serializable {
     public void setId(Long id) { this.id = id; }
 
     public SchemePlan getPlan() { return plan; }
+    public SchemePlan getSchemePlan() { return plan; }
     public void setPlan(SchemePlan plan) { this.plan = plan; }
 
+    public Scheme getScheme() {
+        return plan != null ? plan.getScheme() : null;
+    }
+
     public String getOptionType() { return optionType; }
+    public String getOptionName() { return plan != null ? plan.getPlanName() + " " + optionType : optionType; }
+    public String getSchemeCode() { return getScheme() != null ? getScheme().getCode() : null; }
     public void setOptionType(String optionType) { this.optionType = optionType; }
 
     public String getAmfiCode() { return amfiCode; }
+    public String getAmfiSchemeCode() { return amfiCode; }
     public void setAmfiCode(String amfiCode) { this.amfiCode = amfiCode; }
 
     public String getIsin() { return isin; }
@@ -120,4 +146,22 @@ public class SchemeOption implements Serializable {
 
     public Integer getSnapshotCount() { return snapshotCount; }
     public void setSnapshotCount(Integer snapshotCount) { this.snapshotCount = snapshotCount; }
+
+    public Boolean getInReferenceUniverse() { return inReferenceUniverse; }
+    public void setInReferenceUniverse(Boolean inReferenceUniverse) { this.inReferenceUniverse = inReferenceUniverse; }
+
+    public String getUniverseCategory() { return universeCategory; }
+    public void setUniverseCategory(String universeCategory) { this.universeCategory = universeCategory; }
+
+    public String getUniverseExclusionReason() { return universeExclusionReason; }
+    public void setUniverseExclusionReason(String universeExclusionReason) { this.universeExclusionReason = universeExclusionReason; }
+
+    public String getHistorySufficiencyStatus() { return historySufficiencyStatus; }
+    public void setHistorySufficiencyStatus(String historySufficiencyStatus) { this.historySufficiencyStatus = historySufficiencyStatus; }
+
+    public Long getDistinctObservationCount() { return distinctObservationCount; }
+    public void setDistinctObservationCount(Long distinctObservationCount) { this.distinctObservationCount = distinctObservationCount; }
+
+    public String getEarliestNavDate() { return earliestNavDate; }
+    public void setEarliestNavDate(String earliestNavDate) { this.earliestNavDate = earliestNavDate; }
 }

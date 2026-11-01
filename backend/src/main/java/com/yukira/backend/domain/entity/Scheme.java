@@ -64,6 +64,7 @@ public class Scheme implements Serializable {
     public void setAmc(Amc amc) { this.amc = amc; }
 
     public String getName() { return name; }
+    public String getSchemeName() { return name; }
     public void setName(String name) { this.name = name; }
 
     public String getCode() { return code; }
@@ -76,10 +77,17 @@ public class Scheme implements Serializable {
     public void setCategory(String category) { this.category = category; }
 
     public String getSubcategory() { return subcategory; }
+    public String getSubCategory() { return subcategory != null ? subcategory : category; }
     public void setSubcategory(String subcategory) { this.subcategory = subcategory; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    @Transient
+    private Benchmark benchmark;
+
+    public Benchmark getBenchmark() { return benchmark; }
+    public void setBenchmark(Benchmark benchmark) { this.benchmark = benchmark; }
 
     public com.yukira.backend.scoring.dto.YukiraScoreSummary getYukiraScore() { return yukiraScore; }
     public void setYukiraScore(com.yukira.backend.scoring.dto.YukiraScoreSummary yukiraScore) { this.yukiraScore = yukiraScore; }

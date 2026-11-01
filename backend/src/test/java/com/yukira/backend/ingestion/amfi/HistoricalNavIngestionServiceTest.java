@@ -1,5 +1,6 @@
 package com.yukira.backend.ingestion.amfi;
 
+import com.yukira.backend.domain.entity.NavObservation;
 import com.yukira.backend.domain.entity.SchemeOption;
 import com.yukira.backend.domain.entity.SourceArtifact;
 import com.yukira.backend.repository.NavObservationRepository;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class HistoricalNavIngestionServiceTest {
 
     @Mock
@@ -101,9 +103,6 @@ class HistoricalNavIngestionServiceTest {
         );
 
         when(schemeOptionRepository.findById(10189L)).thenReturn(Optional.of(opt));
-        when(amfiSourceClient.buildUrl(eq("120564"), any(), eq(start), eq(end)))
-            .thenReturn("https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?scheme=120564");
-        when(sourceArtifactRepository.existsByStorageUri(anyString())).thenReturn(false);
         when(amfiSourceClient.fetchAndPersistUniverseChunkArtifact(start, end)).thenReturn(artifact);
         when(amfiNavIngestionService.ingestArtifact(artifact, Set.of("120564"))).thenReturn(mockSummary);
 
@@ -132,7 +131,10 @@ class HistoricalNavIngestionServiceTest {
         when(schemeOptionRepository.findById(10189L)).thenReturn(Optional.of(opt));
         when(amfiSourceClient.buildUrl(eq("120564"), any(), eq(start), eq(end)))
             .thenReturn("https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?scheme=120564");
-        when(sourceArtifactRepository.existsByStorageUri(anyString())).thenReturn(true);
+        NavObservation obs = new NavObservation();
+        obs.setLatestRevision(true);
+        when(navObservationRepository.findBySchemeOptionIdAndEffectiveDateBetweenOrderByEffectiveDateAsc(eq(10189L), any(), any()))
+            .thenReturn(java.util.Collections.nCopies(12, obs));
 
         var result = historicalNavIngestionService.ingestHistoricalNavForSchemeOption(10189L, start, end);
 

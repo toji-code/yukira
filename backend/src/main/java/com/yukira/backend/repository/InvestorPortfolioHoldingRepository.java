@@ -10,6 +10,7 @@ import java.util.Optional;
 @Repository
 public interface InvestorPortfolioHoldingRepository extends JpaRepository<InvestorPortfolioHolding, Long> {
     List<InvestorPortfolioHolding> findByInvestorId(Long investorId);
+    List<InvestorPortfolioHolding> findByInvestor(com.yukira.backend.domain.entity.Investor investor);
     Optional<InvestorPortfolioHolding> findByInvestorIdAndSchemeOptionId(Long investorId, Long schemeOptionId);
     List<InvestorPortfolioHolding> findByInvestorIdAndSchemeOptionIdIn(Long investorId, List<Long> schemeOptionIds);
     void deleteByInvestorId(Long investorId);

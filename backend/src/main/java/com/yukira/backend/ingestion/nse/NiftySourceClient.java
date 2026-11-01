@@ -5,6 +5,8 @@ import com.yukira.backend.domain.entity.DataSource;
 import com.yukira.backend.domain.entity.SourceArtifact;
 import com.yukira.backend.repository.DataSourceRepository;
 import com.yukira.backend.repository.SourceArtifactRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
@@ -25,8 +27,11 @@ import java.util.Optional;
 @Component
 public class NiftySourceClient {
 
+    private static final Logger log = LoggerFactory.getLogger(NiftySourceClient.class);
     private static final String DEFAULT_POST_URL = "https://www.niftyindices.com/BackPage/getTotalReturnIndexString";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final int MAX_FETCH_ATTEMPTS = 3;
+    private static final long RETRY_BACKOFF_MS = 1000L;
 
     private final DataSourceRepository dataSourceRepository;
     private final SourceArtifactRepository sourceArtifactRepository;
@@ -72,9 +77,34 @@ public class NiftySourceClient {
     }
 
     /**
+    /**
+     * Finds existing authentic stored artifact by index name and date range without hitting external network.
+     */
+    public Optional<SourceArtifact> findStoredArtifact(String indexName, LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return Optional.empty();
+        }
+        String idx = (indexName != null && !indexName.isBlank()) ? indexName : "Nifty 500";
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH);
+        String sDateStr = startDate.format(dtf);
+        String eDateStr = endDate.format(dtf);
+        String sourceUri = String.format("%s?name=%s&startDate=%s&endDate=%s", DEFAULT_POST_URL, idx, sDateStr, eDateStr);
+        return sourceArtifactRepository.findFirstByStorageUri(sourceUri)
+            .filter(a -> a.getPayloadBlob() != null && a.getPayloadBlob().length > 0);
+    }
+
+    /**
      * Fetches raw Total Return Index (TRI) observations from official Nifty Indices POST endpoint.
+     * Reuses existing authentic SourceArtifact if one covering the exact request parameters already exists.
      */
     public SourceArtifact fetchAndPersistArtifact(String indexName, LocalDate startDate, LocalDate endDate) {
+        return fetchAndPersistArtifact(indexName, startDate, endDate, false);
+    }
+
+    /**
+     * Fetches raw Total Return Index (TRI) observations with optional forced refresh.
+     */
+    public SourceArtifact fetchAndPersistArtifact(String indexName, LocalDate startDate, LocalDate endDate, boolean forceRefresh) {
         if (startDate == null || endDate == null) {
             throw new IllegalArgumentException("startDate and endDate must not be null");
         }
@@ -91,59 +121,84 @@ public class NiftySourceClient {
 
         String sourceUri = String.format("%s?name=%s&startDate=%s&endDate=%s", DEFAULT_POST_URL, indexName, sDateStr, eDateStr);
 
-        try {
-            Map<String, String> cinfoMap = new HashMap<>();
-            cinfoMap.put("name", indexName);
-            cinfoMap.put("startDate", sDateStr);
-            cinfoMap.put("endDate", eDateStr);
-            cinfoMap.put("indexName", indexName);
-
-            Map<String, String> payloadMap = new HashMap<>();
-            payloadMap.put("cinfo", OBJECT_MAPPER.writeValueAsString(cinfoMap));
-            byte[] postBody = OBJECT_MAPPER.writeValueAsBytes(payloadMap);
-
-            URL url = new java.net.URI(DEFAULT_POST_URL).toURL();
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(15000);
-            conn.setReadTimeout(30000);
-            conn.setDoOutput(true);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
-            conn.setRequestProperty("Accept", "application/json, text/javascript, */*; q=0.01");
-            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-            conn.setRequestProperty("X-Requested-With", "XMLHttpRequest");
-            conn.setRequestProperty("Origin", "https://www.niftyindices.com");
-            conn.setRequestProperty("Referer", "https://www.niftyindices.com/reports/historical-data");
-
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(postBody);
-                os.flush();
+        if (!forceRefresh) {
+            Optional<SourceArtifact> existing = sourceArtifactRepository.findFirstByStorageUri(sourceUri);
+            if (existing.isPresent() && existing.get().getPayloadBlob() != null && existing.get().getPayloadBlob().length > 0) {
+                log.info("Reusing stored authentic source artifact #{} for '{}' [{} to {}]",
+                    existing.get().getId(), indexName, sDateStr, eDateStr);
+                return existing.get();
             }
+        }
 
-            int responseCode = conn.getResponseCode();
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw new RuntimeException("HTTP " + responseCode + " received from Nifty Indices endpoint: " + DEFAULT_POST_URL);
-            }
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+            try {
+                Map<String, String> cinfoMap = new HashMap<>();
+                cinfoMap.put("name", indexName);
+                cinfoMap.put("startDate", sDateStr);
+                cinfoMap.put("endDate", eDateStr);
+                cinfoMap.put("indexName", indexName);
 
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            try (InputStream is = conn.getInputStream()) {
-                byte[] data = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = is.read(data, 0, data.length)) != -1) {
-                    buffer.write(data, 0, bytesRead);
+                Map<String, String> payloadMap = new HashMap<>();
+                payloadMap.put("cinfo", OBJECT_MAPPER.writeValueAsString(cinfoMap));
+                byte[] postBody = OBJECT_MAPPER.writeValueAsBytes(payloadMap);
+
+                URL url = new java.net.URI(DEFAULT_POST_URL).toURL();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(30000);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+                conn.setRequestProperty("Accept", "application/json, text/javascript, */*; q=0.01");
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty("X-Requested-With", "XMLHttpRequest");
+                conn.setRequestProperty("Origin", "https://www.niftyindices.com");
+                conn.setRequestProperty("Referer", "https://www.niftyindices.com/reports/historical-data");
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(postBody);
+                    os.flush();
+                }
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode != HttpURLConnection.HTTP_OK) {
+                    throw new RuntimeException("HTTP " + responseCode + " received from Nifty Indices endpoint: " + DEFAULT_POST_URL);
+                }
+
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                try (InputStream is = conn.getInputStream()) {
+                    byte[] data = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = is.read(data, 0, data.length)) != -1) {
+                        buffer.write(data, 0, bytesRead);
+                    }
+                }
+
+                byte[] payloadBytes = buffer.toByteArray();
+                if (payloadBytes.length == 0) {
+                    throw new RuntimeException("Empty payload received from Nifty Indices: " + sourceUri);
+                }
+
+                return createOrGetSourceArtifact(sourceUri, payloadBytes);
+
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Nifty TRI fetch attempt {}/{} for index '{}' failed: {}",
+                    attempt, MAX_FETCH_ATTEMPTS, indexName, e.getMessage());
+                if (attempt < MAX_FETCH_ATTEMPTS) {
+                    try {
+                        Thread.sleep(RETRY_BACKOFF_MS * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during retry backoff", ie);
+                    }
                 }
             }
-
-            byte[] payloadBytes = buffer.toByteArray();
-            if (payloadBytes.length == 0) {
-                throw new RuntimeException("Empty payload received from Nifty Indices: " + sourceUri);
-            }
-
-            return createOrGetSourceArtifact(sourceUri, payloadBytes);
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch official Nifty TRI artifact: " + e.getMessage(), e);
         }
+
+        throw new RuntimeException("Failed to fetch official Nifty TRI artifact after " +
+            MAX_FETCH_ATTEMPTS + " attempts for '" + indexName + "': " + (lastException != null ? lastException.getMessage() : "unknown"), lastException);
     }
 
     public static String calculateSha256(byte[] data) {

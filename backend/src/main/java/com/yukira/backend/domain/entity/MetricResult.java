@@ -68,6 +68,7 @@ public class MetricResult implements Serializable {
     public void setPeriodType(String periodType) { this.periodType = periodType; }
 
     public BigDecimal getNumericValue() { return numericValue; }
+    public BigDecimal getMetricValue() { return numericValue; }
     public void setNumericValue(BigDecimal numericValue) { this.numericValue = numericValue; }
 
     public String getStringValue() { return stringValue; }

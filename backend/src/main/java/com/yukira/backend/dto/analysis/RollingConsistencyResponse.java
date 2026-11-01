@@ -20,11 +20,23 @@ public record RollingConsistencyResponse(
     RollingContext context,
     RollingHorizonResult primary3Y,
     RollingHorizonResult supporting1Y,
+    RollingHorizonResult candidate5Y,
     List<RollingWindowSample> sampleWindows,
     List<RollingWindowSample> adverseWindows,
     List<MarketRegimeSummary> regimes,
     RollingEpistemic epistemic
 ) {
+    public RollingConsistencyResponse(
+        RollingContext context,
+        RollingHorizonResult primary3Y,
+        RollingHorizonResult supporting1Y,
+        List<RollingWindowSample> sampleWindows,
+        List<RollingWindowSample> adverseWindows,
+        List<MarketRegimeSummary> regimes,
+        RollingEpistemic epistemic
+    ) {
+        this(context, primary3Y, supporting1Y, null, sampleWindows, adverseWindows, regimes, epistemic);
+    }
     public record RollingContext(
         Long schemeOptionId,
         String fundName,

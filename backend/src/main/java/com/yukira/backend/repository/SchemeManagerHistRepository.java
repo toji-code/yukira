@@ -9,6 +9,8 @@ import java.util.List;
 @Repository
 public interface SchemeManagerHistRepository extends JpaRepository<SchemeManagerHist, Long> {
 
+    List<SchemeManagerHist> findBySchemeId(Long schemeId);
+
     List<SchemeManagerHist> findBySchemeIdOrderByStartDateDesc(Long schemeId);
 
     List<SchemeManagerHist> findBySchemeIdAndEndDateIsNullOrderByStartDateDesc(Long schemeId);

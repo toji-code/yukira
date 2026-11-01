@@ -13,6 +13,7 @@ import java.util.List;
 public interface CalculationRunRepository extends JpaRepository<CalculationRun, Long> {
     List<CalculationRun> findBySchemeOptionIdAndAsOfDateOrderByExecutionStartedAtDesc(Long schemeOptionId, LocalDate asOfDate);
     List<CalculationRun> findBySchemeOptionId(Long schemeOptionId);
+    List<CalculationRun> findBySchemeOptionIdOrderByAsOfDateDesc(Long schemeOptionId);
     boolean existsByMethodologyVersionId(Long methodologyVersionId);
 
     @Query("""

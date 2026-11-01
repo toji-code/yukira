@@ -9,6 +9,7 @@ import { fetchSchemes } from "@/lib/api/schemes";
 import { Scheme } from "@/types/domain";
 import { FundCard } from "@/components/primitives/FundCard";
 import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { InvestorOnboardingGuide } from "@/components/onboarding/InvestorOnboardingGuide";
 
 type SortOption = "name_asc" | "name_desc" | "inception_desc" | "inception_asc";
 type PlanFilterOption = "ALL" | "DIRECT" | "REGULAR";
@@ -20,6 +21,8 @@ const PILOT_PRESETS = [
     label: "HDFC Flexi Cap Direct Growth",
     sublabel: "AMFI 118955 · Option #1",
     query: "118955",
+    schemeCode: "HDFC_FLEXI",
+    optionId: 1,
     plan: "DIRECT" as PlanFilterOption,
     option: "GROWTH" as OptionFilterOption,
   },
@@ -27,6 +30,8 @@ const PILOT_PRESETS = [
     label: "Parag Parikh Flexi Cap Direct Growth",
     sublabel: "AMFI 122639 · Option #10262",
     query: "122639",
+    schemeCode: "PARAG_PARIKH_FLEXI_CAP_FUND",
+    optionId: 10262,
     plan: "DIRECT" as PlanFilterOption,
     option: "GROWTH" as OptionFilterOption,
   },
@@ -34,6 +39,8 @@ const PILOT_PRESETS = [
     label: "Parag Parikh ELSS Tax Saver Direct Growth",
     sublabel: "AMFI 147481 · Option #10151",
     query: "147481",
+    schemeCode: "PARAG_PARIKH_ELSS_TAX_SAVER_FUND",
+    optionId: 10151,
     plan: "DIRECT" as PlanFilterOption,
     option: "GROWTH" as OptionFilterOption,
   },
@@ -99,6 +106,18 @@ function FundsCatalogContent() {
     [router, searchQuery, categoryFilter, planFilter, optionFilter, evidenceFilter, sortBy]
   );
 
+  const currentCatalogUrl = useMemo(() => {
+    const sp = new URLSearchParams();
+    if (searchQuery.trim()) sp.set("search", searchQuery.trim());
+    if (categoryFilter && categoryFilter !== "ALL") sp.set("category", categoryFilter);
+    if (planFilter && planFilter !== "ALL") sp.set("plan", planFilter);
+    if (optionFilter && optionFilter !== "ALL") sp.set("option", optionFilter);
+    if (evidenceFilter && evidenceFilter !== "ALL") sp.set("evidence", evidenceFilter);
+    if (sortBy && sortBy !== "name_asc") sp.set("sort", sortBy);
+    const q = sp.toString();
+    return q ? `/funds?${q}` : "/funds";
+  }, [searchQuery, categoryFilter, planFilter, optionFilter, evidenceFilter, sortBy]);
+
   const executeSearch = useCallback((query: string, category: string) => {
     setLoading(true);
     setError(null);
@@ -157,7 +176,27 @@ function FundsCatalogContent() {
       plan: preset.plan,
       option: preset.option,
     });
-    executeSearch(preset.query, categoryFilter);
+    setLoading(true);
+    setError(null);
+    fetchSchemes({
+      search: preset.query,
+      category: categoryFilter !== "ALL" ? categoryFilter : undefined,
+    })
+      .then((data) => {
+        setSchemes(data);
+        if (data.length > 0 && preset.optionId) {
+          setSelectedOptionMap((prev) => ({
+            ...prev,
+            [data[0].id]: preset.optionId,
+          }));
+        }
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Failed to load mutual fund master catalog");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const handleClearAllFilters = () => {
@@ -194,7 +233,15 @@ function FundsCatalogContent() {
         const matchesCode = s.code.toLowerCase().includes(q);
         const matchesAmc = Boolean(s.amc?.name?.toLowerCase().includes(q) || s.amc?.code?.toLowerCase().includes(q));
         const matchesCat = Boolean(s.category?.toLowerCase().includes(q));
-        return matchesName || matchesCode || matchesAmc || matchesCat;
+        const matchesId = String(s.id) === q;
+        const matchesPreset = PILOT_PRESETS.some(
+          (p) =>
+            p.query.toLowerCase() === q &&
+            (s.code.toLowerCase() === p.schemeCode?.toLowerCase() ||
+             s.name.toLowerCase().includes("flexi") ||
+             s.name.toLowerCase().includes("elss"))
+        );
+        return matchesName || matchesCode || matchesAmc || matchesCat || matchesId || matchesPreset;
       });
     }
 
@@ -275,6 +322,15 @@ function FundsCatalogContent() {
       action={
         <div className="flex items-center gap-2.5">
           <Link
+            href="/compare?tab=screener"
+            className="flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/10 px-4 py-2 font-sans text-xs font-semibold text-primary transition-all hover:bg-primary/20 hover:border-primary shadow-sm"
+          >
+            <svg className="h-3.5 w-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>Fund Screener</span>
+          </Link>
+          <Link
             href="/compare"
             className="flex items-center gap-1.5 rounded-full border border-border-gold-subtle bg-surface-navy-raised px-4 py-2 font-sans text-xs font-semibold text-text-cream-bright transition-all hover:bg-surface-navy-hover hover:border-border-gold-bright"
           >
@@ -307,6 +363,9 @@ function FundsCatalogContent() {
         </div>
       }
     >
+      {/* Onboarding Workflow Guide */}
+      <InvestorOnboardingGuide className="mb-6" />
+
       {/* Canonical Pilot Presets */}
       <div className="rounded-2xl border border-border-gold-subtle bg-surface-midnight/90 p-4 mb-6 shadow-md glow-gold">
         <span className="font-mono text-[11px] uppercase tracking-wider text-primary font-semibold block mb-2.5">
@@ -536,16 +595,32 @@ function FundsCatalogContent() {
               message="The master scheme repository currently contains zero scheme records. Ensure database migrations and AMFI data ingestion have been executed."
             />
           ) : filteredAndSortedSchemes.length === 0 ? (
-            <StateView
-              kind="empty"
-              title="No Matching Schemes Found"
-              message={`No registered scheme records matched your search query "${searchQuery}".`}
-              action={
+            <div className="panel p-6 text-center my-6 bg-surface-midnight border border-border-gold-subtle rounded-2xl">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-surface-navy-raised text-primary mb-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <h3 className="font-sans font-bold text-base text-text-cream-bright">No Matching Schemes Found</h3>
+              <p className="font-mono text-xs text-text-cream-muted max-w-md mx-auto mt-1 leading-relaxed">
+                No registered scheme records matched your search query &ldquo;{searchQuery}&rdquo;.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button onClick={handleClearAllFilters} className="btn btn-secondary btn-sm">
                   Clear Filters
                 </button>
-              }
-            />
+                {PILOT_PRESETS.map((p) => (
+                  <button
+                    key={p.query}
+                    type="button"
+                    onClick={() => handlePresetClick(p)}
+                    className="btn btn-ghost btn-sm text-primary border border-border-gold-subtle hover:border-primary font-mono text-xs"
+                  >
+                    Select {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : viewMode === "table" ? (
             /* High-Density Table View from code.html */
             <div className="border border-border-gold-subtle rounded-2xl overflow-hidden bg-surface-midnight/90 backdrop-blur-sm shadow-xl">
@@ -564,13 +639,17 @@ function FundsCatalogContent() {
                   <tbody className="divide-y divide-border-gold-subtle/50 text-[13.5px]">
                     {paginatedSchemes.map((scheme) => {
                       const isPilot = scheme.code === 'HDFC_FLEXI' || scheme.name.toLowerCase().includes('hdfc flexi');
+                      const selectedOptId = selectedOptionMap[scheme.id];
+                      const profileHref = selectedOptId
+                        ? `/funds/${scheme.id}?option=${selectedOptId}&from=${encodeURIComponent(currentCatalogUrl)}`
+                        : `/funds/${scheme.id}?from=${encodeURIComponent(currentCatalogUrl)}`;
                       return (
                         <tr key={scheme.id} className="hover:bg-surface-navy-raised/60 transition-all group cursor-pointer">
                           <td className="py-3.5 px-4 font-sans text-text-cream-bright font-medium whitespace-nowrap group-hover:text-primary transition-colors flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-lg bg-surface-navy-raised border border-border-gold-subtle flex items-center justify-center font-mono text-xs text-primary font-bold">
                               {scheme.name.charAt(0)}
                             </div>
-                            <Link href={`/funds/${scheme.id}`} className="hover:underline">
+                            <Link href={profileHref} className="hover:underline">
                               {scheme.name}
                             </Link>
                           </td>
@@ -595,7 +674,7 @@ function FundsCatalogContent() {
                           </td>
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <Link
-                              href={`/funds/${scheme.id}`}
+                              href={profileHref}
                               className="font-mono text-xs text-primary hover:underline font-semibold"
                             >
                               Inspect Profile &rarr;
@@ -616,6 +695,7 @@ function FundsCatalogContent() {
                   key={scheme.id}
                   scheme={scheme}
                   selectedOptionId={selectedOptionMap[scheme.id]}
+                  returnUrl={currentCatalogUrl}
                   onOptionSelect={(schemeId, optionId) => {
                     setSelectedOptionMap((prev) => ({
                       ...prev,

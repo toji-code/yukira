@@ -23,7 +23,7 @@ public class AmfiSourceClient {
 
     private static final String BASE_URL = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx";
     public static final String NAV_ALL_URL = "https://portal.amfiindia.com/spages/NAVAll.txt";
-    private static final DateTimeFormatter AMFI_URL_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH);
+    public static final DateTimeFormatter AMFI_URL_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH);
 
     private final DataSourceRepository dataSourceRepository;
     private final SourceArtifactRepository sourceArtifactRepository;
@@ -206,6 +206,14 @@ public class AmfiSourceClient {
     public SourceArtifact fetchAndPersistUniverseCatalogArtifact() {
         OffsetDateTime retrievalTimestamp = OffsetDateTime.now();
         byte[] rawBytes = executeHttpGet(NAV_ALL_URL);
+        if (rawBytes == null || rawBytes.length < 100) {
+            throw new IllegalStateException("Official AMFI NAVAll.txt returned empty or invalid payload (< 100 bytes). Ingestion aborted.");
+        }
+        String prefix = new String(rawBytes, 0, Math.min(rawBytes.length, 150), java.nio.charset.StandardCharsets.ISO_8859_1).trim().toLowerCase();
+        if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!doctype")) {
+            throw new IllegalStateException("Official AMFI NAVAll.txt returned HTML error stream instead of NAV feed. Ingestion aborted.");
+        }
+
         String sha256Hash = computeSha256(rawBytes);
 
         Optional<SourceArtifact> existing = sourceArtifactRepository.findBySha256Hash(sha256Hash);
@@ -235,32 +243,66 @@ public class AmfiSourceClient {
         .build();
 
     private byte[] executeHttpGet(String urlString) {
-        try {
-            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                .uri(new java.net.URI(urlString))
-                .timeout(java.time.Duration.ofSeconds(60))
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                .GET()
-                .build();
+        return executeHttpGetWithRetry(urlString, 3, 1000);
+    }
 
-            java.net.http.HttpResponse<byte[]> response = httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+    /**
+     * Executes HTTP GET with exponential backoff, jitter, and fail-safe recovery (Task 214).
+     */
+    public byte[] executeHttpGetWithRetry(String urlString, int maxRetries, long initialDelayMs) {
+        int attempt = 0;
+        long currentDelay = initialDelayMs;
+        Exception lastException = null;
 
-            if (response.statusCode() != 200) {
-                throw new IllegalStateException("AMFI portal returned HTTP status: " + response.statusCode() + " for " + urlString);
+        while (attempt < maxRetries) {
+            attempt++;
+            try {
+                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(new java.net.URI(urlString))
+                    .timeout(java.time.Duration.ofSeconds(60))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .GET()
+                    .build();
+
+                java.net.http.HttpResponse<byte[]> response = httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+
+                if (response.statusCode() == 200) {
+                    byte[] payload = response.body();
+                    String prefix = new String(payload, 0, Math.min(payload.length, 120), java.nio.charset.StandardCharsets.ISO_8859_1).trim();
+                    if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!DOCTYPE") || prefix.contains("<table")) {
+                        // AMFI portal returned HTML page (e.g. "No Data Found") instead of NAV text stream -> return empty payload
+                        return new byte[0];
+                    }
+                    return payload;
+                }
+
+                if (response.statusCode() == 429 || response.statusCode() >= 500) {
+                    // Retryable server or rate limit error
+                    long jitter = (long) (Math.random() * 200);
+                    Thread.sleep(currentDelay + jitter);
+                    currentDelay *= 2;
+                    continue;
+                }
+
+                throw new IllegalStateException("AMFI portal returned non-retryable HTTP status: " + response.statusCode() + " for " + urlString);
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < maxRetries) {
+                    try {
+                        long jitter = (long) (Math.random() * 200);
+                        Thread.sleep(currentDelay + jitter);
+                        currentDelay *= 2;
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("HTTP request retry interrupted for URL: " + urlString, ie);
+                    }
+                }
             }
-
-            byte[] payload = response.body();
-            String prefix = new String(payload, 0, Math.min(payload.length, 120), java.nio.charset.StandardCharsets.ISO_8859_1).trim();
-            if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!DOCTYPE") || prefix.contains("<table")) {
-                // AMFI portal returned HTML page (e.g. "No Data Found") instead of NAV text stream -> return empty payload
-                return new byte[0];
-            }
-
-            return payload;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch raw artifact from AMFI portal: " + e.getMessage(), e);
         }
+
+        throw new RuntimeException("Failed to fetch raw artifact from AMFI portal after " + maxRetries + " attempts: " 
+            + (lastException != null ? lastException.getMessage() : "Unknown error"), lastException);
     }
 
     public static String computeSha256(byte[] data) {

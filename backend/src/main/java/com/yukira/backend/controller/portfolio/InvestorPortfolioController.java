@@ -3,11 +3,21 @@ package com.yukira.backend.controller.portfolio;
 import com.yukira.backend.dto.portfolio.PortfolioHoldingDto;
 import com.yukira.backend.dto.portfolio.PortfolioHoldingRequest;
 import com.yukira.backend.dto.portfolio.PortfolioSummaryDto;
+import com.yukira.backend.dto.portfolio.intelligence.InvestorPortfolioIntelligenceResponseDto;
+import com.yukira.backend.dto.portfolio.intelligence.PortfolioIntelligenceRequestDto;
+import com.yukira.backend.dto.portfolio.risk.PortfolioRiskDiversificationRequestDto;
+import com.yukira.backend.dto.portfolio.risk.PortfolioRiskDiversificationResponseDto;
+import com.yukira.backend.dto.portfolio.risk.stress.PortfolioStressEvidenceRecordDto;
+import com.yukira.backend.service.portfolio.InvestorPortfolioIntelligenceService;
+import com.yukira.backend.service.portfolio.InvestorPortfolioRiskDiversificationService;
 import com.yukira.backend.service.portfolio.InvestorPortfolioService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 /**
  * Primary REST controller for Portfolio Tracking V1.
@@ -25,9 +35,126 @@ import org.springframework.web.bind.annotation.*;
 public class InvestorPortfolioController {
 
     private final InvestorPortfolioService portfolioService;
+    private final InvestorPortfolioIntelligenceService intelligenceService;
+    private final InvestorPortfolioRiskDiversificationService riskDiversificationService;
+    private final com.yukira.backend.service.portfolio.PortfolioHistoricalStressService historicalStressService;
+    private final com.yukira.backend.service.InvestorService investorService;
 
     public InvestorPortfolioController(InvestorPortfolioService portfolioService) {
+        this(portfolioService, null, null, null, null);
+    }
+
+    public InvestorPortfolioController(
+        InvestorPortfolioService portfolioService,
+        InvestorPortfolioIntelligenceService intelligenceService
+    ) {
+        this(portfolioService, intelligenceService, null, null, null);
+    }
+
+    public InvestorPortfolioController(
+        InvestorPortfolioService portfolioService,
+        InvestorPortfolioIntelligenceService intelligenceService,
+        InvestorPortfolioRiskDiversificationService riskDiversificationService
+    ) {
+        this(portfolioService, intelligenceService, riskDiversificationService, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InvestorPortfolioController(
+        InvestorPortfolioService portfolioService,
+        InvestorPortfolioIntelligenceService intelligenceService,
+        InvestorPortfolioRiskDiversificationService riskDiversificationService,
+        @org.springframework.beans.factory.annotation.Autowired(required = false) com.yukira.backend.service.portfolio.PortfolioHistoricalStressService historicalStressService,
+        @org.springframework.beans.factory.annotation.Autowired(required = false) com.yukira.backend.service.InvestorService investorService
+    ) {
         this.portfolioService = portfolioService;
+        this.intelligenceService = intelligenceService;
+        this.riskDiversificationService = riskDiversificationService;
+        this.historicalStressService = historicalStressService;
+        this.investorService = investorService;
+    }
+
+    /**
+     * Retrieves consolidated Portfolio-Level Investment Intelligence (GET).
+     */
+    @GetMapping("/intelligence")
+    public ResponseEntity<InvestorPortfolioIntelligenceResponseDto> getPortfolioIntelligence(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false, defaultValue = "ACTUAL_CAPITAL") String allocationMode,
+            @RequestParam(required = false) LocalDate asOfDate,
+            @RequestParam(required = false) OffsetDateTime knowledgeCutoff) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        PortfolioIntelligenceRequestDto req = new PortfolioIntelligenceRequestDto(allocationMode, asOfDate, knowledgeCutoff);
+        InvestorPortfolioIntelligenceResponseDto response = intelligenceService != null
+            ? intelligenceService.calculatePortfolioIntelligence(subject, req)
+            : null;
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves consolidated Portfolio-Level Investment Intelligence (POST).
+     */
+    @PostMapping("/intelligence")
+    public ResponseEntity<InvestorPortfolioIntelligenceResponseDto> getPortfolioIntelligencePost(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody(required = false) PortfolioIntelligenceRequestDto request) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        InvestorPortfolioIntelligenceResponseDto response = intelligenceService != null
+            ? intelligenceService.calculatePortfolioIntelligence(subject, request)
+            : null;
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Evaluates deterministic Portfolio Risk & Diversification Intelligence (GET).
+     */
+    @GetMapping("/risk-diversification")
+    public ResponseEntity<PortfolioRiskDiversificationResponseDto> getPortfolioRiskDiversification(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) LocalDate asOfDate,
+            @RequestParam(required = false) OffsetDateTime knowledgeCutoff,
+            @RequestParam(required = false) String benchmarkCode,
+            @RequestParam(required = false) java.util.List<Long> schemeOptionIds) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        PortfolioRiskDiversificationRequestDto req =
+            new PortfolioRiskDiversificationRequestDto(asOfDate, knowledgeCutoff, benchmarkCode, schemeOptionIds);
+        PortfolioRiskDiversificationResponseDto response = riskDiversificationService != null
+            ? riskDiversificationService.calculateRiskAndDiversification(subject, req)
+            : null;
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Evaluates deterministic Portfolio Risk & Diversification Intelligence (POST).
+     */
+    @PostMapping("/risk-diversification")
+    public ResponseEntity<PortfolioRiskDiversificationResponseDto> evaluatePortfolioRiskDiversificationPost(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody(required = false) PortfolioRiskDiversificationRequestDto request) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        PortfolioRiskDiversificationResponseDto response = riskDiversificationService != null
+            ? riskDiversificationService.calculateRiskAndDiversification(subject, request)
+            : null;
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Exports structured historical stress evidence record for investor research and audit (Task 58).
+     */
+    @GetMapping("/risk-diversification/stress-export")
+    public ResponseEntity<PortfolioStressEvidenceRecordDto> exportHistoricalStressEvidence(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) LocalDate asOfDate,
+            @RequestParam(required = false) OffsetDateTime knowledgeCutoff,
+            @RequestParam(required = false) String benchmarkCode,
+            @RequestParam(required = false) java.util.List<Long> schemeOptionIds) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        PortfolioRiskDiversificationRequestDto req =
+            new PortfolioRiskDiversificationRequestDto(asOfDate, knowledgeCutoff, benchmarkCode, schemeOptionIds);
+        PortfolioStressEvidenceRecordDto record = riskDiversificationService != null
+            ? riskDiversificationService.exportHistoricalStressEvidence(subject, req)
+            : null;
+        return ResponseEntity.ok(record);
     }
 
     /**
@@ -213,5 +340,107 @@ public class InvestorPortfolioController {
         java.util.List<String> codes = request != null ? request.metricCodes() : null;
         com.yukira.backend.dto.analysis.ComparisonResponse response = portfolioService.evaluatePortfolioComparison(subject, optionIds, codes);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves active persistent historical stress findings for the authenticated investor (Tasks 80, 81).
+     */
+    @GetMapping("/stress-findings")
+    public ResponseEntity<java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto>> getStressFindings(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) Long portfolioId) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        if (historicalStressService == null || investorService == null) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+        com.yukira.backend.domain.entity.Investor investor = investorService.getOrCreateInvestor(subject);
+        java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto> findings =
+            historicalStressService.getActiveFindings(investor.getId(), portfolioId != null ? portfolioId : investor.getId());
+        return ResponseEntity.ok(findings);
+    }
+
+    /**
+     * Retrieves all persistent historical stress findings across all lifecycle states (Task 101).
+     */
+    @GetMapping("/stress-findings/all")
+    public ResponseEntity<java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto>> getAllStressFindings(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) Long portfolioId) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        if (historicalStressService == null || investorService == null) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+        com.yukira.backend.domain.entity.Investor investor = investorService.getOrCreateInvestor(subject);
+        java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto> findings =
+            historicalStressService.getAllFindings(investor.getId(), portfolioId != null ? portfolioId : investor.getId());
+        return ResponseEntity.ok(findings);
+    }
+
+    /**
+     * Retrieves version history of a finding across calculation runs (Task 101).
+     */
+    @GetMapping("/stress-findings/versions/{findingId}")
+    public ResponseEntity<java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto>> getFindingVersionHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String findingId) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        if (historicalStressService == null || investorService == null) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+        com.yukira.backend.domain.entity.Investor investor = investorService.getOrCreateInvestor(subject);
+        java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto> versions =
+            historicalStressService.getFindingVersionHistory(findingId, investor.getId());
+        return ResponseEntity.ok(versions);
+    }
+
+    /**
+     * Retrieves lifecycle transition audit history for a finding record (Task 102).
+     */
+    @GetMapping("/stress-findings/{findingRecordId}/transitions")
+    public ResponseEntity<java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingTransitionDto>> getFindingTransitions(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long findingRecordId) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        if (historicalStressService == null || investorService == null) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+        com.yukira.backend.domain.entity.Investor investor = investorService.getOrCreateInvestor(subject);
+        java.util.List<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingTransitionDto> transitions =
+            historicalStressService.getFindingTransitions(findingRecordId, investor.getId());
+        return ResponseEntity.ok(transitions);
+    }
+
+    /**
+     * Retrieves stored stress calculation manifest by calculation run ID/code (Task 85, 104).
+     */
+    @GetMapping("/stress-manifest/{calculationRunId}")
+    public ResponseEntity<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressCalculationManifestDto> getStressManifest(
+            @PathVariable String calculationRunId) {
+        if (historicalStressService == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return historicalStressService.getCalculationManifest(calculationRunId)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Updates stress finding lifecycle status (ACTIVE, RESOLVED, DISMISSED) with investor notes and audit transition (Task 81, 102).
+     */
+    @PostMapping("/stress-findings/{findingId}/status")
+    public ResponseEntity<com.yukira.backend.dto.portfolio.risk.stress.InvestorStressFindingDto> updateStressFindingStatus(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long findingId,
+            @RequestBody java.util.Map<String, String> body) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        if (historicalStressService == null || investorService == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        com.yukira.backend.domain.entity.Investor investor = investorService.getOrCreateInvestor(subject);
+        String status = body != null && body.containsKey("status") ? body.get("status") : "RESOLVED";
+        String notes = body != null ? (body.containsKey("investorNotes") ? body.get("investorNotes") : body.get("notes")) : null;
+        return historicalStressService.updateFindingLifecycleStatus(findingId, status, notes, investor.getId())
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

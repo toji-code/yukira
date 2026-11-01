@@ -302,11 +302,11 @@ export function RiskAttributionSection({
                         <span className="text-[10px] text-text-tertiary">({fc.planType})</span>
                         {isNegative ? (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                            ACTIVE RISK DAMPENER
+                            HISTORICAL VARIANCE DAMPENER
                           </span>
                         ) : fc.isDiversificationDampener ? (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-                            DIVERSIFIER
+                            BELOW-WEIGHT CONTRIBUTION
                           </span>
                         ) : (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
@@ -425,9 +425,9 @@ export function RiskAttributionSection({
                     </td>
                     <td className="py-2.5 px-3">
                       {fc.isNegativeContribution ? (
-                        <span className="text-emerald-400 font-semibold text-[10px]">Active Dampener (Cov &lt; 0)</span>
+                        <span className="text-emerald-400 font-semibold text-[10px]">Variance Dampener (Sample Cov &lt; 0)</span>
                       ) : fc.isDiversificationDampener ? (
-                        <span className="text-indigo-400 font-semibold text-[10px]">Risk Diluter</span>
+                        <span className="text-indigo-400 font-semibold text-[10px]">Below-Weight Contributor</span>
                       ) : (
                         <span className="text-amber-400 font-semibold text-[10px]">Primary Driver</span>
                       )}

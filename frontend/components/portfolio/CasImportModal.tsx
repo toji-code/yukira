@@ -141,6 +141,11 @@ export function CasImportModal({ isOpen, onClose, onSuccess }: CasImportModalPro
           </button>
         </div>
 
+        {/* Epistemic Boundary Notice */}
+        <div className="p-3 bg-slate-950/80 border-l-2 border-l-cyan-400 text-slate-300 rounded-r-lg text-[11px] font-mono leading-relaxed">
+          <strong className="text-cyan-300">EPISTEMIC BOUNDARY:</strong> CAS statements represent external investor-owned portfolio positions extracted from registrar records. They do not constitute statutory fund portfolio holdings disclosures or mutual fund analytical metrics. Imported positions are isolated strictly to your authenticated workspace.
+        </div>
+
         {error && (
           <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 rounded-lg text-xs font-mono">
             ⚠ {error}

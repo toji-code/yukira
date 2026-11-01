@@ -16,7 +16,9 @@ export type MetricGovernanceStatus =
   | 'validated'
   | 'approved'
   | 'unimplemented'
-  | 'pending_ingestion';
+  | 'pending_ingestion'
+  | 'unsupported'
+  | 'restricted';
 
 export interface MetricCardProps {
   code: string;
@@ -34,6 +36,8 @@ export interface MetricCardProps {
   limitation?: string;
   assumptions?: Array<{ label: string; value: string }>;
   isCalculated?: boolean;
+  calculationStatus?: string;
+  errorMessage?: string;
   canExecute?: boolean;
   isExecuting?: boolean;
   onExecute?: () => void;
@@ -41,6 +45,11 @@ export interface MetricCardProps {
   disabledReason?: string;
   investigationQuestion?: string;
   onInvestigate?: (question: string) => void;
+  percentileRank?: number | null;
+  formattedPercentile?: string | null;
+  peerCohortInfo?: string | null;
+  rankingDirection?: string | null;
+  unavailableReason?: string | null;
 }
 
 /**
@@ -56,6 +65,8 @@ const STATUS_BADGE: Record<MetricGovernanceStatus, { label: string; className: s
   approved: { label: 'Approved', className: 'state-approved' },
   unimplemented: { label: 'Candidate spec', className: 'state-unavailable' },
   pending_ingestion: { label: 'Pending ingestion', className: 'state-unavailable' },
+  unsupported: { label: 'Unsupported', className: 'state-unavailable' },
+  restricted: { label: 'Restricted', className: 'state-unavailable' },
 };
 
 /** Capital-impairment semantics are the only place a coloured left rule appears. */
@@ -89,6 +100,8 @@ export function MetricCard({
   limitation,
   assumptions = [],
   isCalculated = false,
+  calculationStatus,
+  errorMessage,
   canExecute = false,
   isExecuting = false,
   onExecute,
@@ -96,6 +109,11 @@ export function MetricCard({
   disabledReason,
   investigationQuestion,
   onInvestigate,
+  percentileRank: _percentileRank,
+  formattedPercentile,
+  peerCohortInfo,
+  rankingDirection: _rankingDirection,
+  unavailableReason,
 }: MetricCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -103,6 +121,8 @@ export function MetricCard({
   const showRiskRule = RISK_LEFT_RULE[category] === true;
 
   const hasValue = isCalculated && formattedValue !== undefined && formattedValue !== '';
+  const isInsufficient = calculationStatus === 'INSUFFICIENT_DATA';
+  const isFailed = calculationStatus === 'FAILED';
   const pendingReason =
     disabledReason ||
     'Under active quantitative review — available in full analytical audit.';
@@ -139,19 +159,46 @@ export function MetricCard({
       <div className="min-h-[52px]">
         {hasValue ? (
           <>
-            <p className="data-value-lg">{formattedValue}</p>
-            {contextLine && <p className="mono-meta mt-1">{contextLine}</p>}
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="data-value-lg">{formattedValue}</p>
+              {formattedPercentile && (
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-accent/10 text-accent border border-accent/20"
+                  title={`Category Peer Percentile: ${formattedPercentile}${peerCohortInfo ? ` (${peerCohortInfo})` : ''}`}
+                >
+                  {formattedPercentile}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 mt-1">
+              {contextLine && <p className="mono-meta">{contextLine}</p>}
+              {peerCohortInfo && <p className="mono-meta text-[11px] text-text-tertiary">{peerCohortInfo}</p>}
+            </div>
+          </>
+        ) : isInsufficient ? (
+          <>
+            <p className="data-unavailable text-amber-400">Insufficient data</p>
+            <p className="mt-1 text-[12.5px] leading-[1.5] text-text-tertiary">
+              {unavailableReason || errorMessage || 'Input series does not satisfy statutory minimum observation requirements.'}
+            </p>
+          </>
+        ) : isFailed ? (
+          <>
+            <p className="data-unavailable text-rose-400">Calculation failed</p>
+            <p className="mt-1 text-[12.5px] leading-[1.5] text-text-tertiary">
+              {unavailableReason || errorMessage || 'Quantitative kernel calculation failed during execution.'}
+            </p>
           </>
         ) : governanceStatus === 'unimplemented' || governanceStatus === 'pending_ingestion' ? (
           <>
             <p className="data-unavailable">Not available</p>
-            <p className="mt-1 text-[13px] leading-[1.5] text-text-tertiary">{pendingReason}</p>
+            <p className="mt-1 text-[13px] leading-[1.5] text-text-tertiary">{unavailableReason || pendingReason}</p>
           </>
         ) : (
           <>
             <p className="data-unavailable">Not calculated</p>
             <p className="mt-1 text-[13px] leading-[1.5] text-text-tertiary">
-              No run has produced this metric for the selected cutoffs.
+              {unavailableReason || 'No calculation run has produced this metric for the selected cutoffs.'}
             </p>
           </>
         )}

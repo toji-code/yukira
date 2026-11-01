@@ -1,8 +1,11 @@
 package com.yukira.backend.service.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yukira.backend.dto.ai.EvidenceClaimDto;
 import com.yukira.backend.dto.ai.GroundedAiInterpretationDto;
 import com.yukira.backend.dto.ai.GroundedEvidencePackageDto;
+import com.yukira.backend.dto.analysis.AnalyticalProfileResponse;
+import com.yukira.backend.universe.AnalyticalHorizon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,8 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Main Grounded AI Interpretation Orchestration Service.
@@ -22,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Coordinates deterministic evidence grounding, LLM provider integration, output safety validation, and fallback handling.
  * - Numerical computations remain strictly outside the AI path.
  * - Safely falls back to deterministic rule synthesis if LLM provider is unconfigured, times out, or fails safety audit.
+ * - Generates structured claims, multi-horizon analysis, and specific due-diligence questions.
  */
 @Service
 public class AiInterpretationService {
@@ -89,6 +94,57 @@ public class AiInterpretationService {
         return result;
     }
 
+    /**
+     * Retrieves grounded AI interpretation directly from an authoritative AnalyticalProfileResponse.
+     * Prevents calculation redundancy and guarantees 100% synchronization with the profile on screen.
+     */
+    public GroundedAiInterpretationDto getInterpretationForProfile(AnalyticalProfileResponse profile) {
+        if (profile == null) {
+            throw new IllegalArgumentException("AnalyticalProfileResponse cannot be null for interpretation.");
+        }
+        GroundedEvidencePackageDto evidence = evidenceGrounder.buildEvidencePackageForProfile(profile);
+        String horizon = evidence.horizon() != null ? evidence.horizon() : "3Y";
+        String runTag = evidence.calculationRunId() != null ? String.valueOf(evidence.calculationRunId()) : "latest";
+        String cacheKey = "profile:" + evidence.schemeOptionId() + ":" + runTag + ":" + horizon + ":" + evidence.asOfDate() + ":" + evidence.knowledgeCutoff() + ":" + aiModel;
+
+        if (interpretationCache.containsKey(cacheKey)) {
+            return interpretationCache.get(cacheKey);
+        }
+
+        GroundedAiInterpretationDto result = produceInterpretation(evidence);
+        interpretationCache.put(cacheKey, result);
+        return result;
+    }
+
+    /**
+     * Evaluates and retrieves grounded AI interpretation for a scheme option under explicit horizon & date context.
+     */
+    public GroundedAiInterpretationDto getInterpretationForProfile(
+        Long schemeOptionId,
+        String horizon,
+        String asOfDate,
+        String knowledgeCutoffTime
+    ) {
+        AnalyticalHorizon effectiveHorizon = AnalyticalHorizon.fromCode(horizon);
+        LocalDate effectiveAsOf = asOfDate != null && !asOfDate.isBlank() ? LocalDate.parse(asOfDate) : LocalDate.now();
+        OffsetDateTime effectiveCutoff = knowledgeCutoffTime != null && !knowledgeCutoffTime.isBlank()
+            ? OffsetDateTime.parse(knowledgeCutoffTime)
+            : OffsetDateTime.now();
+
+        String cacheKey = "profile-query:" + schemeOptionId + ":" + effectiveHorizon.getCode() + ":" + effectiveAsOf + ":" + effectiveCutoff + ":" + aiModel;
+        if (interpretationCache.containsKey(cacheKey)) {
+            return interpretationCache.get(cacheKey);
+        }
+
+        GroundedEvidencePackageDto evidence = evidenceGrounder.buildEvidencePackageForProfile(
+            schemeOptionId, effectiveHorizon, effectiveAsOf, effectiveCutoff
+        );
+
+        GroundedAiInterpretationDto result = produceInterpretation(evidence);
+        interpretationCache.put(cacheKey, result);
+        return result;
+    }
+
     public GroundedAiInterpretationDto getInterpretationForPortfolio(String investorSubject) {
         GroundedEvidencePackageDto evidence = evidenceGrounder.buildEvidencePackageForPortfolio(investorSubject);
         String subjectTag = investorSubject != null ? investorSubject : "anonymous";
@@ -135,17 +191,29 @@ public class AiInterpretationService {
 
             RULES:
             1. NEVER calculate or modify numbers. Use ONLY the provided evidence package.
-            2. NEVER issue investment advice or BUY, SELL, HOLD recommendations.
+            2. NEVER issue investment advice or BUY, SELL, HOLD, REDUCE, AVOID recommendations.
             3. NEVER predict future price or returns.
             4. Structure your response into strictly valid JSON matching this schema:
                {
-                 "summary": "High-level summary of evidence",
-                 "whatHappened": ["Fact 1", "Fact 2"],
+                 "summary": "Concise executive interpretation of the fund over the selected horizon",
+                 "whatHappened": ["Factual observation 1", "Factual observation 2"],
+                 "returnCharacteristics": ["Return explanation 1", "Return explanation 2"],
+                 "riskCharacteristics": ["Risk analysis 1", "Risk analysis 2"],
+                 "horizonInterpretation": ["Horizon observation 1"],
                  "interpretation": ["Analytical meaning 1", "Analytical meaning 2"],
-                 "riskFactors": ["Risk 1", "Risk 2"],
-                 "dataQualityCaveats": ["Caveat 1"],
-                 "invalidationFactors": ["Factor 1"],
-                 "investigationQuestions": ["Question 1"]
+                 "riskFactors": ["Key risk factor 1", "Key risk factor 2"],
+                 "dataQualityCaveats": ["Data quality or governance limitation 1"],
+                 "invalidationFactors": ["What could invalidate this interpretation 1"],
+                 "investigationQuestions": ["Specific prioritized due-diligence question 1", "Question 2"],
+                 "claims": [
+                   {
+                     "claimText": "Claim description",
+                     "claimType": "OBSERVATION",
+                     "supportingMetricCodes": ["RET-03"],
+                     "horizon": "3Y",
+                     "methodologyStatus": "APPROVED_BASELINE"
+                   }
+                 ]
                }
             """;
 
@@ -193,11 +261,30 @@ public class AiInterpretationService {
 
         List<String> whatHappened = castToStringList(jsonMap.get("whatHappened"));
         List<String> interpretation = castToStringList(jsonMap.get("interpretation"));
+        List<String> returnCharacteristics = castToStringList(jsonMap.get("returnCharacteristics"));
+        List<String> riskCharacteristics = castToStringList(jsonMap.get("riskCharacteristics"));
+        List<String> horizonInterpretation = castToStringList(jsonMap.get("horizonInterpretation"));
         List<String> riskFactors = castToStringList(jsonMap.get("riskFactors"));
         List<String> dataQualityCaveats = castToStringList(jsonMap.get("dataQualityCaveats"));
         List<String> invalidationFactors = castToStringList(jsonMap.get("invalidationFactors"));
         List<String> investigationQuestions = castToStringList(jsonMap.get("investigationQuestions"));
         String summary = (String) jsonMap.get("summary");
+
+        List<EvidenceClaimDto> claims = new ArrayList<>();
+        if (jsonMap.get("claims") instanceof List<?> claimList) {
+            for (Object item : claimList) {
+                if (item instanceof Map<?, ?> cm) {
+                    String ct = (String) cm.get("claimText");
+                    String type = (String) cm.get("claimType");
+                    List<String> codes = castToStringList(cm.get("supportingMetricCodes"));
+                    String h = (String) cm.get("horizon");
+                    String ms = (String) cm.get("methodologyStatus");
+                    if (ct != null && !ct.isBlank()) {
+                        claims.add(new EvidenceClaimDto(ct, type != null ? type : "OBSERVATION", codes, h != null ? h : evidence.horizon(), ms != null ? ms : evidence.methodologyStatus()));
+                    }
+                }
+            }
+        }
 
         Map<String, Object> evidenceRefs = new LinkedHashMap<>();
         if (evidence.overallScore() != null) evidenceRefs.put("overallScore", evidence.overallScore());
@@ -214,14 +301,19 @@ public class AiInterpretationService {
             evidenceRefs,
             evidence.calculationRunId(),
             evidence.schemeOptionId(),
-            evidence.methodologyStatus() != null ? evidence.methodologyStatus() : "YUKIRA_SCORE_V1",
+            evidence.methodologyStatus() != null ? evidence.methodologyStatus() : "YUKIRA_PROFILE_V1",
             evidence.asOfDate(),
             evidence.knowledgeCutoff(),
             evidence.sourceArtifactDigests() != null ? evidence.sourceArtifactDigests() : Collections.emptyList(),
             "VALIDATED_GROUNDED_AI",
             false,
             aiModel,
-            Instant.now().toString()
+            Instant.now().toString(),
+            evidence.horizon() != null ? evidence.horizon() : "3Y",
+            claims,
+            returnCharacteristics,
+            riskCharacteristics,
+            horizonInterpretation
         );
     }
 

@@ -7,8 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Phase 2R Unified 3-Year Institutional Risk-Return Profile Response.
- * Structures 16 authoritative metrics under the existing CalculationRun -> MetricResult architecture.
+ * Phase 2R / Phase B1 Institutional Risk-Return Profile Response.
+ * Structures 16+ authoritative metrics under the CalculationRun -> MetricResult architecture
+ * across explicit analytical horizons (3Y frozen baseline, 5Y candidate, 10Y candidate).
  */
 public record AnalyticalProfileResponse(
     ProfileContext context,
@@ -36,8 +37,31 @@ public record AnalyticalProfileResponse(
         LocalDate startDate,
         LocalDate asOfDate,
         OffsetDateTime knowledgeCutoffTime,
-        String runStatus
+        String runStatus,
+        String horizon
     ) {
+        public ProfileContext(
+            Long runId,
+            Long schemeId,
+            Long schemeOptionId,
+            String schemeName,
+            String amfiCode,
+            String isin,
+            String optionType,
+            String planType,
+            Long benchmarkId,
+            String benchmarkName,
+            String benchmarkCode,
+            String riskFreeProxy,
+            LocalDate startDate,
+            LocalDate asOfDate,
+            OffsetDateTime knowledgeCutoffTime,
+            String runStatus
+        ) {
+            this(runId, schemeId, schemeOptionId, schemeName, amfiCode, isin, optionType, planType,
+                 benchmarkId, benchmarkName, benchmarkCode, riskFreeProxy, startDate, asOfDate, knowledgeCutoffTime, runStatus, "3Y");
+        }
+
         public ProfileContext(
             Long runId,
             Long schemeOptionId,
@@ -56,7 +80,7 @@ public record AnalyticalProfileResponse(
             String runStatus
         ) {
             this(runId, null, schemeOptionId, schemeName, amfiCode, isin, optionType, planType,
-                 benchmarkId, benchmarkName, benchmarkCode, riskFreeProxy, startDate, asOfDate, knowledgeCutoffTime, runStatus);
+                 benchmarkId, benchmarkName, benchmarkCode, riskFreeProxy, startDate, asOfDate, knowledgeCutoffTime, runStatus, "3Y");
         }
     }
 
@@ -75,8 +99,35 @@ public record AnalyticalProfileResponse(
         String limitations,
         String errorMessage,
         Map<String, Object> diagnostics,
-        String investigationQuestion
+        String investigationQuestion,
+        Double percentileRank,
+        String formattedPercentile,
+        String peerCohortInfo,
+        String rankingDirection,
+        String unavailableReason
     ) {
+        public ProfileMetricItem(
+            String metricCode,
+            String metricName,
+            String category,
+            BigDecimal numericValue,
+            String formattedValue,
+            String units,
+            String periodType,
+            String calculationStatus,
+            String governanceStatus,
+            String formulaDisclosure,
+            String interpretation,
+            String limitations,
+            String errorMessage,
+            Map<String, Object> diagnostics,
+            String investigationQuestion
+        ) {
+            this(metricCode, metricName, category, numericValue, formattedValue, units, periodType,
+                 calculationStatus, governanceStatus, formulaDisclosure, interpretation, limitations,
+                 errorMessage, diagnostics, investigationQuestion, null, null, null, null, null);
+        }
+
         public ProfileMetricItem(
             String metricCode,
             String metricName,
@@ -94,7 +145,8 @@ public record AnalyticalProfileResponse(
             Map<String, Object> diagnostics
         ) {
             this(metricCode, metricName, category, numericValue, formattedValue, units, periodType,
-                 calculationStatus, governanceStatus, formulaDisclosure, interpretation, limitations, errorMessage, diagnostics, null);
+                 calculationStatus, governanceStatus, formulaDisclosure, interpretation, limitations,
+                 errorMessage, diagnostics, null, null, null, null, null, null);
         }
     }
 
@@ -122,6 +174,16 @@ public record AnalyticalProfileResponse(
         LocalDate analysisCutoff,
         OffsetDateTime knowledgeCutoff,
         String temporalLimitationDisclosure,
-        String candidateMethodologyDisclaimer
-    ) {}
+        String candidateMethodologyDisclaimer,
+        String requestedHorizon
+    ) {
+        public ProfileLimitations(
+            LocalDate analysisCutoff,
+            OffsetDateTime knowledgeCutoff,
+            String temporalLimitationDisclosure,
+            String candidateMethodologyDisclaimer
+        ) {
+            this(analysisCutoff, knowledgeCutoff, temporalLimitationDisclosure, candidateMethodologyDisclaimer, "3Y");
+        }
+    }
 }

@@ -17,12 +17,21 @@ export interface MetricEvidenceContext {
   benchmarkName?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  actualStartDate?: string | null;
+  actualEndDate?: string | null;
+  requestedHorizon?: string | null;
+  observationThreshold?: number | null;
+  benchmarkMappingStatus?: string | null;
+  dataQualityAssessment?: string | null;
+  sampleObservations?: any;
+  claimContext?: any;
   knowledgeCutoffTime?: string | null;
   observationCount?: number | null;
   calculationRunId?: number | null;
   methodologyTag?: string | null;
   engineSoftwareVersion?: string | null;
   inputSnapshotSha256?: string | null;
+  sourceLineageState?: string | null;
 }
 
 export interface MetricEvidenceItem {
@@ -234,7 +243,7 @@ export function MetricEvidencePanel({
               Layer 3 &bull; Supporting Evidence &amp; Provenance
             </span>
 
-            <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11.5px] font-mono">
+            <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-[11.5px] font-mono">
               <div className="panel-inset p-2.5 bg-surface-raised space-y-1">
                 <span className="def-label text-[10px] block">Observation Coverage</span>
                 <p className="text-text-primary font-semibold">
@@ -318,6 +327,30 @@ export function MetricEvidencePanel({
                   </p>
                 </div>
               )}
+
+              <div className="panel-inset p-2.5 bg-surface-raised space-y-1 sm:col-span-2 lg:col-span-1">
+                <span className="def-label text-[10px] block">Source Artifact Lineage</span>
+                <div>
+                  <span
+                    className={`status-badge text-[10px] ${
+                      (context.sourceLineageState || (context.inputSnapshotSha256 ? "COMPLETE_SOURCE_LINEAGE" : "SOURCE_REVISION_UNAVAILABLE")) === "COMPLETE_SOURCE_LINEAGE"
+                        ? "state-approved"
+                        : (context.sourceLineageState || "SOURCE_REVISION_UNAVAILABLE") === "PARTIAL_SOURCE_LINEAGE"
+                        ? "state-candidate"
+                        : "state-unavailable"
+                    }`}
+                  >
+                    {context.sourceLineageState || (context.inputSnapshotSha256 ? "COMPLETE_SOURCE_LINEAGE" : "SOURCE_REVISION_UNAVAILABLE")}
+                  </span>
+                </div>
+                <p className="text-text-tertiary text-[10px]">
+                  {(context.sourceLineageState || (context.inputSnapshotSha256 ? "COMPLETE_SOURCE_LINEAGE" : "SOURCE_REVISION_UNAVAILABLE")) === "COMPLETE_SOURCE_LINEAGE"
+                    ? "Cryptographically verified to official raw source artifacts"
+                    : (context.sourceLineageState || "") === "PARTIAL_SOURCE_LINEAGE"
+                    ? "Partial raw artifact linkage; some records unverified"
+                    : "No authoritative source revision artifact bound"}
+                </p>
+              </div>
             </div>
 
             {/* Formula disclosure */}

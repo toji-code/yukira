@@ -64,9 +64,11 @@ public class SchemeExpenseRatio implements Serializable {
     public void setSchemeOption(SchemeOption schemeOption) { this.schemeOption = schemeOption; }
 
     public LocalDate getAsOfDate() { return asOfDate; }
+    public LocalDate getEffectiveDate() { return asOfDate; }
     public void setAsOfDate(LocalDate asOfDate) { this.asOfDate = asOfDate; }
 
     public BigDecimal getExpenseRatio() { return expenseRatio; }
+    public BigDecimal getTotalExpenseRatio() { return expenseRatio; }
     public void setExpenseRatio(BigDecimal expenseRatio) { this.expenseRatio = expenseRatio; }
 
     public String getPlanType() { return planType; }

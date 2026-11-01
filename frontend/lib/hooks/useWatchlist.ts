@@ -9,7 +9,14 @@ import {
   updateServerWatchlistNoteByOption,
   WatchlistResponse,
   WatchlistNoteRequest,
+  DueDiligenceStatus,
 } from '../api/investor';
+import {
+  loadAllTheses,
+  saveThesisRecord,
+  deleteThesisRecord,
+  getThesisRecord,
+} from '../utils/thesisTracking';
 
 export type SyncStatus = 'SERVER_SAVED' | 'SAVING' | 'LOCAL_ONLY' | 'SYNC_FAILED';
 
@@ -18,6 +25,7 @@ export interface LocalWatchlistItem {
   schemeId: number;
   schemeCode?: string;
   schemeName?: string;
+  category?: string | null;
   amcName?: string | null;
   schemeOptionId?: number | null;
   optionType?: string | null;
@@ -31,12 +39,38 @@ export interface LocalWatchlistItem {
   reasonSaved?: string | null;
   investigationQuestion?: string | null;
   nextStep?: string | null;
+  investigationStatus?: DueDiligenceStatus | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  // F7 Investor Thesis Fields
+  workingThesis?: string | null;
+  supportingEvidence?: string | null;
+  reconsiderationConditions?: string | null;
+  thesisUpdatedAt?: string | null;
 }
 
 export function getWatchlistItemKey(schemeId: number, schemeOptionId?: number | null): string {
   return schemeOptionId ? `opt-${schemeOptionId}` : `scheme-${schemeId}`;
+}
+
+export function getResearchProgressMap(): Record<string, DueDiligenceStatus> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem('yukira_research_progress');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {}
+  return {};
+}
+
+export function saveResearchProgressEntry(key: string, status: DueDiligenceStatus): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getResearchProgressMap();
+    current[key] = status;
+    localStorage.setItem('yukira_research_progress', JSON.stringify(current));
+  } catch {}
 }
 
 export function useWatchlist() {
@@ -50,8 +84,22 @@ export function useWatchlist() {
   const loadLocalWatchlist = useCallback((): LocalWatchlistItem[] => {
     try {
       const stored = localStorage.getItem('yukira_watchlist_items');
+      const progressMap = getResearchProgressMap();
+      const thesesMap = loadAllTheses();
       if (stored) {
-        return JSON.parse(stored);
+        const parsed: LocalWatchlistItem[] = JSON.parse(stored);
+        return parsed.map((item) => {
+          const key = getWatchlistItemKey(item.schemeId, item.schemeOptionId);
+          const thesis = thesesMap[key];
+          return {
+            ...item,
+            investigationStatus: item.investigationStatus || progressMap[key] || 'TO_INVESTIGATE',
+            workingThesis: item.workingThesis || thesis?.workingThesis || null,
+            supportingEvidence: item.supportingEvidence || thesis?.supportingEvidence || null,
+            reconsiderationConditions: item.reconsiderationConditions || thesis?.reconsiderationConditions || null,
+            thesisUpdatedAt: item.thesisUpdatedAt || thesis?.updatedAt || null,
+          };
+        });
       }
       // Backward compatibility with ID-only array
       const oldStored = localStorage.getItem('yukira_watchlist');
@@ -61,6 +109,7 @@ export function useWatchlist() {
           schemeId: id,
           schemeName: `Scheme #${id}`,
           schemeCode: `SCHEME_${id}`,
+          investigationStatus: progressMap[`scheme-${id}`] || 'TO_INVESTIGATE',
         }));
       }
     } catch (e) {
@@ -80,29 +129,41 @@ export function useWatchlist() {
 
   const refreshWatchlist = useCallback(async () => {
     setError(null);
+    const progressMap = getResearchProgressMap();
+    const thesesMap = loadAllTheses();
     if (!user) {
       const local = loadLocalWatchlist();
-      const mapped = local.map((l, idx) => ({
-        id: l.id || -(idx + 1),
-        schemeId: l.schemeId,
-        schemeCode: l.schemeCode || `SCHEME_${l.schemeId}`,
-        schemeName: l.schemeName || `Scheme #${l.schemeId}`,
-        amcName: l.amcName || null,
-        schemeOptionId: l.schemeOptionId || null,
-        optionType: l.optionType || 'GROWTH',
-        planType: l.planType || 'DIRECT',
-        amfiCode: l.amfiCode || null,
-        isin: l.isin || null,
-        latestNav: l.latestNav || null,
-        latestNavDate: l.latestNavDate || null,
-        yukiraScore: l.yukiraScore || null,
-        yukiraScoreStatus: l.yukiraScoreStatus || 'CANDIDATE',
-        reasonSaved: l.reasonSaved || null,
-        investigationQuestion: l.investigationQuestion || null,
-        nextStep: l.nextStep || null,
-        createdAt: l.createdAt || null,
-        updatedAt: l.updatedAt || null,
-      }));
+      const mapped = local.map((l, idx) => {
+        const key = getWatchlistItemKey(l.schemeId, l.schemeOptionId);
+        const thesis = thesesMap[key];
+        return {
+          id: l.id || -(idx + 1),
+          schemeId: l.schemeId,
+          schemeCode: l.schemeCode || `SCHEME_${l.schemeId}`,
+          schemeName: l.schemeName || `Scheme #${l.schemeId}`,
+          category: l.category || null,
+          amcName: l.amcName || null,
+          schemeOptionId: l.schemeOptionId || null,
+          optionType: l.optionType || 'GROWTH',
+          planType: l.planType || 'DIRECT',
+          amfiCode: l.amfiCode || null,
+          isin: l.isin || null,
+          latestNav: l.latestNav || null,
+          latestNavDate: l.latestNavDate || null,
+          yukiraScore: l.yukiraScore || null,
+          yukiraScoreStatus: l.yukiraScoreStatus || 'CANDIDATE',
+          reasonSaved: l.reasonSaved || null,
+          investigationQuestion: l.investigationQuestion || null,
+          nextStep: l.nextStep || null,
+          investigationStatus: l.investigationStatus || progressMap[key] || 'TO_INVESTIGATE',
+          workingThesis: l.workingThesis || thesis?.workingThesis || null,
+          supportingEvidence: l.supportingEvidence || thesis?.supportingEvidence || null,
+          reconsiderationConditions: l.reconsiderationConditions || thesis?.reconsiderationConditions || null,
+          thesisUpdatedAt: l.thesisUpdatedAt || thesis?.updatedAt || null,
+          createdAt: l.createdAt || null,
+          updatedAt: l.updatedAt || null,
+        };
+      });
       setWatchlistItems(mapped);
       setSyncStatus('LOCAL_ONLY');
       return;
@@ -111,7 +172,19 @@ export function useWatchlist() {
     try {
       setSyncStatus('SAVING');
       const serverData = await fetchServerWatchlist();
-      setWatchlistItems(serverData);
+      const enriched = serverData.map((d) => {
+        const key = getWatchlistItemKey(d.schemeId, d.schemeOptionId);
+        const thesis = thesesMap[key];
+        return {
+          ...d,
+          investigationStatus: d.investigationStatus || progressMap[key] || 'TO_INVESTIGATE',
+          workingThesis: d.workingThesis || thesis?.workingThesis || null,
+          supportingEvidence: d.supportingEvidence || thesis?.supportingEvidence || null,
+          reconsiderationConditions: d.reconsiderationConditions || thesis?.reconsiderationConditions || null,
+          thesisUpdatedAt: d.thesisUpdatedAt || thesis?.updatedAt || null,
+        };
+      });
+      setWatchlistItems(enriched);
       setSyncStatus('SERVER_SAVED');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Server synchronization failed';
@@ -137,27 +210,39 @@ export function useWatchlist() {
     previousUserRef.current = currentUserId;
 
     const localItems = loadLocalWatchlist();
-    const mappedLocal: WatchlistResponse[] = localItems.map((l, idx) => ({
-      id: l.id || -(idx + 1),
-      schemeId: l.schemeId,
-      schemeCode: l.schemeCode || `SCHEME_${l.schemeId}`,
-      schemeName: l.schemeName || `Scheme #${l.schemeId}`,
-      amcName: l.amcName || null,
-      schemeOptionId: l.schemeOptionId || null,
-      optionType: l.optionType || 'GROWTH',
-      planType: l.planType || 'DIRECT',
-      amfiCode: l.amfiCode || null,
-      isin: l.isin || null,
-      latestNav: l.latestNav || null,
-      latestNavDate: l.latestNavDate || null,
-      yukiraScore: l.yukiraScore || null,
-      yukiraScoreStatus: l.yukiraScoreStatus || 'CANDIDATE',
-      reasonSaved: l.reasonSaved || null,
-      investigationQuestion: l.investigationQuestion || null,
-      nextStep: l.nextStep || null,
-      createdAt: l.createdAt || null,
-      updatedAt: l.updatedAt || null,
-    }));
+    const progressMap = getResearchProgressMap();
+    const thesesMap = loadAllTheses();
+    const mappedLocal: WatchlistResponse[] = localItems.map((l, idx) => {
+      const key = getWatchlistItemKey(l.schemeId, l.schemeOptionId);
+      const thesis = thesesMap[key];
+      return {
+        id: l.id || -(idx + 1),
+        schemeId: l.schemeId,
+        schemeCode: l.schemeCode || `SCHEME_${l.schemeId}`,
+        schemeName: l.schemeName || `Scheme #${l.schemeId}`,
+        category: l.category || null,
+        amcName: l.amcName || null,
+        schemeOptionId: l.schemeOptionId || null,
+        optionType: l.optionType || 'GROWTH',
+        planType: l.planType || 'DIRECT',
+        amfiCode: l.amfiCode || null,
+        isin: l.isin || null,
+        latestNav: l.latestNav || null,
+        latestNavDate: l.latestNavDate || null,
+        yukiraScore: l.yukiraScore || null,
+        yukiraScoreStatus: l.yukiraScoreStatus || 'CANDIDATE',
+        reasonSaved: l.reasonSaved || null,
+        investigationQuestion: l.investigationQuestion || null,
+        nextStep: l.nextStep || null,
+        investigationStatus: l.investigationStatus || progressMap[key] || 'TO_INVESTIGATE',
+        workingThesis: l.workingThesis || thesis?.workingThesis || null,
+        supportingEvidence: l.supportingEvidence || thesis?.supportingEvidence || null,
+        reconsiderationConditions: l.reconsiderationConditions || thesis?.reconsiderationConditions || null,
+        thesisUpdatedAt: l.thesisUpdatedAt || thesis?.updatedAt || null,
+        createdAt: l.createdAt || null,
+        updatedAt: l.updatedAt || null,
+      };
+    });
 
     const init = async () => {
       await Promise.resolve();
@@ -172,12 +257,26 @@ export function useWatchlist() {
 
       try {
         const serverData = await fetchServerWatchlist();
+        const thesesMap = loadAllTheses();
+        const enrichedServerData = serverData.map((d) => {
+          const key = getWatchlistItemKey(d.schemeId, d.schemeOptionId);
+          const thesis = thesesMap[key];
+          return {
+            ...d,
+            investigationStatus: d.investigationStatus || progressMap[key] || 'TO_INVESTIGATE',
+            workingThesis: d.workingThesis || thesis?.workingThesis || null,
+            supportingEvidence: d.supportingEvidence || thesis?.supportingEvidence || null,
+            reconsiderationConditions: d.reconsiderationConditions || thesis?.reconsiderationConditions || null,
+            thesisUpdatedAt: d.thesisUpdatedAt || thesis?.updatedAt || null,
+          };
+        });
 
         // Migrate local items created while guest if not already on server
-        const migratedData = [...serverData];
+        const migratedData = [...enrichedServerData];
         const existingKeys = new Set(
           serverData.map((d) => getWatchlistItemKey(d.schemeId, d.schemeOptionId))
         );
+        const successfullyHandledKeys = new Set<string>();
 
         for (const local of mappedLocal) {
           const key = getWatchlistItemKey(local.schemeId, local.schemeOptionId);
@@ -189,26 +288,51 @@ export function useWatchlist() {
                 reasonSaved: local.reasonSaved || undefined,
                 investigationQuestion: local.investigationQuestion || undefined,
                 nextStep: local.nextStep || undefined,
+                investigationStatus: local.investigationStatus || undefined,
               });
-              migratedData.push(created);
+              migratedData.push({
+                ...created,
+                investigationStatus: local.investigationStatus || 'TO_INVESTIGATE',
+                workingThesis: local.workingThesis || null,
+                supportingEvidence: local.supportingEvidence || null,
+                reconsiderationConditions: local.reconsiderationConditions || null,
+                thesisUpdatedAt: local.thesisUpdatedAt || null,
+              });
               existingKeys.add(key);
+              successfullyHandledKeys.add(key);
             } catch (migrationErr) {
               console.warn(`Failed to migrate local watchlist entry ${key}`, migrationErr);
             }
+          } else {
+            // Server-authored record already exists for this exact scheme option.
+            // Preserving existing server-authored notes deterministically without overwriting.
+            successfullyHandledKeys.add(key);
           }
         }
 
-        // Clear guest items after migration
-        if (mappedLocal.length > 0) {
+        // Only clear guest entries from local storage that were successfully migrated or confirmed on server
+        const remainingLocal = localItems.filter((item) => {
+          const key = getWatchlistItemKey(item.schemeId, item.schemeOptionId);
+          return !successfullyHandledKeys.has(key);
+        });
+
+        if (remainingLocal.length === 0) {
           try {
             localStorage.removeItem('yukira_watchlist_items');
             localStorage.removeItem('yukira_watchlist');
           } catch {}
+        } else {
+          saveLocalWatchlist(remainingLocal);
         }
 
         if (active) {
           setWatchlistItems(migratedData);
-          setSyncStatus('SERVER_SAVED');
+          if (remainingLocal.length > 0) {
+            setError(`${remainingLocal.length} local items could not be synchronized to your account and remain in browser storage.`);
+            setSyncStatus('SYNC_FAILED');
+          } else {
+            setSyncStatus('SERVER_SAVED');
+          }
           setIsLoaded(true);
         }
       } catch (err: unknown) {
@@ -227,7 +351,7 @@ export function useWatchlist() {
     return () => {
       active = false;
     };
-  }, [user, isLoading, loadLocalWatchlist]);
+  }, [user, isLoading, loadLocalWatchlist, saveLocalWatchlist]);
 
   const isWatchlisted = useCallback(
     (schemeId: number, schemeOptionId?: number | null) => {
@@ -261,6 +385,7 @@ export function useWatchlist() {
         schemeOptionId ? i.schemeOptionId !== schemeOptionId : i.schemeId !== schemeId
       );
       saveLocalWatchlist(local);
+      deleteThesisRecord(schemeId, schemeOptionId);
 
       if (user) {
         try {
@@ -281,11 +406,16 @@ export function useWatchlist() {
       }
     } else {
       // Add operation
+      const status = metadata?.investigationStatus || 'TO_INVESTIGATE';
+      const key = getWatchlistItemKey(schemeId, schemeOptionId);
+      saveResearchProgressEntry(key, status);
+
       const tempItem: WatchlistResponse = {
         id: -Date.now(),
         schemeId,
         schemeCode: metadata?.schemeCode || `SCHEME_${schemeId}`,
         schemeName: metadata?.schemeName || `Scheme #${schemeId}`,
+        category: metadata?.category || null,
         amcName: metadata?.amcName || null,
         schemeOptionId: schemeOptionId || null,
         optionType: metadata?.optionType || 'GROWTH',
@@ -299,6 +429,7 @@ export function useWatchlist() {
         reasonSaved: metadata?.reasonSaved || null,
         investigationQuestion: metadata?.investigationQuestion || null,
         nextStep: metadata?.nextStep || null,
+        investigationStatus: status,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -313,6 +444,7 @@ export function useWatchlist() {
           schemeOptionId: schemeOptionId || undefined,
           schemeCode: tempItem.schemeCode,
           schemeName: tempItem.schemeName,
+          category: tempItem.category,
           amcName: tempItem.amcName,
           optionType: tempItem.optionType,
           planType: tempItem.planType,
@@ -322,6 +454,10 @@ export function useWatchlist() {
           latestNavDate: tempItem.latestNavDate,
           yukiraScore: tempItem.yukiraScore,
           yukiraScoreStatus: tempItem.yukiraScoreStatus,
+          reasonSaved: tempItem.reasonSaved,
+          investigationQuestion: tempItem.investigationQuestion,
+          nextStep: tempItem.nextStep,
+          investigationStatus: status,
         },
       ];
       saveLocalWatchlist(updatedLocal);
@@ -332,11 +468,12 @@ export function useWatchlist() {
           const serverAdded = await addServerWatchlist({
             schemeId,
             schemeOptionId: schemeOptionId || undefined,
+            investigationStatus: status,
           });
           setWatchlistItems((prev) =>
             prev.map((item) =>
               (schemeOptionId ? item.schemeOptionId === schemeOptionId : item.schemeId === schemeId)
-                ? serverAdded
+                ? { ...serverAdded, investigationStatus: status }
                 : item
             )
           );
@@ -356,6 +493,42 @@ export function useWatchlist() {
     await toggleWatchlist(schemeId, schemeOptionId);
   };
 
+  const updateInvestigationStatus = useCallback(
+    (schemeId: number, schemeOptionId: number | null | undefined, status: DueDiligenceStatus) => {
+      const key = getWatchlistItemKey(schemeId, schemeOptionId);
+      saveResearchProgressEntry(key, status);
+
+      setWatchlistItems((prev) =>
+        prev.map((item) => {
+          const matches = schemeOptionId ? item.schemeOptionId === schemeOptionId : item.schemeId === schemeId;
+          if (matches) {
+            return {
+              ...item,
+              investigationStatus: status,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return item;
+        })
+      );
+
+      const local = loadLocalWatchlist();
+      const updatedLocal = local.map((item) => {
+        const matches = schemeOptionId ? item.schemeOptionId === schemeOptionId : item.schemeId === schemeId;
+        if (matches) {
+          return {
+            ...item,
+            investigationStatus: status,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return item;
+      });
+      saveLocalWatchlist(updatedLocal);
+    },
+    [loadLocalWatchlist, saveLocalWatchlist]
+  );
+
   const saveResearchNote = async (
     schemeId: number,
     note: WatchlistNoteRequest,
@@ -367,6 +540,39 @@ export function useWatchlist() {
     );
 
     if (existing) {
+      const key = getWatchlistItemKey(schemeId, schemeOptionId);
+      const targetStatus: DueDiligenceStatus =
+        note.investigationStatus !== undefined && note.investigationStatus !== null
+          ? note.investigationStatus
+          : existing.investigationStatus || 'TO_INVESTIGATE';
+
+      saveResearchProgressEntry(key, targetStatus);
+
+      const existingThesis = getThesisRecord(schemeId, schemeOptionId);
+      const newWorkingThesis = note.workingThesis !== undefined ? note.workingThesis : (existing.workingThesis || existingThesis?.workingThesis || null);
+      const newSupportingEvidence = note.supportingEvidence !== undefined ? note.supportingEvidence : (existing.supportingEvidence || existingThesis?.supportingEvidence || null);
+      const newReconsiderationConditions = note.reconsiderationConditions !== undefined ? note.reconsiderationConditions : (existing.reconsiderationConditions || existingThesis?.reconsiderationConditions || null);
+      const nowIso = new Date().toISOString();
+
+      if (note.workingThesis !== undefined || note.supportingEvidence !== undefined || note.reconsiderationConditions !== undefined) {
+        saveThesisRecord({
+          key,
+          schemeId,
+          schemeOptionId,
+          schemeCode: existing.schemeCode,
+          schemeName: existing.schemeName,
+          researchObjective: note.reasonSaved !== undefined ? note.reasonSaved : (existing.reasonSaved || null),
+          workingThesis: newWorkingThesis,
+          supportingEvidence: newSupportingEvidence,
+          unresolvedQuestions: note.investigationQuestion !== undefined ? note.investigationQuestion : (existing.investigationQuestion || null),
+          reconsiderationConditions: newReconsiderationConditions,
+          nextStep: note.nextStep !== undefined ? note.nextStep : (existing.nextStep || null),
+          status: targetStatus,
+          recordedAt: existingThesis?.recordedAt || nowIso,
+          updatedAt: nowIso,
+        });
+      }
+
       // Optimistic state update for existing item
       setWatchlistItems((prev) =>
         prev.map((item) => {
@@ -377,7 +583,12 @@ export function useWatchlist() {
               reasonSaved: note.reasonSaved !== undefined ? note.reasonSaved : item.reasonSaved,
               investigationQuestion: note.investigationQuestion !== undefined ? note.investigationQuestion : item.investigationQuestion,
               nextStep: note.nextStep !== undefined ? note.nextStep : item.nextStep,
-              updatedAt: new Date().toISOString(),
+              investigationStatus: targetStatus,
+              workingThesis: newWorkingThesis,
+              supportingEvidence: newSupportingEvidence,
+              reconsiderationConditions: newReconsiderationConditions,
+              thesisUpdatedAt: nowIso,
+              updatedAt: nowIso,
             };
           }
           return item;
@@ -394,6 +605,11 @@ export function useWatchlist() {
             reasonSaved: note.reasonSaved !== undefined ? note.reasonSaved : item.reasonSaved,
             investigationQuestion: note.investigationQuestion !== undefined ? note.investigationQuestion : item.investigationQuestion,
             nextStep: note.nextStep !== undefined ? note.nextStep : item.nextStep,
+            investigationStatus: targetStatus,
+            workingThesis: newWorkingThesis,
+            supportingEvidence: newSupportingEvidence,
+            reconsiderationConditions: newReconsiderationConditions,
+            thesisUpdatedAt: nowIso,
           };
         }
         return item;
@@ -412,7 +628,14 @@ export function useWatchlist() {
           setWatchlistItems((prev) =>
             prev.map((item) =>
               (schemeOptionId ? item.schemeOptionId === schemeOptionId : item.schemeId === schemeId)
-                ? serverUpdated
+                ? {
+                    ...serverUpdated,
+                    investigationStatus: targetStatus,
+                    workingThesis: newWorkingThesis,
+                    supportingEvidence: newSupportingEvidence,
+                    reconsiderationConditions: newReconsiderationConditions,
+                    thesisUpdatedAt: nowIso,
+                  }
                 : item
             )
           );
@@ -427,11 +650,36 @@ export function useWatchlist() {
       }
     } else {
       // Fund is being investigated without prior watchlist bookmark — add directly with notes
+      const key = getWatchlistItemKey(schemeId, schemeOptionId);
+      const targetStatus: DueDiligenceStatus = note.investigationStatus || 'TO_INVESTIGATE';
+      saveResearchProgressEntry(key, targetStatus);
+      const nowIso = new Date().toISOString();
+
+      if (note.workingThesis || note.supportingEvidence || note.reconsiderationConditions) {
+        saveThesisRecord({
+          key,
+          schemeId,
+          schemeOptionId,
+          schemeCode: metadata?.schemeCode,
+          schemeName: metadata?.schemeName,
+          researchObjective: note.reasonSaved || null,
+          workingThesis: note.workingThesis || null,
+          supportingEvidence: note.supportingEvidence || null,
+          unresolvedQuestions: note.investigationQuestion || null,
+          reconsiderationConditions: note.reconsiderationConditions || null,
+          nextStep: note.nextStep || null,
+          status: targetStatus,
+          recordedAt: nowIso,
+          updatedAt: nowIso,
+        });
+      }
+
       const tempItem: WatchlistResponse = {
         id: -Date.now(),
         schemeId,
         schemeCode: metadata?.schemeCode || `SCHEME_${schemeId}`,
         schemeName: metadata?.schemeName || `Scheme #${schemeId}`,
+        category: metadata?.category || null,
         amcName: metadata?.amcName || null,
         schemeOptionId: schemeOptionId || null,
         optionType: metadata?.optionType || 'GROWTH',
@@ -445,8 +693,13 @@ export function useWatchlist() {
         reasonSaved: note.reasonSaved || null,
         investigationQuestion: note.investigationQuestion || null,
         nextStep: note.nextStep || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        investigationStatus: targetStatus,
+        workingThesis: note.workingThesis || null,
+        supportingEvidence: note.supportingEvidence || null,
+        reconsiderationConditions: note.reconsiderationConditions || null,
+        thesisUpdatedAt: nowIso,
+        createdAt: nowIso,
+        updatedAt: nowIso,
       };
 
       setWatchlistItems((prev) => [...prev, tempItem]);
@@ -459,6 +712,7 @@ export function useWatchlist() {
           schemeOptionId: schemeOptionId || undefined,
           schemeCode: tempItem.schemeCode,
           schemeName: tempItem.schemeName,
+          category: tempItem.category,
           amcName: tempItem.amcName,
           optionType: tempItem.optionType,
           planType: tempItem.planType,
@@ -471,6 +725,13 @@ export function useWatchlist() {
           reasonSaved: tempItem.reasonSaved,
           investigationQuestion: tempItem.investigationQuestion,
           nextStep: tempItem.nextStep,
+          investigationStatus: targetStatus,
+          workingThesis: tempItem.workingThesis,
+          supportingEvidence: tempItem.supportingEvidence,
+          reconsiderationConditions: tempItem.reconsiderationConditions,
+          thesisUpdatedAt: tempItem.thesisUpdatedAt,
+          createdAt: tempItem.createdAt,
+          updatedAt: tempItem.updatedAt,
         },
       ];
       saveLocalWatchlist(updatedLocal);
@@ -484,11 +745,12 @@ export function useWatchlist() {
             reasonSaved: note.reasonSaved,
             investigationQuestion: note.investigationQuestion,
             nextStep: note.nextStep,
+            investigationStatus: targetStatus,
           });
           setWatchlistItems((prev) =>
             prev.map((item) =>
               (schemeOptionId ? item.schemeOptionId === schemeOptionId : item.schemeId === schemeId)
-                ? serverAdded
+                ? { ...serverAdded, investigationStatus: targetStatus }
                 : item
             )
           );
@@ -513,6 +775,7 @@ export function useWatchlist() {
     toggleWatchlist,
     removeFromWatchlist,
     saveResearchNote,
+    updateInvestigationStatus,
     refreshWatchlist,
     isLoaded,
     syncStatus,

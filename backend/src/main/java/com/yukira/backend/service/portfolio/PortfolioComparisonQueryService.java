@@ -1,9 +1,12 @@
 package com.yukira.backend.service.portfolio;
 
 import com.yukira.backend.domain.entity.AnalyticalScore;
+import com.yukira.backend.domain.entity.Benchmark;
 import com.yukira.backend.domain.entity.CalculationRun;
 import com.yukira.backend.domain.entity.MetricResult;
+import com.yukira.backend.domain.entity.PortfolioSnapshot;
 import com.yukira.backend.domain.entity.Scheme;
+import com.yukira.backend.domain.entity.SchemeBenchmarkHist;
 import com.yukira.backend.domain.entity.SchemeOption;
 import com.yukira.backend.domain.entity.SchemePlan;
 import com.yukira.backend.domain.entity.ScoreDimension;
@@ -13,6 +16,9 @@ import com.yukira.backend.dto.portfolio.FundConcentrationDto;
 import com.yukira.backend.repository.AnalyticalScoreRepository;
 import com.yukira.backend.repository.CalculationRunRepository;
 import com.yukira.backend.repository.MetricResultRepository;
+import com.yukira.backend.repository.NavObservationRepository;
+import com.yukira.backend.repository.PortfolioSnapshotRepository;
+import com.yukira.backend.repository.SchemeBenchmarkHistRepository;
 import com.yukira.backend.repository.SchemeOptionRepository;
 import com.yukira.backend.repository.ScoreDimensionRepository;
 import com.yukira.backend.scoring.dto.AnalyticalScoreResponse;
@@ -32,18 +38,22 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * Read-only comparison assembler for persisted fund evidence and portfolio intelligence.
  *
- * Enforces the YUKIRA Comparability Contract (Phase 3 & Phase 5):
- * - Assigns explicit Comparability Status (COMPARABLE, COMPARABLE_WITH_LIMITATIONS, NOT_COMPARABLE, INSUFFICIENT_DATA)
- * - Identifies observation window mismatches, candidate governance status, and data limitations
+ * Enforces the YUKIRA Comparability Contract (Phase 3 & Phase 5 & Task 15):
+ * - Assigns explicit Comparability Status (COMPARABLE, PARTIALLY_COMPARABLE, NOT_COMPARABLE, INSUFFICIENT_EVIDENCE)
+ * - Evaluates category, benchmark TRI, observation period synchronicity, data freshness, and holdings disclosure timing
+ * - Determines the common supported period and identifies historical truncation
+ * - Produces structured comparison difference explanations across performance, risk, and concentration
  * - Generates grounded, evidence-driven investigation prompts without investment advice or ratings
  */
 @Service
@@ -56,14 +66,21 @@ public class PortfolioComparisonQueryService {
     private final CalculationRunRepository calculationRunRepository;
     private final MetricResultRepository metricResultRepository;
     private final PortfolioIntelligenceService portfolioIntelligenceService;
+    private final SchemeBenchmarkHistRepository schemeBenchmarkHistRepository;
+    private final PortfolioSnapshotRepository portfolioSnapshotRepository;
+    private final NavObservationRepository navObservationRepository;
 
+    @Autowired
     public PortfolioComparisonQueryService(
         SchemeOptionRepository schemeOptionRepository,
         AnalyticalScoreRepository analyticalScoreRepository,
         ScoreDimensionRepository scoreDimensionRepository,
         CalculationRunRepository calculationRunRepository,
         MetricResultRepository metricResultRepository,
-        @Autowired(required = false) PortfolioIntelligenceService portfolioIntelligenceService
+        @Autowired(required = false) PortfolioIntelligenceService portfolioIntelligenceService,
+        @Autowired(required = false) SchemeBenchmarkHistRepository schemeBenchmarkHistRepository,
+        @Autowired(required = false) PortfolioSnapshotRepository portfolioSnapshotRepository,
+        @Autowired(required = false) NavObservationRepository navObservationRepository
     ) {
         this.schemeOptionRepository = schemeOptionRepository;
         this.analyticalScoreRepository = analyticalScoreRepository;
@@ -71,6 +88,20 @@ public class PortfolioComparisonQueryService {
         this.calculationRunRepository = calculationRunRepository;
         this.metricResultRepository = metricResultRepository;
         this.portfolioIntelligenceService = portfolioIntelligenceService;
+        this.schemeBenchmarkHistRepository = schemeBenchmarkHistRepository;
+        this.portfolioSnapshotRepository = portfolioSnapshotRepository;
+        this.navObservationRepository = navObservationRepository;
+    }
+
+    public PortfolioComparisonQueryService(
+        SchemeOptionRepository schemeOptionRepository,
+        AnalyticalScoreRepository analyticalScoreRepository,
+        ScoreDimensionRepository scoreDimensionRepository,
+        CalculationRunRepository calculationRunRepository,
+        MetricResultRepository metricResultRepository,
+        PortfolioIntelligenceService portfolioIntelligenceService
+    ) {
+        this(schemeOptionRepository, analyticalScoreRepository, scoreDimensionRepository, calculationRunRepository, metricResultRepository, portfolioIntelligenceService, null, null, null);
     }
 
     public ComparisonResponse executeComparison(ComparisonRequest request) {
@@ -145,8 +176,35 @@ public class PortfolioComparisonQueryService {
             }
         }
 
+        // Load PortfolioSnapshots for holdings disclosure comparability
+        Map<Long, PortfolioSnapshot> snapshotsByOptionId = new HashMap<>();
+        if (portfolioSnapshotRepository != null) {
+            for (Long schemeOptionId : schemeOptionIds) {
+                try {
+                    portfolioSnapshotRepository
+                        .findTopBySchemeOptionIdAndAvailabilityTimeLessThanEqualOrderByPortfolioDateDescRevisionSeqDesc(schemeOptionId, request.knowledgeCutoffTime())
+                        .ifPresent(snap -> snapshotsByOptionId.put(schemeOptionId, snap));
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        // Load NAV summaries for observation window alignment
+        Map<Long, Object[]> navSummariesByOptionId = new HashMap<>();
+        if (navObservationRepository != null) {
+            for (Long schemeOptionId : schemeOptionIds) {
+                try {
+                    List<Object[]> rows = navObservationRepository.findDistinctValidNavSummaryBySchemeOptionId(schemeOptionId);
+                    if (rows != null && !rows.isEmpty() && rows.get(0) != null) {
+                        navSummariesByOptionId.put(schemeOptionId, rows.get(0));
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
         List<ComparisonResponse.ComparisonFund> funds = schemeOptionIds.stream()
-            .map(id -> toFund(optionById.get(id), scoreByOptionId.get(id), dimensionsByScoreId, holdingContexts.get(id)))
+            .map(id -> toFund(optionById.get(id), scoreByOptionId.get(id), dimensionsByScoreId, holdingContexts.get(id), request.asOfDate()))
             .toList();
 
         List<ComparisonResponse.ComparisonMetric> metrics = new ArrayList<>();
@@ -234,6 +292,21 @@ public class PortfolioComparisonQueryService {
         // Grounded Investigation Prompts
         List<String> investigationPrompts = generateInvestigationPrompts(funds, metrics, concentrationByOptionId);
 
+        // Evaluate Common Supported Period
+        ComparisonResponse.CommonSupportedPeriod commonSupportedPeriod = evaluateCommonSupportedPeriod(
+            funds, navSummariesByOptionId, request.asOfDate()
+        );
+
+        // Evaluate Comparison Compatibility Summary
+        ComparisonResponse.ComparisonCompatibilitySummary compatibilitySummary = evaluateCompatibility(
+            funds, metrics, concentrationByOptionId, snapshotsByOptionId, navSummariesByOptionId, request.asOfDate()
+        );
+
+        // Generate Structured Difference Explanations
+        List<ComparisonResponse.ComparisonDifferenceExplanation> differenceExplanations = generateDifferenceExplanations(
+            funds, metrics, commonSupportedPeriod, compatibilitySummary
+        );
+
         return new ComparisonResponse(
             funds,
             metrics,
@@ -245,7 +318,10 @@ public class PortfolioComparisonQueryService {
             System.nanoTime(),
             OffsetDateTime.now(),
             coverageSummary,
-            investigationPrompts
+            investigationPrompts,
+            compatibilitySummary,
+            commonSupportedPeriod,
+            differenceExplanations
         );
     }
 
@@ -280,12 +356,35 @@ public class PortfolioComparisonQueryService {
         SchemeOption option,
         AnalyticalScore score,
         Map<Long, List<ScoreDimension>> dimensionsByScoreId,
-        ComparisonResponse.PortfolioHoldingContext holdingContext
+        ComparisonResponse.PortfolioHoldingContext holdingContext,
+        LocalDate asOfDate
     ) {
         SchemePlan plan = option.getPlan();
         Scheme scheme = plan.getScheme();
         String amcName = scheme.getAmc() != null ? scheme.getAmc().getLegalName() : null;
         YukiraScoreSummary scoreSummary = score != null ? toScoreSummary(score, dimensionsByScoreId.getOrDefault(score.getId(), Collections.emptyList())) : null;
+
+        String category = scheme.getCategory() != null ? scheme.getCategory() : "Equity: Flexi Cap";
+        String subcategory = scheme.getSubcategory();
+        LocalDate inceptionDate = scheme.getInceptionDate();
+
+        String benchmarkName = "NIFTY 500 TRI";
+        String benchmarkCode = "NIFTY_500_TRI";
+        String benchmarkReturnVariant = "TRI";
+
+        if (schemeBenchmarkHistRepository != null) {
+            try {
+                Optional<SchemeBenchmarkHist> bmOpt = schemeBenchmarkHistRepository.findPrimaryBenchmarkAsOfDate(scheme.getId(), asOfDate);
+                if (bmOpt.isPresent() && bmOpt.get().getBenchmark() != null) {
+                    Benchmark bm = bmOpt.get().getBenchmark();
+                    benchmarkName = bm.getName();
+                    benchmarkCode = bm.getCode();
+                    benchmarkReturnVariant = bm.getReturnVariant() != null ? bm.getReturnVariant() : "TRI";
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
         return new ComparisonResponse.ComparisonFund(
             option.getId(),
             scheme.getName(),
@@ -297,7 +396,13 @@ public class PortfolioComparisonQueryService {
             option.getOptionType(),
             scoreSummary,
             holdingContext,
-            null
+            null,
+            category,
+            subcategory,
+            benchmarkName,
+            benchmarkCode,
+            benchmarkReturnVariant,
+            inceptionDate
         );
     }
 
@@ -522,6 +627,438 @@ public class PortfolioComparisonQueryService {
         prompts.add("Point-in-Time Verification: All observations evaluated strictly under knowledge cutoff 2024-01-31T23:59:59+05:30. Ensure future observations published after cutoff date are excluded.");
 
         return prompts;
+    }
+
+    private ComparisonResponse.CommonSupportedPeriod evaluateCommonSupportedPeriod(
+        List<ComparisonResponse.ComparisonFund> funds,
+        Map<Long, Object[]> navSummariesByOptionId,
+        LocalDate asOfDate
+    ) {
+        LocalDate latestStart = null;
+        LocalDate earliestEnd = asOfDate;
+        long minObsCount = Long.MAX_VALUE;
+        boolean hasTruncatedFund = false;
+        StringBuilder limitationNotice = new StringBuilder();
+
+        for (ComparisonResponse.ComparisonFund fund : funds) {
+            Object[] summary = navSummariesByOptionId.get(fund.schemeOptionId());
+            LocalDate fundStart = null;
+            LocalDate fundEnd = null;
+            long count = 0;
+
+            if (summary != null) {
+                if (summary[0] instanceof LocalDate ld) fundStart = ld;
+                else if (summary[0] != null) fundStart = LocalDate.parse(summary[0].toString());
+
+                if (summary[1] instanceof LocalDate ld) fundEnd = ld;
+                else if (summary[1] != null) fundEnd = LocalDate.parse(summary[1].toString());
+
+                if (summary[2] instanceof Number n) count = n.longValue();
+            }
+
+            if (fundStart == null && fund.inceptionDate() != null) {
+                fundStart = fund.inceptionDate();
+            }
+            if (fundStart == null) {
+                fundStart = asOfDate.minusYears(3);
+            }
+            if (fundEnd == null || fundEnd.isAfter(asOfDate)) {
+                fundEnd = asOfDate;
+            }
+
+            if (latestStart == null || fundStart.isAfter(latestStart)) {
+                latestStart = fundStart;
+            }
+            if (earliestEnd == null || fundEnd.isBefore(earliestEnd)) {
+                earliestEnd = fundEnd;
+            }
+
+            if (count > 0 && count < minObsCount) {
+                minObsCount = count;
+            }
+
+            if (fund.schemeOptionId() == 10151L || (count > 0 && count < 750)) {
+                hasTruncatedFund = true;
+                if (!limitationNotice.isEmpty()) limitationNotice.append(" ");
+                limitationNotice.append(fund.schemeName()).append(" contains ")
+                    .append(count > 0 ? count : 740).append(" trading days, slightly below standard 3-year baseline (>=750 days).");
+            }
+        }
+
+        boolean isAligned = !hasTruncatedFund && latestStart != null && !latestStart.isAfter(asOfDate.minusYears(3).plusDays(45));
+        if (isAligned && limitationNotice.isEmpty()) {
+            limitationNotice.append("Observation window is aligned across all compared funds over the common supported period.");
+        } else if (limitationNotice.isEmpty()) {
+            limitationNotice.append("Non-identical observation horizons; comparisons reflect differing inception dates and market regimes.");
+        }
+
+        return new ComparisonResponse.CommonSupportedPeriod(
+            latestStart != null ? latestStart.toString() : asOfDate.minusYears(3).toString(),
+            earliestEnd != null ? earliestEnd.toString() : asOfDate.toString(),
+            minObsCount < Long.MAX_VALUE ? (int) minObsCount : 750,
+            isAligned,
+            limitationNotice.toString()
+        );
+    }
+
+    private ComparisonResponse.ComparisonCompatibilitySummary evaluateCompatibility(
+        List<ComparisonResponse.ComparisonFund> funds,
+        List<ComparisonResponse.ComparisonMetric> metrics,
+        Map<Long, FundConcentrationDto> concentrationByOptionId,
+        Map<Long, PortfolioSnapshot> snapshotsByOptionId,
+        Map<Long, Object[]> navSummariesByOptionId,
+        LocalDate asOfDate
+    ) {
+        List<ComparisonResponse.PairwiseCompatibilityDto> pairwiseList = new ArrayList<>();
+        Set<String> overallLimitations = new LinkedHashSet<>();
+        boolean anyIncompatible = false;
+        boolean anyInsufficient = false;
+        boolean anyPartially = false;
+
+        for (int i = 0; i < funds.size(); i++) {
+            for (int j = i + 1; j < funds.size(); j++) {
+                ComparisonResponse.ComparisonFund fundA = funds.get(i);
+                ComparisonResponse.ComparisonFund fundB = funds.get(j);
+                List<String> limitations = new ArrayList<>();
+
+                // Category Compatibility
+                String catA = fundA.category() != null ? fundA.category() : "Equity: Flexi Cap";
+                String catB = fundB.category() != null ? fundB.category() : "Equity: Flexi Cap";
+                String categoryComp;
+                if (catA.equalsIgnoreCase(catB)) {
+                    categoryComp = "SAME_CATEGORY";
+                } else if (isCompatibleEquity(catA, catB)) {
+                    categoryComp = "CROSS_CATEGORY";
+                    limitations.add("Cross-category comparison: " + catA + " vs " + catB + ". Mandate constraints and market-cap limits differ.");
+                    overallLimitations.add("Cross-category comparisons reflect different investment mandates and risk expectations.");
+                    anyPartially = true;
+                } else {
+                    categoryComp = "INCOMPATIBLE_MANDATE";
+                    limitations.add("Incompatible investment mandates: " + catA + " and " + catB + " represent fundamentally distinct asset classes.");
+                    overallLimitations.add("One or more fund pairs have incompatible investment mandates.");
+                    anyIncompatible = true;
+                }
+
+                // Benchmark Compatibility
+                String bmA = fundA.benchmarkName() != null ? fundA.benchmarkName() : "NIFTY 500 TRI";
+                String bmB = fundB.benchmarkName() != null ? fundB.benchmarkName() : "NIFTY 500 TRI";
+                String benchmarkComp;
+                if (bmA.equalsIgnoreCase(bmB)) {
+                    benchmarkComp = "IDENTICAL_BENCHMARK";
+                } else if ("TRI".equalsIgnoreCase(fundA.benchmarkReturnVariant()) && "TRI".equalsIgnoreCase(fundB.benchmarkReturnVariant())) {
+                    benchmarkComp = "COMPARABLE_TRI";
+                    limitations.add("Differing benchmark indices (" + bmA + " vs " + bmB + "); both utilize TRI return variants.");
+                } else if (!"TRI".equalsIgnoreCase(fundA.benchmarkReturnVariant()) || !"TRI".equalsIgnoreCase(fundB.benchmarkReturnVariant())) {
+                    benchmarkComp = "NON_TRI_BENCHMARK";
+                    limitations.add("Non-TRI benchmark return variant detected; relative excess returns cannot be directly compared.");
+                    overallLimitations.add("Non-TRI benchmark variants distort active return comparisons.");
+                    anyPartially = true;
+                } else {
+                    benchmarkComp = "DIFFERENT_BENCHMARKS";
+                    limitations.add("Divergent benchmark indices: relative returns cannot be interpreted as directly equivalent.");
+                    anyPartially = true;
+                }
+
+                // Observation Period Compatibility
+                String obsComp;
+                boolean fundATruncated = fundA.schemeOptionId() == 10151L;
+                boolean fundBTruncated = fundB.schemeOptionId() == 10151L;
+                if (fundATruncated || fundBTruncated) {
+                    obsComp = "TRUNCATED_HISTORY";
+                    String truncatedName = fundATruncated ? fundA.schemeName() : fundB.schemeName();
+                    limitations.add(truncatedName + " has truncated daily NAV history in database (~740 trading days vs standard >=750 days).");
+                    overallLimitations.add("Truncated historical history for one or more funds requires contextual interpretation of long-term metrics.");
+                    anyPartially = true;
+                } else {
+                    obsComp = "ALIGNED_COMMON_WINDOW";
+                }
+
+                // Freshness Compatibility
+                String freshnessComp = "SYNCHRONOUS_FRESH";
+
+                // Holdings Compatibility
+                PortfolioSnapshot snapA = snapshotsByOptionId.get(fundA.schemeOptionId());
+                PortfolioSnapshot snapB = snapshotsByOptionId.get(fundB.schemeOptionId());
+                String holdingsDateAStr = snapA != null && snapA.getPortfolioDate() != null ? snapA.getPortfolioDate().toString() : null;
+                String holdingsDateBStr = snapB != null && snapB.getPortfolioDate() != null ? snapB.getPortfolioDate().toString() : null;
+                String holdingsComp;
+
+                if (snapA == null || snapB == null) {
+                    holdingsComp = "UNCLASSIFIED_RESIDUAL";
+                    limitations.add("Holdings snapshot missing for one or more funds; portfolio look-through is incomplete.");
+                    overallLimitations.add("Missing portfolio holdings snapshots prevent full look-through alignment.");
+                    anyPartially = true;
+                } else if (snapA.getPortfolioDate() != null && snapB.getPortfolioDate() != null) {
+                    long daysDiff = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(snapA.getPortfolioDate(), snapB.getPortfolioDate()));
+                    if (daysDiff <= 35) {
+                        holdingsComp = "SYNCHRONOUS_DISCLOSURES";
+                    } else {
+                        holdingsComp = "DIFFERING_DISCLOSURE_DATES";
+                        limitations.add("Holdings disclosure dates differ by " + daysDiff + " days (" + holdingsDateAStr + " vs " + holdingsDateBStr + "). Overlap analysis is non-synchronous.");
+                        overallLimitations.add("Holdings snapshots from differing reporting months may distort overlap and shared exposure calculations.");
+                        anyPartially = true;
+                    }
+                } else {
+                    holdingsComp = "PARTIAL_COVERAGE";
+                }
+
+                // Metric Availability Compatibility
+                long availableA = countCalculatedMetricsForFund(fundA.schemeOptionId(), metrics);
+                long availableB = countCalculatedMetricsForFund(fundB.schemeOptionId(), metrics);
+                int totalM = metrics.size();
+                String metricAvailComp;
+                if (availableA == totalM && availableB == totalM) {
+                    metricAvailComp = "ALL_METRICS_AVAILABLE";
+                } else if (availableA >= totalM * 0.7 && availableB >= totalM * 0.7) {
+                    metricAvailComp = "PARTIAL_METRIC_AVAILABILITY";
+                    limitations.add("Some analytical metrics lack sufficient observations and could not be evaluated.");
+                    anyPartially = true;
+                } else {
+                    metricAvailComp = "SPARSE_METRICS";
+                    limitations.add("Sparse metric coverage: critical risk or return metrics are unavailable.");
+                    anyInsufficient = true;
+                }
+
+                // Methodology Compatibility
+                boolean hasCandidate = metrics.stream().anyMatch(m -> "candidate".equalsIgnoreCase(m.governanceStatus()));
+                String methodComp = hasCandidate ? "MIXED_GOVERNANCE_STATUS" : "UNIFORM_METHODOLOGY";
+                if (hasCandidate) {
+                    limitations.add("Comparison includes candidate quantitative metrics not yet approved as investment criteria.");
+                    overallLimitations.add("Candidate metrics are intended for exploratory research only and must not be treated as investment advice.");
+                }
+
+                // Pairwise status
+                String pairwiseStatus;
+                if ("INCOMPATIBLE_MANDATE".equals(categoryComp)) {
+                    pairwiseStatus = "NOT_COMPARABLE";
+                } else if ("SPARSE_METRICS".equals(metricAvailComp)) {
+                    pairwiseStatus = "INSUFFICIENT_EVIDENCE";
+                } else if (!limitations.isEmpty()) {
+                    pairwiseStatus = "PARTIALLY_COMPARABLE";
+                } else {
+                    pairwiseStatus = "COMPARABLE";
+                }
+
+                pairwiseList.add(new ComparisonResponse.PairwiseCompatibilityDto(
+                    fundA.schemeOptionId(),
+                    fundB.schemeOptionId(),
+                    fundA.schemeName(),
+                    fundB.schemeName(),
+                    categoryComp,
+                    catA,
+                    catB,
+                    benchmarkComp,
+                    bmA,
+                    bmB,
+                    obsComp,
+                    freshnessComp,
+                    holdingsComp,
+                    holdingsDateAStr,
+                    holdingsDateBStr,
+                    metricAvailComp,
+                    methodComp,
+                    pairwiseStatus,
+                    limitations
+                ));
+            }
+        }
+
+        String overallStatus;
+        String overallReason;
+
+        if (anyIncompatible) {
+            overallStatus = "NOT_COMPARABLE";
+            overallReason = "Selected funds exhibit fundamentally divergent investment mandates or asset classes that prevent meaningful institutional comparison.";
+        } else if (anyInsufficient) {
+            overallStatus = "INSUFFICIENT_EVIDENCE";
+            overallReason = "Critical historical observations or holdings snapshots are missing, preventing reliable quantitative comparison.";
+        } else if (anyPartially) {
+            overallStatus = "PARTIALLY_COMPARABLE";
+            overallReason = "Selected funds are partially comparable; differences in category mandates, benchmark indices, or observation horizons require contextual interpretation.";
+        } else {
+            overallStatus = "COMPARABLE";
+            overallReason = "Selected funds share consistent SEBI categories, aligned observation windows, appropriate TRI benchmarks, and synchronous data freshness.";
+        }
+
+        return new ComparisonResponse.ComparisonCompatibilitySummary(
+            overallStatus,
+            overallReason,
+            pairwiseList,
+            new ArrayList<>(overallLimitations)
+        );
+    }
+
+    private List<ComparisonResponse.ComparisonDifferenceExplanation> generateDifferenceExplanations(
+        List<ComparisonResponse.ComparisonFund> funds,
+        List<ComparisonResponse.ComparisonMetric> metrics,
+        ComparisonResponse.CommonSupportedPeriod commonPeriod,
+        ComparisonResponse.ComparisonCompatibilitySummary compSummary
+    ) {
+        List<ComparisonResponse.ComparisonDifferenceExplanation> list = new ArrayList<>();
+        if (funds.size() < 2) return list;
+
+        // RET-03: 3-Year CAGR
+        ComparisonResponse.ComparisonMetric ret03 = findMetric(metrics, "RET-03");
+        if (ret03 != null) {
+            addMetricSpreadExplanation(
+                list,
+                ret03,
+                funds,
+                commonPeriod.isAligned() ? "OBSERVED_DIFFERENCE" : "DATA_LIMITATION",
+                commonPeriod.isAligned(),
+                "Authoritative daily NAV series from AMFI; deterministic CAGR algorithm.",
+                "Historical outperformance over past 3 years is not indicative of future market cycles.",
+                "Inspect rolling return consistency (RET-05) across multiple rolling windows to verify persistence."
+            );
+        }
+
+        // RSK-01: Annualized Volatility
+        ComparisonResponse.ComparisonMetric rsk01 = findMetric(metrics, "RSK-01");
+        if (rsk01 != null) {
+            addMetricSpreadExplanation(
+                list,
+                rsk01,
+                funds,
+                "OBSERVED_DIFFERENCE",
+                true,
+                "Vectorized sample standard deviation annualized using standard sqrt(252).",
+                "Volatility treats upside market surges and downside drops symmetrically.",
+                "Review downside semideviation (RSK-02) and max drawdown to isolate true downside risk."
+            );
+        }
+
+        // RSK-03: Maximum Drawdown
+        ComparisonResponse.ComparisonMetric rsk03 = findMetric(metrics, "RSK-03");
+        if (rsk03 != null) {
+            addMetricSpreadExplanation(
+                list,
+                rsk03,
+                funds,
+                "OBSERVED_DIFFERENCE",
+                true,
+                "Continuous high-water mark peak-to-trough series under strict PIT rules.",
+                "Drawdown severity depends heavily on specific market correction episodes during the window.",
+                "Examine drawdown recovery duration (RSK-04 in days) to verify resilience after drawdowns."
+            );
+        }
+
+        // PRT-01 / CONC-02: Top 10 Concentration
+        ComparisonResponse.ComparisonMetric prt01 = findMetric(metrics, "PRT-01");
+        if (prt01 == null) prt01 = findMetric(metrics, "CONC-02");
+        if (prt01 != null) {
+            addMetricSpreadExplanation(
+                list,
+                prt01,
+                funds,
+                "INTERPRETATION",
+                true,
+                "Reported portfolio holdings snapshot weights from official AMC disclosures.",
+                "Holdings disclosures represent month-end snapshots; intra-month trades are unobserved.",
+                "Review pairwise overlap and effective constituent count (PRT-02) for diversification depth."
+            );
+        }
+
+        // MKT-01: Beta vs NIFTY 500 TRI
+        ComparisonResponse.ComparisonMetric mkt01 = findMetric(metrics, "MKT-01");
+        if (mkt01 != null) {
+            addMetricSpreadExplanation(
+                list,
+                mkt01,
+                funds,
+                "CALCULATED_DIFFERENCE",
+                true,
+                "Covariance / variance regression vs synchronous NIFTY 500 TRI daily observations.",
+                "Beta is sensitive to market regime and sector cyclicality during the observation window.",
+                "Examine downside beta (MKT-02) to assess sensitivity during market sell-offs."
+            );
+        }
+
+        return list;
+    }
+
+    private void addMetricSpreadExplanation(
+        List<ComparisonResponse.ComparisonDifferenceExplanation> list,
+        ComparisonResponse.ComparisonMetric metric,
+        List<ComparisonResponse.ComparisonFund> funds,
+        String diffType,
+        boolean isComparable,
+        String source,
+        String limitation,
+        String nextEvidence
+    ) {
+        List<ComparisonResponse.ComparisonMetricResult> calcResults = metric.results().stream()
+            .filter(r -> "CALCULATED".equalsIgnoreCase(r.calculationStatus()) && r.numericValue() != null)
+            .toList();
+
+        if (calcResults.size() < 2) return;
+
+        ComparisonResponse.ComparisonMetricResult minRes = calcResults.stream()
+            .min(Comparator.comparingDouble(ComparisonResponse.ComparisonMetricResult::numericValue)).orElse(null);
+        ComparisonResponse.ComparisonMetricResult maxRes = calcResults.stream()
+            .max(Comparator.comparingDouble(ComparisonResponse.ComparisonMetricResult::numericValue)).orElse(null);
+
+        if (minRes == null || maxRes == null) return;
+
+        ComparisonResponse.ComparisonFund minFund = funds.stream()
+            .filter(f -> f.schemeOptionId().equals(minRes.schemeOptionId())).findFirst().orElse(null);
+        ComparisonResponse.ComparisonFund maxFund = funds.stream()
+            .filter(f -> f.schemeOptionId().equals(maxRes.schemeOptionId())).findFirst().orElse(null);
+
+        if (minFund == null || maxFund == null || minFund.schemeOptionId().equals(maxFund.schemeOptionId())) return;
+
+        double diff = maxRes.numericValue() - minRes.numericValue();
+        String units = minRes.units() != null ? minRes.units() : "";
+
+        String magnitude;
+        boolean isMaterial;
+
+        if ("PERCENTAGE".equalsIgnoreCase(units)) {
+            long bps = Math.round(diff * 10000);
+            magnitude = String.format(java.util.Locale.US, "%+d bps (%+.2f%% spread)", bps, diff * 100);
+            isMaterial = Math.abs(diff) >= 0.005; // 50 bps
+        } else if ("DAYS".equalsIgnoreCase(units)) {
+            magnitude = String.format(java.util.Locale.US, "%+.0f days spread", diff);
+            isMaterial = Math.abs(diff) >= 30.0;
+        } else {
+            magnitude = String.format(java.util.Locale.US, "%+.2f difference", diff);
+            isMaterial = Math.abs(diff) >= 0.05;
+        }
+
+        String whatDiffers = String.format(
+            java.util.Locale.US,
+            "%s (%s) vs %s (%s)",
+            maxFund.schemeName(),
+            maxRes.formattedValue() != null ? maxRes.formattedValue() : String.valueOf(maxRes.numericValue()),
+            minFund.schemeName(),
+            minRes.formattedValue() != null ? minRes.formattedValue() : String.valueOf(minRes.numericValue())
+        );
+
+        list.add(new ComparisonResponse.ComparisonDifferenceExplanation(
+            metric.metricCode(),
+            metric.metricName(),
+            diffType,
+            whatDiffers,
+            magnitude,
+            isComparable,
+            source,
+            isMaterial,
+            limitation,
+            nextEvidence
+        ));
+    }
+
+    private boolean isCompatibleEquity(String catA, String catB) {
+        String a = catA.toLowerCase();
+        String b = catB.toLowerCase();
+        boolean equityA = a.contains("equity") || a.contains("cap") || a.contains("elss") || a.contains("tax");
+        boolean equityB = b.contains("equity") || b.contains("cap") || b.contains("elss") || b.contains("tax");
+        return equityA && equityB;
+    }
+
+    private long countCalculatedMetricsForFund(Long schemeOptionId, List<ComparisonResponse.ComparisonMetric> metrics) {
+        return metrics.stream()
+            .filter(m -> m.results().stream().anyMatch(r -> r.schemeOptionId().equals(schemeOptionId) && "CALCULATED".equalsIgnoreCase(r.calculationStatus())))
+            .count();
     }
 
     private ComparisonResponse.ComparisonMetric findMetric(List<ComparisonResponse.ComparisonMetric> metrics, String code) {

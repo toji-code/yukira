@@ -23,22 +23,11 @@ public interface RiskFreeObservationRepository extends JpaRepository<RiskFreeObs
     );
 
     @Query(value = """
-        WITH latest_eligible AS (
-            SELECT r.benchmark_code,
-                   r.effective_date,
-                   MAX(r.availability_time) AS max_availability_time
-            FROM risk_free_observation r
-            WHERE r.benchmark_code = :benchmarkCode
-              AND r.effective_date <= :asOfDate
-              AND r.availability_time <= :knowledgeCutoffTime
-            GROUP BY r.benchmark_code, r.effective_date
-        )
-        SELECT r.*
+        SELECT DISTINCT ON (r.effective_date) r.*
         FROM risk_free_observation r
-        JOIN latest_eligible le
-          ON r.benchmark_code = le.benchmark_code
-         AND r.effective_date = le.effective_date
-         AND r.availability_time = le.max_availability_time
+        WHERE r.benchmark_code = :benchmarkCode
+          AND r.effective_date <= :asOfDate
+          AND r.availability_time <= :knowledgeCutoffTime
         ORDER BY r.effective_date ASC, r.availability_time DESC, r.revision_seq DESC, r.source_artifact_id DESC
         """, nativeQuery = true)
     List<RiskFreeObservation> findAuthoritativeObservationsAsOfCutoff(
@@ -48,23 +37,12 @@ public interface RiskFreeObservationRepository extends JpaRepository<RiskFreeObs
     );
 
     @Query(value = """
-        WITH latest_eligible AS (
-            SELECT r.benchmark_code,
-                   r.effective_date,
-                   MAX(r.availability_time) AS max_availability_time
-            FROM risk_free_observation r
-            WHERE r.benchmark_code = :benchmarkCode
-              AND r.effective_date >= :startDate
-              AND r.effective_date <= :endDate
-              AND r.availability_time <= :knowledgeCutoffTime
-            GROUP BY r.benchmark_code, r.effective_date
-        )
-        SELECT r.*
+        SELECT DISTINCT ON (r.effective_date) r.*
         FROM risk_free_observation r
-        JOIN latest_eligible le
-          ON r.benchmark_code = le.benchmark_code
-         AND r.effective_date = le.effective_date
-         AND r.availability_time = le.max_availability_time
+        WHERE r.benchmark_code = :benchmarkCode
+          AND r.effective_date >= :startDate
+          AND r.effective_date <= :endDate
+          AND r.availability_time <= :knowledgeCutoffTime
         ORDER BY r.effective_date ASC, r.availability_time DESC, r.revision_seq DESC, r.source_artifact_id DESC
         """, nativeQuery = true)
     List<RiskFreeObservation> findAuthoritativeObservationsBetween(
@@ -76,6 +54,48 @@ public interface RiskFreeObservationRepository extends JpaRepository<RiskFreeObs
 
     @Query("SELECT COUNT(r) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode AND r.effectiveDate >= :startDate AND r.effectiveDate <= :endDate")
     long countByBenchmarkCodeAndDateRange(
+        @Param("benchmarkCode") String benchmarkCode,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    @Query("SELECT MAX(r.effectiveDate) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode")
+    Optional<LocalDate> findMaxEffectiveDateByBenchmarkCode(@Param("benchmarkCode") String benchmarkCode);
+
+    @Query("SELECT MIN(r.effectiveDate) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode")
+    Optional<LocalDate> findMinEffectiveDateByBenchmarkCode(@Param("benchmarkCode") String benchmarkCode);
+
+    @Query("SELECT MAX(r.availabilityTime) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode")
+    Optional<OffsetDateTime> findMaxAvailabilityTimeByBenchmarkCode(@Param("benchmarkCode") String benchmarkCode);
+
+    @Query("SELECT MAX(r.ingestionTime) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode")
+    Optional<OffsetDateTime> findMaxIngestionTimeByBenchmarkCode(@Param("benchmarkCode") String benchmarkCode);
+
+    @Query("SELECT COUNT(r) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode")
+    long countByBenchmarkCode(@Param("benchmarkCode") String benchmarkCode);
+
+    List<RiskFreeObservation> findByBenchmarkCodeAndEffectiveDateBetweenOrderByEffectiveDateAsc(
+        String benchmarkCode,
+        LocalDate startDate,
+        LocalDate endDate
+    );
+
+    @Query("SELECT COUNT(DISTINCT r.effectiveDate) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode AND r.effectiveDate >= :startDate AND r.effectiveDate <= :endDate AND r.isLatestRevision = true")
+    long countDistinctEffectiveDatesInWindow(
+        @Param("benchmarkCode") String benchmarkCode,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    @Query("SELECT MIN(r.effectiveDate) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode AND r.effectiveDate >= :startDate AND r.effectiveDate <= :endDate AND r.isLatestRevision = true")
+    Optional<LocalDate> findMinEffectiveDateInWindow(
+        @Param("benchmarkCode") String benchmarkCode,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    @Query("SELECT MAX(r.effectiveDate) FROM RiskFreeObservation r WHERE r.benchmarkCode = :benchmarkCode AND r.effectiveDate >= :startDate AND r.effectiveDate <= :endDate AND r.isLatestRevision = true")
+    Optional<LocalDate> findMaxEffectiveDateInWindow(
         @Param("benchmarkCode") String benchmarkCode,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate

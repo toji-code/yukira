@@ -6,7 +6,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 @Repository
 public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnapshot, Long> {
@@ -31,6 +34,15 @@ public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnap
     java.util.List<PortfolioSnapshot> findBySchemeOptionIdAndAvailabilityTimeLessThanEqualOrderByPortfolioDateDescRevisionSeqDesc(Long schemeOptionId, OffsetDateTime knowledgeCutoff);
 
     java.util.List<PortfolioSnapshot> findBySchemeOptionIdOrderByPortfolioDateDescRevisionSeqDesc(Long schemeOptionId);
+
+    default java.util.List<PortfolioSnapshot> findBySchemeOptionIdOrderByPortfolioDateDesc(Long schemeOptionId) {
+        return findBySchemeOptionIdOrderByPortfolioDateDescRevisionSeqDesc(schemeOptionId);
+    }
+
+    List<PortfolioSnapshot> findBySchemeOptionIdAndPortfolioDateLessThanEqualOrderByPortfolioDateDesc(Long schemeOptionId, LocalDate portfolioDate);
+
+    @Query("SELECT s FROM PortfolioSnapshot s WHERE s.schemeOption.plan.scheme.id = :schemeId ORDER BY s.portfolioDate DESC")
+    List<PortfolioSnapshot> findBySchemeIdOrderByReportingDateDesc(@Param("schemeId") Long schemeId);
 
     boolean existsBySchemeOptionIdAndPortfolioDateAfter(Long schemeOptionId, LocalDate portfolioDate);
 }

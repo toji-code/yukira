@@ -54,6 +54,8 @@ public class InvestorPortfolioHolding {
     public void setUnits(BigDecimal units) { this.units = units; }
     public BigDecimal getCostBasisAmount() { return costBasisAmount; }
     public void setCostBasisAmount(BigDecimal costBasisAmount) { this.costBasisAmount = costBasisAmount; }
+    public BigDecimal getCostBasis() { return costBasisAmount; }
+    public void setCostBasis(BigDecimal costBasis) { this.costBasisAmount = costBasis; }
     public ZonedDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(ZonedDateTime createdAt) { this.createdAt = createdAt; }
     public ZonedDateTime getUpdatedAt() { return updatedAt; }

@@ -60,9 +60,11 @@ public class InvestorTargetAllocation {
     public void setSchemeOption(SchemeOption schemeOption) { this.schemeOption = schemeOption; }
 
     public String getCategoryName() { return categoryName; }
+    public String getAssetClass() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }
 
     public BigDecimal getTargetWeightPercentage() { return targetWeightPercentage; }
+    public BigDecimal getTargetPercentage() { return targetWeightPercentage; }
     public void setTargetWeightPercentage(BigDecimal targetWeightPercentage) { this.targetWeightPercentage = targetWeightPercentage; }
 
     public ZonedDateTime getCreatedAt() { return createdAt; }

@@ -193,7 +193,7 @@ public class PilotBootstrapService {
      */
     @Transactional
     public com.yukira.backend.ingestion.fbil.FbilTBillIngestionService.FbilIngestionSummary bootstrapHistoricalFbil() {
-        LocalDate startDate = LocalDate.of(2021, 1, 15);
+        LocalDate startDate = LocalDate.of(2021, 1, 1);
         LocalDate endDate = LocalDate.of(2026, 10, 1);
         long count = riskFreeObservationRepository.countByBenchmarkCodeAndDateRange("FBIL_91D_TBILL", startDate, endDate);
         if (count < 1000) {
@@ -378,7 +378,14 @@ public class PilotBootstrapService {
     @Transactional
     public void bootstrapFundEnrichment() {
         SchemeOption option = ensureCanonicalPilotMaster();
-        Scheme scheme = option.getPlan().getScheme();
+        Scheme scheme = schemeRepository.findByCode(PILOT_SCHEME_CODE)
+            .orElseGet(() -> {
+                SchemePlan plan = option.getPlan();
+                if (plan != null && plan.getId() != null) {
+                    plan = schemePlanRepository.findById(plan.getId()).orElse(plan);
+                }
+                return plan != null ? plan.getScheme() : null;
+            });
 
         // 1. Authoritative DataSource & SourceArtifacts
         DataSource hdfcSource = dataSourceRepository.findByCode("HDFC_AMC")

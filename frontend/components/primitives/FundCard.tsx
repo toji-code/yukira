@@ -14,6 +14,7 @@ interface FundCardProps {
   isWatchlisted: boolean;
   onToggleWatchlist: (id: number, optionId?: number, metadata?: Partial<WatchlistResponse>) => void;
   onOptionSelect?: (schemeId: number, optionId: number) => void;
+  returnUrl?: string;
 }
 
 export function FundCard({
@@ -24,6 +25,7 @@ export function FundCard({
   isWatchlisted,
   onToggleWatchlist,
   onOptionSelect,
+  returnUrl,
 }: FundCardProps) {
   const [options, setOptions] = useState<SchemeOption[]>(initialOptions || []);
   const [loadingOptions, setLoadingOptions] = useState<boolean>(!initialOptions || initialOptions.length === 0);
@@ -115,7 +117,9 @@ export function FundCard({
     onToggleWatchlist(scheme.id, activeOption?.id || undefined, metadata);
   };
 
-  const profileHref = activeOption ? `/funds/${scheme.id}?option=${activeOption.id}` : `/funds/${scheme.id}`;
+  const profileHref = activeOption
+    ? `/funds/${scheme.id}?option=${activeOption.id}${returnUrl ? `&from=${encodeURIComponent(returnUrl)}` : ''}`
+    : `/funds/${scheme.id}${returnUrl ? `?from=${encodeURIComponent(returnUrl)}` : ''}`;
   const compareHref = activeOption ? `/compare?ids=${activeOption.id}` : `/compare?ids=${scheme.id}`;
 
   const hasVerifiedNav = Boolean(activeOption?.latestNavDate && (activeOption?.navObservationCount ?? 0) > 0);

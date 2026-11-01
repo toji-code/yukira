@@ -60,9 +60,11 @@ public class SchemeManagerHist implements Serializable {
     public void setRole(String role) { this.role = role; }
 
     public LocalDate getStartDate() { return startDate; }
+    public LocalDate getFromDate() { return startDate; }
     public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
 
     public LocalDate getEndDate() { return endDate; }
+    public LocalDate getToDate() { return endDate; }
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 
     public SourceArtifact getSourceArtifact() { return sourceArtifact; }

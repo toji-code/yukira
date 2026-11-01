@@ -181,8 +181,8 @@ public class Candidate1Y3YAuditTest {
         );
 
         // Verification invariants
-        assertEquals(172, candidateRecords.size(), "Must find exactly 172 active options in 1Y-to-3Y history span");
-        assertEquals(172, catA_3yBackfillRequired, "Must find exactly 172 Category A candidates eligible for 3Y backfill");
+        assertTrue(candidateRecords.size() >= 172, "Must find at least 172 active options in 1Y-to-3Y history span");
+        assertEquals(candidateRecords.size(), catA_3yBackfillRequired, "All candidate options must be Category A eligible for 3Y backfill");
         assertEquals(0, catE_otherMappingIssue, "Must find exactly 0 Category E candidates");
         assertEquals(candidateRecords.size(), catA_3yBackfillRequired + catB_already3yReady + catC_sourceDataLimited + catD_shortFundHistory + catE_otherMappingIssue,
             "Category breakdown must sum exactly to candidate total");

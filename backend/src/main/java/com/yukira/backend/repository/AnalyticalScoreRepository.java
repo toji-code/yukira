@@ -29,6 +29,12 @@ public interface AnalyticalScoreRepository extends JpaRepository<AnalyticalScore
     List<AnalyticalScore> findLatestBySchemeOptionId(@Param("schemeOptionId") Long schemeOptionId);
 
     List<AnalyticalScore> findByAsOfDateAndScoreVersion(LocalDate asOfDate, String scoreVersion);
+
+    @Query("SELECT DISTINCT s.schemeOption.id, s.status FROM AnalyticalScore s WHERE s.asOfDate = :asOfDate AND s.scoreVersion = :scoreVersion")
+    List<Object[]> findScoreStatusesByAsOfDateAndScoreVersion(
+        @Param("asOfDate") LocalDate asOfDate,
+        @Param("scoreVersion") String scoreVersion
+    );
     @Query("""
         SELECT s FROM AnalyticalScore s
         JOIN FETCH s.schemeOption o

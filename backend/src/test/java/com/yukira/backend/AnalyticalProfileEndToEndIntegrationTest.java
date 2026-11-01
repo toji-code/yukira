@@ -67,7 +67,7 @@ public class AnalyticalProfileEndToEndIntegrationTest {
             knowledgeCutoff,
             "APPROVED_M2N",
             null, // defaults to CANONICAL_3Y_PROFILE_METRIC_CODES
-            Map.of("periods_per_year", 252.0, "min_downside_observations", 100)
+            Map.of("periods_per_year", 252.0, "min_downside_observations", 100, "force_recalculate", true)
         );
 
         long runCountBefore = calculationRunRepository.count();

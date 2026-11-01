@@ -1,3 +1,11 @@
+export interface EvidenceClaim {
+  claimText: string;
+  claimType: "OBSERVATION" | "INTERPRETATION" | "RISK" | "LIMITATION" | "HYPOTHESIS";
+  supportingMetricCodes: string[];
+  horizon?: string;
+  methodologyStatus?: string;
+}
+
 export interface GroundedAiInterpretation {
   summary: string;
   whatHappened: string[];
@@ -6,6 +14,7 @@ export interface GroundedAiInterpretation {
   dataQualityCaveats: string[];
   invalidationFactors: string[];
   investigationQuestions: string[];
+  conflictingEvidence?: string[];
   evidenceReferences?: Record<string, unknown>;
   calculationRunId?: number | null;
   schemeOptionId?: number | null;
@@ -17,4 +26,9 @@ export interface GroundedAiInterpretation {
   isFallback: boolean;
   modelProvider?: string;
   generatedAt?: string;
+  horizon?: string;
+  claims?: EvidenceClaim[];
+  returnCharacteristics?: string[];
+  riskCharacteristics?: string[];
+  horizonInterpretation?: string[];
 }

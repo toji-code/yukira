@@ -18,8 +18,10 @@ import java.util.regex.Pattern;
  * Official source discoverer for HDFC Mutual Fund.
  *
  * Epistemic & Discovery Rules:
- * 1. Targets official disclosure index: https://www.hdfcfund.com/statutory-disclosures/monthly-fortnightly-scheme-portfolio
- * 2. Accurately isolates HDFC Flexi Cap Fund (AMFI 118955) from other schemes (Top 100, Mid-Cap, Small Cap).
+ * 1. Targets official disclosure index:
+ * https://www.hdfcfund.com/statutory-disclosures/monthly-fortnightly-scheme-portfolio
+ * 2. Accurately isolates HDFC Flexi Cap Fund (AMFI 118955) from other schemes
+ * (Top 100, Mid-Cap, Small Cap).
  * 3. Extracts authentic reporting month from table row / container metadata.
  * 4. Preserves AWS S3 immutable VersionId query parameters where present.
  * 5. Rejects non-XLSX, malformed links, or conflicting ambiguous candidates.
@@ -33,57 +35,51 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
     public static final String HDFC_BASE_URL = "https://www.hdfcfund.com";
 
     private static final Pattern ROW_OR_BLOCK_PATTERN = Pattern.compile(
-        "<(?:tr|div|li)[^>]*>(.*?)</(?:tr|div|li)>",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
+            "<(?:tr|div|li)[^>]*>(.*?)</(?:tr|div|li)>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private static final Pattern ANCHOR_PATTERN = Pattern.compile(
-        "<a\\b([^>]*?)href=[\"']([^\"']+)[\"']([^>]*?)>(.*?)</a>",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
+            "<a\\b([^>]*?)href=[\"']([^\"']+)[\"']([^>]*?)>(.*?)</a>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
-        DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH),
-        DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.ENGLISH),
-        DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH),
-        DateTimeFormatter.ofPattern("MMMM dd, yyyy", Locale.ENGLISH),
-        DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.ENGLISH),
-        DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH)
-    );
+            DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("MMMM dd, yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.ENGLISH),
+            DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH));
 
     private static final Pattern MONTH_YEAR_PATTERN = Pattern.compile(
-        "\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(\\d{4})\\b",
-        Pattern.CASE_INSENSITIVE
-    );
+            "\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(\\d{4})\\b",
+            Pattern.CASE_INSENSITIVE);
 
     private static final Pattern EXACT_DATE_PATTERN = Pattern.compile(
-        "\\b(\\d{1,2})[- ]+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]+(\\d{4})\\b",
-        Pattern.CASE_INSENSITIVE
-    );
+            "\\b(\\d{1,2})[- ]+(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ]+(\\d{4})\\b",
+            Pattern.CASE_INSENSITIVE);
 
     private final AuthoritativeHoldingsSourceFetcher sourceFetcher;
     private final String indexUrl;
 
     public HdfcHoldingsSourceDiscoverer(
-        AuthoritativeHoldingsSourceFetcher sourceFetcher,
-        @Value("${yukira.holdings.discovery.hdfc-url:" + DEFAULT_INDEX_URL + "}") String indexUrl
-    ) {
+            AuthoritativeHoldingsSourceFetcher sourceFetcher,
+            @Value("${yukira.holdings.discovery.hdfc-url:" + DEFAULT_INDEX_URL + "}") String indexUrl) {
         this.sourceFetcher = sourceFetcher;
         this.indexUrl = indexUrl != null && !indexUrl.isBlank() ? indexUrl.trim() : DEFAULT_INDEX_URL;
     }
 
     @Override
     public boolean supports(String amcCode, String amfiCode) {
-        if ("HDFC_MF".equalsIgnoreCase(amcCode)) return true;
+        if ("HDFC_MF".equalsIgnoreCase(amcCode))
+            return true;
         return "118955".equals(amfiCode);
     }
 
     @Override
     public List<DiscoveredHoldingsCandidate> discoverDisclosures(
-        MonthlyHoldingsSourceRegistry.RegisteredFundConfig fundConfig,
-        LocalDate windowStart,
-        LocalDate windowEnd
-    ) {
+            MonthlyHoldingsSourceRegistry.RegisteredFundConfig fundConfig,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
         if (fundConfig == null) {
             return Collections.emptyList();
         }
@@ -92,14 +88,15 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
         AuthoritativeHoldingsSourceFetcher.HtmlFetchResult fetchResult = sourceFetcher.fetchHtml(indexUrl);
 
         if (!fetchResult.success()) {
-            log.warn("HDFC official disclosure index unreachable (HTTP {}): {}", fetchResult.statusCode(), fetchResult.errorMessage());
+            log.warn("HDFC official disclosure index unreachable (HTTP {}): {}", fetchResult.statusCode(),
+                    fetchResult.errorMessage());
             return List.of(DiscoveredHoldingsCandidate.sourceUnavailable(
-                fundConfig.amcCode(),
-                fundConfig.amfiCode(),
-                fundConfig.schemeName(),
-                windowEnd,
-                "HDFC disclosure index returned HTTP " + fetchResult.statusCode() + ": " + fetchResult.errorMessage()
-            ));
+                    fundConfig.amcCode(),
+                    fundConfig.amfiCode(),
+                    fundConfig.schemeName(),
+                    windowEnd,
+                    "HDFC disclosure index returned HTTP " + fetchResult.statusCode() + ": "
+                            + fetchResult.errorMessage()));
         }
 
         return parseDisclosuresFromHtml(fetchResult.html(), HDFC_BASE_URL, fundConfig, windowStart, windowEnd);
@@ -109,16 +106,15 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
      * Pure deterministic parser for HDFC portfolio disclosure index HTML.
      */
     public List<DiscoveredHoldingsCandidate> parseDisclosuresFromHtml(
-        String html,
-        String baseUri,
-        MonthlyHoldingsSourceRegistry.RegisteredFundConfig fundConfig,
-        LocalDate windowStart,
-        LocalDate windowEnd
-    ) {
+            String html,
+            String baseUri,
+            MonthlyHoldingsSourceRegistry.RegisteredFundConfig fundConfig,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
         if (html == null || html.isBlank()) {
             return List.of(DiscoveredHoldingsCandidate.invalid(
-                fundConfig.amcCode(), fundConfig.amfiCode(), fundConfig.schemeName(), windowEnd, null, "Empty HTML response from HDFC"
-            ));
+                    fundConfig.amcCode(), fundConfig.amfiCode(), fundConfig.schemeName(), windowEnd, null,
+                    "Empty HTML response from HDFC"));
         }
 
         Map<LocalDate, List<String>> candidatesByDate = new LinkedHashMap<>();
@@ -128,14 +124,8 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
             String blockHtml = blockMatcher.group(1);
             String blockUpper = blockHtml.toUpperCase(Locale.ROOT);
 
-            // Must match HDFC Flexi Cap specifically and avoid other schemes
-            boolean isFlexi = blockUpper.contains("FLEXI CAP") || blockUpper.contains("FLEXICAP");
-            if (!isFlexi) {
-                continue;
-            }
-
-            if (blockUpper.contains("TOP 100") || blockUpper.contains("MID-CAP") ||
-                blockUpper.contains("SMALL CAP") || blockUpper.contains("BALANCED ADVANTAGE")) {
+            // Must match target scheme specifically and avoid colliding with other schemes
+            if (!matchesTargetScheme(blockUpper, fundConfig.schemeName())) {
                 continue;
             }
 
@@ -145,8 +135,10 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
                 continue;
             }
 
-            if (windowStart != null && reportingDate.isBefore(windowStart)) continue;
-            if (windowEnd != null && reportingDate.isAfter(windowEnd)) continue;
+            if (windowStart != null && reportingDate.isBefore(windowStart))
+                continue;
+            if (windowEnd != null && reportingDate.isAfter(windowEnd))
+                continue;
 
             // Find XLSX download link
             Matcher anchorMatcher = ANCHOR_PATTERN.matcher(blockHtml);
@@ -161,12 +153,11 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
 
         if (candidatesByDate.isEmpty()) {
             return List.of(DiscoveredHoldingsCandidate.notYetPublished(
-                fundConfig.amcCode(),
-                fundConfig.amfiCode(),
-                fundConfig.schemeName(),
-                windowEnd,
-                "No published disclosure discovered for HDFC Flexi Cap in requested window"
-            ));
+                    fundConfig.amcCode(),
+                    fundConfig.amfiCode(),
+                    fundConfig.schemeName(),
+                    windowEnd,
+                    "No published disclosure discovered for HDFC Flexi Cap in requested window"));
         }
 
         List<DiscoveredHoldingsCandidate> results = new ArrayList<>();
@@ -178,43 +169,41 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
             if (distinctUrls.size() > 1) {
                 log.warn("Ambiguous multiple disclosure candidates for HDFC Flexi Cap on {}: {}", date, distinctUrls);
                 results.add(DiscoveredHoldingsCandidate.ambiguous(
-                    fundConfig.amcCode(),
-                    fundConfig.amfiCode(),
-                    fundConfig.schemeName(),
-                    date,
-                    "Ambiguous candidates found for " + date + ": " + distinctUrls
-                ));
+                        fundConfig.amcCode(),
+                        fundConfig.amfiCode(),
+                        fundConfig.schemeName(),
+                        date,
+                        "Ambiguous candidates found for " + date + ": " + distinctUrls));
             } else {
                 String selectedUrl = urls.get(0);
-                OffsetDateTime statutoryAvailability = date.plusMonths(1).withDayOfMonth(10).atTime(23, 59, 59, 0).atOffset(ZoneOffset.ofHoursMinutes(5, 30));
+                OffsetDateTime statutoryAvailability = date.plusMonths(1).withDayOfMonth(10).atTime(23, 59, 59, 0)
+                        .atOffset(ZoneOffset.ofHoursMinutes(5, 30));
 
                 MonthlyHoldingsSourceDescriptor descriptor = new MonthlyHoldingsSourceDescriptor(
-                    fundConfig.amcCode(),
-                    fundConfig.amcName(),
-                    fundConfig.schemeCode(),
-                    fundConfig.schemeName(),
-                    fundConfig.amfiCode(),
-                    fundConfig.isin(),
-                    null,
-                    selectedUrl,
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "XLSX",
-                    date,
-                    statutoryAvailability,
-                    "SEBI_AMC_DISCLOSURE",
-                    "OFFICIAL_DISCOVERY",
-                    "V1_OPENXML"
-                );
+                        fundConfig.amcCode(),
+                        fundConfig.amcName(),
+                        fundConfig.schemeCode(),
+                        fundConfig.schemeName(),
+                        fundConfig.amfiCode(),
+                        fundConfig.isin(),
+                        null,
+                        selectedUrl,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "XLSX",
+                        date,
+                        statutoryAvailability,
+                        "SEBI_AMC_DISCLOSURE",
+                        "OFFICIAL_DISCOVERY",
+                        "V1_OPENXML");
 
                 results.add(DiscoveredHoldingsCandidate.discovered(
-                    fundConfig.amcCode(),
-                    fundConfig.amfiCode(),
-                    fundConfig.schemeName(),
-                    date,
-                    statutoryAvailability,
-                    selectedUrl,
-                    descriptor
-                ));
+                        fundConfig.amcCode(),
+                        fundConfig.amfiCode(),
+                        fundConfig.schemeName(),
+                        date,
+                        statutoryAvailability,
+                        selectedUrl,
+                        descriptor));
             }
         }
 
@@ -229,7 +218,8 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
             for (DateTimeFormatter fmt : DATE_FORMATTERS) {
                 try {
                     return LocalDate.parse(dateStr, fmt);
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
         }
 
@@ -242,10 +232,41 @@ public class HdfcHoldingsSourceDiscoverer implements OfficialHoldingsDiscoveryCl
                 Month month = Month.valueOf(monthName.toUpperCase(Locale.ROOT));
                 int lastDay = month.length(java.time.Year.isLeap(year));
                 return LocalDate.of(year, month, lastDay);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         return null;
+    }
+
+    private boolean matchesTargetScheme(String blockUpper, String schemeName) {
+        if (schemeName == null || schemeName.isBlank())
+            return false;
+        String sNameUpper = schemeName.toUpperCase(Locale.ROOT);
+
+        if (sNameUpper.contains("TOP 100") || sNameUpper.contains("TOP-100")) {
+            return (blockUpper.contains("TOP 100") || blockUpper.contains("TOP-100")) && !blockUpper.contains("MID-CAP")
+                    && !blockUpper.contains("FLEXI");
+        } else if (sNameUpper.contains("MID-CAP") || sNameUpper.contains("MID CAP") || sNameUpper.contains("MIDCAP")) {
+            return (blockUpper.contains("MID-CAP") || blockUpper.contains("MID CAP") || blockUpper.contains("MIDCAP"))
+                    && !blockUpper.contains("SMALL") && !blockUpper.contains("TOP 100")
+                    && !blockUpper.contains("FLEXI");
+        } else if (sNameUpper.contains("SMALL CAP") || sNameUpper.contains("SMALL-CAP")
+                || sNameUpper.contains("SMALLCAP")) {
+            return (blockUpper.contains("SMALL CAP") || blockUpper.contains("SMALL-CAP")
+                    || blockUpper.contains("SMALLCAP")) && !blockUpper.contains("MID-CAP")
+                    && !blockUpper.contains("TOP 100") && !blockUpper.contains("FLEXI");
+        } else if (sNameUpper.contains("LARGE AND MID") || sNameUpper.contains("LARGE & MID")) {
+            return (blockUpper.contains("LARGE AND MID") || blockUpper.contains("LARGE & MID")
+                    || blockUpper.contains("LARGE & MIDCAP")) && !blockUpper.contains("FLEXI");
+        } else if (sNameUpper.contains("FLEXI")) {
+            boolean isFlexi = blockUpper.contains("FLEXI CAP") || blockUpper.contains("FLEXICAP");
+            if (!isFlexi)
+                return false;
+            return !blockUpper.contains("TOP 100") && !blockUpper.contains("MID-CAP")
+                    && !blockUpper.contains("SMALL CAP") && !blockUpper.contains("BALANCED ADVANTAGE");
+        }
+        return false;
     }
 
     private String resolveUrl(String href, String baseUri) {

@@ -76,7 +76,36 @@ public class FbilSourceClient {
         return sourceArtifactRepository.save(artifact);
     }
 
+    /**
+     * Finds existing authentic stored artifact by date range without hitting external network.
+     */
+    public Optional<SourceArtifact> findStoredArtifact(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return Optional.empty();
+        }
+        String targetUrl = buildUrl(startDate, endDate);
+        return sourceArtifactRepository.findFirstByStorageUri(targetUrl)
+            .filter(a -> a.getPayloadBlob() != null && a.getPayloadBlob().length > 0);
+    }
+
+    /**
+     * Fetches raw FBIL Treasury Bill observations from official portal.
+     * Reuses existing authentic SourceArtifact if one covering the exact request parameters already exists.
+     */
     public SourceArtifact fetchAndPersistArtifact(LocalDate startDate, LocalDate endDate) {
+        return fetchAndPersistArtifact(startDate, endDate, false);
+    }
+
+    /**
+     * Fetches raw FBIL Treasury Bill observations with optional forced refresh.
+     */
+    public SourceArtifact fetchAndPersistArtifact(LocalDate startDate, LocalDate endDate, boolean forceRefresh) {
+        if (!forceRefresh) {
+            Optional<SourceArtifact> stored = findStoredArtifact(startDate, endDate);
+            if (stored.isPresent()) {
+                return stored.get();
+            }
+        }
         String targetUrl = buildUrl(startDate, endDate);
         byte[] rawBytes = executeHttpGet(targetUrl);
         return createOrGetSourceArtifact(targetUrl, rawBytes);

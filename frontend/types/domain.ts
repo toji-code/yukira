@@ -7,6 +7,7 @@ export interface Amc {
 export interface ScoreDimensionSummary {
   id?: number;
   dimension: string;
+  dimensionCode?: string;
   dimensionName: string;
   score?: number | null;
   weight: number;

@@ -123,7 +123,8 @@ def compute_rolling_cagrs(
 def rolling_return_distribution(cagrs: Sequence[float]) -> dict[str, Any]:
     """
     Computes statistical distribution across rolling CAGR observations (§RET-05).
-    Includes: count, mean, median, min, max, 25th percentile, 75th percentile, and sample std dev.
+    Includes: count, mean, median, min, max, 10th/25th/75th/90th percentiles,
+    sample std dev, and positive/negative return frequencies.
     """
     if len(cagrs) == 0:
         return {
@@ -132,9 +133,15 @@ def rolling_return_distribution(cagrs: Sequence[float]) -> dict[str, Any]:
             "median": None,
             "min": None,
             "max": None,
+            "p10": None,
             "p25": None,
             "p75": None,
+            "p90": None,
             "std_dev": None,
+            "positive_count": 0,
+            "negative_count": 0,
+            "positive_percentage": None,
+            "negative_percentage": None,
         }
 
     valid_cagrs = [float(x) for x in cagrs if math.isfinite(x)]
@@ -146,9 +153,15 @@ def rolling_return_distribution(cagrs: Sequence[float]) -> dict[str, Any]:
             "median": None,
             "min": None,
             "max": None,
+            "p10": None,
             "p25": None,
             "p75": None,
+            "p90": None,
             "std_dev": None,
+            "positive_count": 0,
+            "negative_count": 0,
+            "positive_percentage": None,
+            "negative_percentage": None,
         }
 
     mean_val = sum(valid_cagrs) / n
@@ -164,10 +177,20 @@ def rolling_return_distribution(cagrs: Sequence[float]) -> dict[str, Any]:
     max_val = sorted_cagrs[-1]
 
     # Percentiles using nearest rank / linear position
+    idx_p10 = max(0, min(int(n * 0.10), n - 1))
     idx_p25 = max(0, min(int(n * 0.25), n - 1))
     idx_p75 = max(0, min(int(n * 0.75), n - 1))
+    idx_p90 = max(0, min(int(n * 0.90), n - 1))
+    p10_val = sorted_cagrs[idx_p10]
     p25_val = sorted_cagrs[idx_p25]
     p75_val = sorted_cagrs[idx_p75]
+    p90_val = sorted_cagrs[idx_p90]
+
+    # Frequencies
+    pos_count = sum(1 for x in valid_cagrs if x > 0.0)
+    neg_count = sum(1 for x in valid_cagrs if x < 0.0)
+    pos_pct = (pos_count / float(n)) * 100.0
+    neg_pct = (neg_count / float(n)) * 100.0
 
     # Sample standard deviation (N - 1 denominator)
     if n >= 2:
@@ -182,9 +205,15 @@ def rolling_return_distribution(cagrs: Sequence[float]) -> dict[str, Any]:
         "median": median_val,
         "min": min_val,
         "max": max_val,
+        "p10": p10_val,
         "p25": p25_val,
         "p75": p75_val,
+        "p90": p90_val,
         "std_dev": std_dev,
+        "positive_count": pos_count,
+        "negative_count": neg_count,
+        "positive_percentage": pos_pct,
+        "negative_percentage": neg_pct,
     }
 
 
@@ -210,6 +239,10 @@ def rolling_outperformance(
             "underperforming_windows": 0,
             "outperformance_percentage": None,
             "mean_excess_return": None,
+            "median_excess_return": None,
+            "min_excess_return": None,
+            "max_excess_return": None,
+            "attribution_disclaimer": "Historical rolling outperformance does not guarantee future outperformance and does not isolate fund manager skill.",
         }
 
     outperform_count = 0
@@ -228,12 +261,25 @@ def rolling_outperformance(
     outperform_pct = (outperform_count / float(paired_count)) * 100.0
     mean_excess = sum(excess_returns) / float(paired_count) if paired_count > 0 else 0.0
 
+    sorted_excess = sorted(excess_returns)
+    if paired_count % 2 == 1:
+        median_excess = sorted_excess[paired_count // 2]
+    else:
+        median_excess = (sorted_excess[(paired_count // 2) - 1] + sorted_excess[paired_count // 2]) / 2.0
+
+    min_excess = sorted_excess[0]
+    max_excess = sorted_excess[-1]
+
     return {
         "paired_windows": paired_count,
         "outperforming_windows": outperform_count,
         "underperforming_windows": underperform_count,
         "outperformance_percentage": outperform_pct,
         "mean_excess_return": mean_excess,
+        "median_excess_return": median_excess,
+        "min_excess_return": min_excess,
+        "max_excess_return": max_excess,
+        "attribution_disclaimer": "Historical rolling outperformance does not guarantee future outperformance and does not isolate fund manager skill.",
     }
 
 
@@ -243,20 +289,26 @@ def compute_rolling_windows(
     period_type: str = "3Y",
 ) -> dict[str, Any]:
     """
-    Wrapper for computing rolling return distribution for a given period type.
+    Wrapper for computing rolling return distribution for a given period type (1Y, 3Y, 5Y).
     """
     allowed_periods = {"1Y": 1, "3Y": 3, "5Y": 5}
     if period_type not in allowed_periods:
         raise ValueError(f"Unsupported period: {period_type}")
     window_years = allowed_periods[period_type]
+    min_windows = 200 if window_years == 1 else (450 if window_years == 3 else 900)
     windows = compute_rolling_cagrs(dates, values, window_years=window_years)
     dist = rolling_return_distribution([w["cagr"] for w in windows])
-    status = "CALCULATED" if dist["count"] >= 450 else "INSUFFICIENT_DATA"
+    status = "CALCULATED" if dist["count"] >= min_windows else "INSUFFICIENT_DATA"
+    earliest_date = windows[0]["start_date"] if windows else None
+    latest_date = windows[-1]["end_date"] if windows else None
     return {
         "metric_code": "RET-05",
         "period_type": period_type,
         "status": status,
         "windows_calculated": dist["count"],
+        "min_windows_required": min_windows,
+        "earliest_start_date": earliest_date,
+        "latest_end_date": latest_date,
         "distribution": dist,
     }
 
@@ -275,14 +327,20 @@ def compute_rolling_excess_returns(
     if period_type not in allowed_periods:
         raise ValueError(f"Unsupported period: {period_type}")
     window_years = allowed_periods[period_type]
+    min_windows = 200 if window_years == 1 else (450 if window_years == 3 else 900)
     f_wins = compute_rolling_cagrs(fund_dates, fund_navs, window_years=window_years)
     b_wins = compute_rolling_cagrs(bench_dates, bench_navs, window_years=window_years)
     outperf = rolling_outperformance(f_wins, b_wins)
-    status = "CALCULATED" if outperf["paired_windows"] >= 450 else "INSUFFICIENT_DATA"
+    status = "CALCULATED" if outperf["paired_windows"] >= min_windows else "INSUFFICIENT_DATA"
+    earliest_date = f_wins[0]["start_date"] if f_wins else None
+    latest_date = f_wins[-1]["end_date"] if f_wins else None
     return {
         "metric_code": "RET-06",
         "period_type": period_type,
         "status": status,
+        "min_windows_required": min_windows,
+        "earliest_start_date": earliest_date,
+        "latest_end_date": latest_date,
         **outperf,
     }
 

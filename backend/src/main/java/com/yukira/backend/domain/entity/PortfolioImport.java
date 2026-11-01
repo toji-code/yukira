@@ -55,6 +55,27 @@ public class PortfolioImport {
     @Column(name = "confirmed_at")
     private ZonedDateTime confirmedAt;
 
+    @Column(name = "source_hash", length = 64)
+    private String sourceHash;
+
+    @Column(name = "statement_period_start")
+    private LocalDate statementPeriodStart;
+
+    @Column(name = "statement_period_end")
+    private LocalDate statementPeriodEnd;
+
+    @Column(name = "investor_pan_masked", length = 32)
+    private String investorPanMasked;
+
+    @Column(name = "total_transactions_count")
+    private int totalTransactionsCount;
+
+    @Column(name = "reconciliation_diagnostics", columnDefinition = "text")
+    private String reconciliationDiagnostics;
+
+    @Column(name = "completed_at")
+    private ZonedDateTime completedAt;
+
     @OneToMany(mappedBy = "portfolioImport", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PortfolioImportHolding> holdings = new ArrayList<>();
 
@@ -107,4 +128,25 @@ public class PortfolioImport {
 
     public List<PortfolioImportHolding> getHoldings() { return holdings; }
     public void setHoldings(List<PortfolioImportHolding> holdings) { this.holdings = holdings; }
+
+    public String getSourceHash() { return sourceHash; }
+    public void setSourceHash(String sourceHash) { this.sourceHash = sourceHash; }
+
+    public LocalDate getStatementPeriodStart() { return statementPeriodStart; }
+    public void setStatementPeriodStart(LocalDate statementPeriodStart) { this.statementPeriodStart = statementPeriodStart; }
+
+    public LocalDate getStatementPeriodEnd() { return statementPeriodEnd; }
+    public void setStatementPeriodEnd(LocalDate statementPeriodEnd) { this.statementPeriodEnd = statementPeriodEnd; }
+
+    public String getInvestorPanMasked() { return investorPanMasked; }
+    public void setInvestorPanMasked(String investorPanMasked) { this.investorPanMasked = investorPanMasked; }
+
+    public int getTotalTransactionsCount() { return totalTransactionsCount; }
+    public void setTotalTransactionsCount(int totalTransactionsCount) { this.totalTransactionsCount = totalTransactionsCount; }
+
+    public String getReconciliationDiagnostics() { return reconciliationDiagnostics; }
+    public void setReconciliationDiagnostics(String reconciliationDiagnostics) { this.reconciliationDiagnostics = reconciliationDiagnostics; }
+
+    public ZonedDateTime getCompletedAt() { return completedAt; }
+    public void setCompletedAt(ZonedDateTime completedAt) { this.completedAt = completedAt; }
 }

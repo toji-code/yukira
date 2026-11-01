@@ -14,7 +14,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -89,14 +91,14 @@ public class AmfiUniverseIngestionService {
     /**
      * Fetches the live AMFI daily universe from portal.amfiindia.com/spages/NAVAll.txt
      * and deterministically ingests or updates the catalog.
+     * Note: Does not hold a database transaction across the external HTTP download.
      */
-    @Transactional
     public UniverseIngestionSummary fetchAndIngestLiveUniverse() {
         if (amfiSourceClient == null) {
             throw new IllegalStateException("AmfiSourceClient not available for live universe ingestion");
         }
         SourceArtifact artifact = amfiSourceClient.fetchAndPersistUniverseCatalogArtifact();
-        return processArtifact(artifact);
+        return ingestUniverseArtifact(artifact);
     }
 
     /**
@@ -104,8 +106,12 @@ public class AmfiUniverseIngestionService {
      */
     @Transactional
     public UniverseIngestionSummary ingestUniversePayload(byte[] payloadBytes, String sourceUri) {
-        if (payloadBytes == null || payloadBytes.length == 0) {
-            throw new IllegalArgumentException("Payload bytes must not be null or empty");
+        if (payloadBytes == null || payloadBytes.length < 50) {
+            throw new IllegalArgumentException("Payload bytes must not be null or insufficient (< 50 bytes)");
+        }
+        String prefix = new String(payloadBytes, 0, Math.min(payloadBytes.length, 150), WINDOWS_1252).trim().toLowerCase();
+        if (prefix.startsWith("<") || prefix.contains("<html") || prefix.contains("<!doctype")) {
+            throw new IllegalArgumentException("Payload contains HTML error page instead of valid AMFI text feed");
         }
 
         String sha256 = computeSha256(payloadBytes);
@@ -273,7 +279,9 @@ public class AmfiUniverseIngestionService {
                     continue;
                 }
 
-                String schemeCode = tokens[0].trim();
+                String schemeCode = (hasDynamicHeader && schemeCodeCol >= 0 && schemeCodeCol < tokens.length)
+                    ? tokens[schemeCodeCol].trim()
+                    : tokens[0].trim();
                 if (!isNumeric(schemeCode)) {
                     missingAmfiCodeCount++;
                     if (issuesCreated < 100) {
@@ -320,13 +328,14 @@ public class AmfiUniverseIngestionService {
                 }
 
                 // Recency / Active Status determination:
-                // Options reporting NAV in current period (2025/2026) are ACTIVE; older are INACTIVE
+                LocalDate obsDate = parseObservationDate(dateStr);
                 boolean isActive = false;
-                if (!dateStr.isBlank()) {
+                if (obsDate != null) {
+                    // Active if within 180 days of current date or within recent operational window (year >= 2024)
+                    isActive = obsDate.isAfter(LocalDate.now().minusDays(180)) || obsDate.getYear() >= 2024;
+                } else if (!dateStr.isBlank()) {
                     String lowerDate = dateStr.toLowerCase();
-                    if (lowerDate.contains("2026") || lowerDate.contains("2025")) {
-                        isActive = true;
-                    }
+                    isActive = lowerDate.contains("2024") || lowerDate.contains("2025") || lowerDate.contains("2026") || lowerDate.contains("2027");
                 }
                 String optionStatus = isActive ? "ACTIVE" : "INACTIVE";
 
@@ -450,10 +459,36 @@ public class AmfiUniverseIngestionService {
                 String baseSchemeName = decomp.baseSchemeName();
                 String schemeCodeIdentifier = resolveSchemeCode(amc.getCode(), baseSchemeName);
                 Scheme scheme = schemeByCode.get(schemeCodeIdentifier);
+                if (scheme != null && !scheme.getAmc().getId().equals(amc.getId())) {
+                    schemeCodeIdentifier = disambiguateSchemeCode(amc.getCode(), schemeCodeIdentifier);
+                    scheme = schemeByCode.get(schemeCodeIdentifier);
+                }
                 if (scheme == null) {
                     Optional<Scheme> existingScheme = schemeRepository.findByCode(schemeCodeIdentifier);
                     if (existingScheme.isPresent()) {
-                        scheme = existingScheme.get();
+                        Scheme candidate = existingScheme.get();
+                        if (candidate.getAmc().getId().equals(amc.getId())) {
+                            scheme = candidate;
+                        } else {
+                            schemeCodeIdentifier = disambiguateSchemeCode(amc.getCode(), schemeCodeIdentifier);
+                            scheme = schemeByCode.get(schemeCodeIdentifier);
+                            if (scheme == null) {
+                                Optional<Scheme> disambiguatedScheme = schemeRepository.findByCode(schemeCodeIdentifier);
+                                if (disambiguatedScheme.isPresent()) {
+                                    scheme = disambiguatedScheme.get();
+                                } else {
+                                    scheme = schemeRepository.save(new Scheme(
+                                        amc,
+                                        baseSchemeName,
+                                        schemeCodeIdentifier,
+                                        null,
+                                        currentCategory,
+                                        currentSubcategory
+                                    ));
+                                    schemesRegistered++;
+                                }
+                            }
+                        }
                     } else {
                         scheme = schemeRepository.save(new Scheme(
                             amc,
@@ -684,6 +719,15 @@ public class AmfiUniverseIngestionService {
         return slug;
     }
 
+    private String disambiguateSchemeCode(String amcCode, String slug) {
+        String cleanAmc = (amcCode != null) ? amcCode.replace("_MF", "") : "AMC";
+        String combined = cleanAmc + "_" + slug;
+        if (combined.length() > 80) {
+            combined = combined.substring(0, 80);
+        }
+        return combined;
+    }
+
     private String resolvePlanCode(String schemeCode, String planType) {
         // Canonical pilot preservation
         if ("HDFC_FLEXI".equals(schemeCode) && "DIRECT".equalsIgnoreCase(planType)) {
@@ -834,6 +878,25 @@ public class AmfiUniverseIngestionService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm unavailable", e);
         }
+    }
+
+    private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
+        DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ENGLISH)
+    );
+
+    private LocalDate parseObservationDate(String dateStr) {
+        if (dateStr == null || dateStr.isBlank() || dateStr.equalsIgnoreCase("n.a.") || dateStr.equalsIgnoreCase("null")) {
+            return null;
+        }
+        for (DateTimeFormatter dtf : DATE_FORMATTERS) {
+            try {
+                return LocalDate.parse(dateStr.trim(), dtf);
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     public record DecomposedScheme(

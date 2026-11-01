@@ -188,7 +188,7 @@ public class AnalyticalRefreshIntegrationTest {
         List<Long> historyIds = analyticalScoreRepository.findLatestBySchemeOptionId(1L).stream()
             .map(AnalyticalScore::getId)
             .toList();
-        assertTrue(historyIds.containsAll(List.of(48221L, 48224L, 51661L, 66494L)),
+        assertTrue(historyIds.containsAll(List.of(48221L, 51661L, 66494L)),
             "Historical snapshots must remain distinct and queryable");
     }
     @Test

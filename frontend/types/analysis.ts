@@ -184,6 +184,7 @@ export interface ProfileContext {
   asOfDate: string;
   knowledgeCutoffTime: string;
   runStatus: string;
+  horizon?: string;
 }
 
 export interface ProfileMetricItem {
@@ -202,6 +203,11 @@ export interface ProfileMetricItem {
   errorMessage?: string | null;
   diagnostics?: Record<string, unknown>;
   investigationQuestion?: string | null;
+  percentileRank?: number | null;
+  formattedPercentile?: string | null;
+  peerCohortInfo?: string | null;
+  rankingDirection?: string | null;
+  unavailableReason?: string | null;
 }
 
 export interface ProfileProvenance {
@@ -229,6 +235,7 @@ export interface ProfileLimitations {
   knowledgeCutoff: string;
   temporalLimitationDisclosure: string;
   candidateMethodologyDisclaimer: string;
+  requestedHorizon?: string;
 }
 
 export interface AnalyticalProfileResponse {
@@ -248,8 +255,55 @@ export interface ProfileCalculationRequest {
   asOfDate: string;
   knowledgeCutoffTime: string;
   methodologyTag?: string;
+  horizon?: string;
   metricCodes?: string[];
   parameters?: Record<string, unknown>;
+  runId?: number;
+  forceRecalculate?: boolean;
+}
+
+export interface MetricHorizonEligibilityDto {
+  metricCode: string;
+  metricName: string;
+  category: string;
+  horizon: string;
+  lookbackYears: number;
+  implementationStatus: string;
+  methodologyStatus: string;
+  governanceStatus: string;
+  methodologyVersion: string;
+  requiredSeries: string[];
+  observationAlignmentRequired: string;
+  defaultObservationThreshold: number;
+  formulaDescription: string;
+  annualizationConvention: string;
+  knownLimitations: string;
+}
+
+export interface BenchmarkObservationItem {
+  observationId: number;
+  effectiveDate: string;
+  triValue: number;
+  revisionSeq: number;
+  isLatestRevision: boolean;
+  availabilityTime: string;
+  sourceArtifactSha256?: string | null;
+}
+
+export interface BenchmarkObservationSeriesDto {
+  benchmarkId: number;
+  benchmarkCode: string;
+  benchmarkName: string;
+  mappingStatus: string;
+  startDate: string;
+  analysisCutoffDate: string;
+  knowledgeCutoffTime: string;
+  totalObservations: number;
+  firstObservationDate: string | null;
+  latestObservationDate: string | null;
+  firstTriValue: number | null;
+  latestTriValue: number | null;
+  observations: BenchmarkObservationItem[];
 }
 
 export interface QualityAuditContext {
@@ -414,6 +468,7 @@ export interface RollingConsistencyResponse {
   context: RollingContext;
   primary3Y: RollingHorizonResult;
   supporting1Y: RollingHorizonResult;
+  candidate5Y?: RollingHorizonResult;
   sampleWindows: RollingWindowSample[];
   adverseWindows?: RollingWindowSample[];
   regimes?: MarketRegimeSummary[];

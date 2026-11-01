@@ -1,11 +1,18 @@
 package com.yukira.backend.service;
 
+import com.yukira.backend.domain.entity.Benchmark;
+import com.yukira.backend.domain.entity.BenchmarkObservation;
 import com.yukira.backend.domain.entity.NavObservation;
 import com.yukira.backend.domain.entity.SchemeOption;
 import com.yukira.backend.dto.analysis.AnalyticalObservationSeriesDto;
 import com.yukira.backend.dto.analysis.AnalyticalObservationSeriesDto.*;
+import com.yukira.backend.dto.analysis.BenchmarkObservationSeriesDto;
+import com.yukira.backend.dto.analysis.BenchmarkObservationSeriesDto.BenchmarkObservationItem;
+import com.yukira.backend.repository.BenchmarkObservationRepository;
+import com.yukira.backend.repository.BenchmarkRepository;
 import com.yukira.backend.repository.NavObservationRepository;
 import com.yukira.backend.repository.SchemeOptionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +38,9 @@ public class HistoricalAnalyticalDataService {
     private final NavObservationRepository navObservationRepository;
     private final PitObservationResolutionService pitResolutionService;
     private final TradingDateContinuityService continuityService;
+    private final BenchmarkObservationRepository benchmarkObservationRepository;
+    private final BenchmarkResolutionService benchmarkResolutionService;
+    private final BenchmarkRepository benchmarkRepository;
 
     public HistoricalAnalyticalDataService(
         SchemeOptionRepository schemeOptionRepository,
@@ -38,10 +48,26 @@ public class HistoricalAnalyticalDataService {
         PitObservationResolutionService pitResolutionService,
         TradingDateContinuityService continuityService
     ) {
+        this(schemeOptionRepository, navObservationRepository, pitResolutionService, continuityService, null, null, null);
+    }
+
+    @Autowired
+    public HistoricalAnalyticalDataService(
+        SchemeOptionRepository schemeOptionRepository,
+        NavObservationRepository navObservationRepository,
+        PitObservationResolutionService pitResolutionService,
+        TradingDateContinuityService continuityService,
+        @Autowired(required = false) BenchmarkObservationRepository benchmarkObservationRepository,
+        @Autowired(required = false) BenchmarkResolutionService benchmarkResolutionService,
+        @Autowired(required = false) BenchmarkRepository benchmarkRepository
+    ) {
         this.schemeOptionRepository = schemeOptionRepository;
         this.navObservationRepository = navObservationRepository;
         this.pitResolutionService = pitResolutionService;
         this.continuityService = continuityService;
+        this.benchmarkObservationRepository = benchmarkObservationRepository;
+        this.benchmarkResolutionService = benchmarkResolutionService;
+        this.benchmarkRepository = benchmarkRepository;
     }
 
     /**
@@ -168,5 +194,142 @@ public class HistoricalAnalyticalDataService {
         );
 
         return new AnalyticalObservationSeriesDto(identity, bounds, summary, resolvedItems);
+    }
+
+    /**
+     * Retrieves an immutable, point-in-time benchmark TRI observation series for the benchmark mapped to a scheme option.
+     */
+    @Transactional
+    public BenchmarkObservationSeriesDto getHistoricalBenchmarkSeriesForOption(
+        Long schemeOptionId,
+        LocalDate startDate,
+        LocalDate analysisCutoffDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        if (schemeOptionId == null) {
+            throw new IllegalArgumentException("schemeOptionId must not be null");
+        }
+        SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
+            .orElseThrow(() -> new NoSuchElementException("SchemeOption not found for ID: " + schemeOptionId));
+
+        Long benchmarkId = 100L;
+        String mappingStatus = "CANDIDATE_METHODOLOGY_MAPPING";
+        String benchCode = "NIFTY_500_TRI";
+        String benchName = "NIFTY 500 TRI";
+
+        if (benchmarkResolutionService != null) {
+            var res = benchmarkResolutionService.resolveBenchmarkForOption(option, analysisCutoffDate);
+            if (res.benchmark() != null) {
+                benchmarkId = res.benchmark().getId();
+                benchCode = res.benchmark().getCode();
+                benchName = res.benchmark().getName();
+                mappingStatus = res.methodologyStatus();
+            }
+        }
+
+        return getHistoricalBenchmarkSeries(benchmarkId, benchCode, benchName, mappingStatus, startDate, analysisCutoffDate, knowledgeCutoffTime);
+    }
+
+    /**
+     * Retrieves an immutable, point-in-time benchmark TRI observation series directly by benchmark ID.
+     */
+    @Transactional
+    public BenchmarkObservationSeriesDto getHistoricalBenchmarkSeries(
+        Long benchmarkId,
+        LocalDate startDate,
+        LocalDate analysisCutoffDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        String benchCode = "BENCHMARK_" + benchmarkId;
+        String benchName = "Benchmark #" + benchmarkId;
+        if (benchmarkRepository != null) {
+            var bOpt = benchmarkRepository.findById(benchmarkId);
+            if (bOpt.isPresent()) {
+                benchCode = bOpt.get().getCode();
+                benchName = bOpt.get().getName();
+            }
+        }
+        return getHistoricalBenchmarkSeries(benchmarkId, benchCode, benchName, "CANDIDATE_METHODOLOGY_MAPPING", startDate, analysisCutoffDate, knowledgeCutoffTime);
+    }
+
+    private BenchmarkObservationSeriesDto getHistoricalBenchmarkSeries(
+        Long benchmarkId,
+        String benchmarkCode,
+        String benchmarkName,
+        String mappingStatus,
+        LocalDate startDate,
+        LocalDate analysisCutoffDate,
+        OffsetDateTime knowledgeCutoffTime
+    ) {
+        if (benchmarkId == null) {
+            throw new IllegalArgumentException("benchmarkId must not be null");
+        }
+        if (startDate == null || analysisCutoffDate == null) {
+            throw new IllegalArgumentException("startDate and analysisCutoffDate must not be null");
+        }
+        if (analysisCutoffDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("analysisCutoffDate cannot be before startDate");
+        }
+        if (knowledgeCutoffTime == null) {
+            throw new IllegalArgumentException("Strict PIT Invariant: knowledgeCutoffTime must be explicitly specified");
+        }
+        if (analysisCutoffDate.isAfter(knowledgeCutoffTime.toLocalDate())) {
+            throw new IllegalArgumentException(String.format(
+                "Strict PIT Invariant: analysisCutoffDate (%s) cannot exceed knowledgeCutoff date (%s)",
+                analysisCutoffDate, knowledgeCutoffTime.toLocalDate()
+            ));
+        }
+
+        List<BenchmarkObservationItem> resolvedItems = new ArrayList<>();
+        if (benchmarkObservationRepository != null) {
+            List<BenchmarkObservation> candidates = benchmarkObservationRepository.findAuthoritativeObservationsAsOfCutoff(
+                benchmarkId, analysisCutoffDate, knowledgeCutoffTime
+            );
+
+            Map<LocalDate, BenchmarkObservation> mapByDate = new TreeMap<>();
+            for (BenchmarkObservation obs : candidates) {
+                if (!obs.getEffectiveDate().isBefore(startDate) && !obs.getEffectiveDate().isAfter(analysisCutoffDate)) {
+                    BenchmarkObservation existing = mapByDate.get(obs.getEffectiveDate());
+                    if (existing == null || obs.getRevisionSeq() > existing.getRevisionSeq()) {
+                        mapByDate.put(obs.getEffectiveDate(), obs);
+                    }
+                }
+            }
+
+            for (BenchmarkObservation obs : mapByDate.values()) {
+                String artifactHash = obs.getSourceArtifact() != null ? obs.getSourceArtifact().getSha256Hash() : null;
+                resolvedItems.add(new BenchmarkObservationItem(
+                    obs.getId(),
+                    obs.getEffectiveDate(),
+                    obs.getIndexLevel(),
+                    obs.getRevisionSeq(),
+                    Boolean.TRUE.equals(obs.getLatestRevision()),
+                    obs.getAvailabilityTime(),
+                    artifactHash
+                ));
+            }
+        }
+
+        int totalObs = resolvedItems.size();
+        LocalDate firstDate = totalObs > 0 ? resolvedItems.get(0).effectiveDate() : null;
+        LocalDate latestDate = totalObs > 0 ? resolvedItems.get(totalObs - 1).effectiveDate() : null;
+        BigDecimal firstTri = totalObs > 0 ? resolvedItems.get(0).triValue() : null;
+        BigDecimal latestTri = totalObs > 0 ? resolvedItems.get(totalObs - 1).triValue() : null;
+
+        return new BenchmarkObservationSeriesDto(
+            benchmarkId,
+            benchmarkCode,
+            benchmarkName,
+            mappingStatus,
+            startDate,
+            analysisCutoffDate,
+            knowledgeCutoffTime,
+            totalObs,
+            firstDate,
+            latestDate,
+            firstTri,
+            latestTri,
+            resolvedItems
+        );
     }
 }

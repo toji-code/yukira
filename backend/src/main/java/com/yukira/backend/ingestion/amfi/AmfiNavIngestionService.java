@@ -78,7 +78,7 @@ public class AmfiNavIngestionService {
             entityManager.detach(artifact);
         }
         long startTime = System.currentTimeMillis();
-        List<AmfiNavRecord> records = parser.parse(payload);
+        List<AmfiNavRecord> records = parser.parse(payload, targetAmfiCodes);
         log.info("ingestArtifact parsed {} records in {} ms", records.size(), System.currentTimeMillis() - startTime);
 
         SourceArtifact artifactRef = sourceArtifactRepository.getReferenceById(artifact.getId());

@@ -21,9 +21,14 @@ public interface SchemeBenchmarkHistRepository extends JpaRepository<SchemeBench
           AND sb.effectiveFrom <= :asOfDate
           AND (sb.effectiveTo IS NULL OR sb.effectiveTo >= :asOfDate)
           AND sb.isPrimary = TRUE
-        ORDER BY sb.effectiveFrom DESC
+        ORDER BY sb.effectiveFrom DESC, sb.id DESC
         """)
-    Optional<SchemeBenchmarkHist> findPrimaryBenchmarkAsOfDate(@Param("schemeId") Long schemeId, @Param("asOfDate") LocalDate asOfDate);
+    List<SchemeBenchmarkHist> findPrimaryBenchmarksAsOfDate(@Param("schemeId") Long schemeId, @Param("asOfDate") LocalDate asOfDate);
+
+    default Optional<SchemeBenchmarkHist> findPrimaryBenchmarkAsOfDate(Long schemeId, LocalDate asOfDate) {
+        List<SchemeBenchmarkHist> list = findPrimaryBenchmarksAsOfDate(schemeId, asOfDate);
+        return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
+    }
 
     @Query("""
         SELECT sb FROM SchemeBenchmarkHist sb

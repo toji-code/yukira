@@ -271,6 +271,19 @@ export function DataQualityFreshnessSection({
           </span>
         </div>
 
+        <div className="panel-inset mb-4 border-l-2 border-l-accent p-3 bg-surface-raised text-xs text-text-secondary">
+          <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] mb-1">
+            <span className="font-semibold text-text-primary">Cadence Distinction: Reporting Delay vs. Stale NAV</span>
+            <span className="status-badge state-approved text-[9.5px]">Cadence Rule</span>
+          </div>
+          <p className="leading-relaxed">
+            <strong className="text-text-primary">AMFI Reporting Lag vs. Stale NAV:</strong> Normal AMFI end-of-day publication exhibits an expected 1–2 business day delay, as well as exchange holiday intervals. An observation series is flagged as <span className="font-mono text-amber-500 font-semibold">STALE</span> only when missing consecutive trading days exceed the 3-business-day threshold or when an investor evaluates a historical backtest cutoff.
+          </p>
+          <p className="mt-1 leading-relaxed">
+            <strong className="text-text-primary">Decoupled Operational Ingestion:</strong> Financial data freshness measures the point-in-time state of official market filings, completely independent of background crawler daemon schedules, API server uptime, or retry queues.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* NAV CADENCE PANEL */}
           <div className="rounded-xl border border-border bg-surface p-4 flex flex-col justify-between dark:bg-[#161617] dark:border-[#2a2a2b]">

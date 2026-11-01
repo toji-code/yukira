@@ -77,6 +77,22 @@ export interface PortfolioHoldingDto {
   yukiraScore?: YukiraScoreSummary | null;
   portfolioWeight?: number | null;
   riskEvidence?: HoldingRiskEvidenceDto | null;
+  reasonSaved?: string | null;
+  investigationQuestion?: string | null;
+  nextStep?: string | null;
+  valuationFreshnessStatus?: 'VALUATION_CURRENT' | 'VALUATION_STALE' | 'VALUATION_UNAVAILABLE' | 'VALUATION_UNDETERMINED' | string;
+  freshnessExplanation?: string | null;
+  lastKnownValue?: number | null;
+  currentMarketValue?: number | null;
+  navAvailabilityTime?: string | null;
+  navIngestionTime?: string | null;
+  sourceArtifactHash?: string | null;
+  revisionSeq?: number | null;
+  qualityAssessment?: string | null;
+  isSavedInWatchlist?: boolean;
+  savedWatchlistId?: number | null;
+  holdingCompletenessStatus?: 'COMPLETE' | 'PARTIAL' | 'ATTENTION_REQUIRED' | string;
+  missingAttributes?: string[];
 }
 
 export interface CategoryAllocationDto {
@@ -158,6 +174,26 @@ export interface PortfolioSummaryDto {
   concentrationAnalysis?: ConcentrationAnalysisDto | null;
   portfolioAnalyticalScore?: PortfolioAnalyticalScoreDto | null;
   portfolioRiskEvidence?: PortfolioRiskEvidenceSummaryDto | null;
+  distinctSchemeOptionsCount?: number;
+  valuationCoverageMessage?: string;
+  structuredInvestigations?: PortfolioInvestigationItemDto[];
+  currentValuedHoldingsCount?: number;
+  staleValuedHoldingsCount?: number;
+  unavailableHoldingsCount?: number;
+  totalCurrentMarketValue?: number | null;
+  totalLastKnownValue?: number | null;
+  valuationFreshnessState?: 'PORTFOLIO_CURRENT' | 'PORTFOLIO_STALE' | 'PORTFOLIO_PARTIAL' | 'PORTFOLIO_UNAVAILABLE' | 'PORTFOLIO_EMPTY' | string;
+  valuationFreshnessMessage?: string;
+  valuationAsOfDate?: string | null;
+}
+
+export interface PortfolioInvestigationItemDto {
+  category: string;
+  fact: string;
+  interpretation: string;
+  suggestedAction: string;
+  schemeOptionId: number | null;
+  fundName: string | null;
 }
 
 
@@ -256,11 +292,21 @@ export async function fetchPortfolioSummary(): Promise<PortfolioSummaryDto> {
 export async function addPortfolioHolding(
   schemeOptionId: number,
   units: number,
-  costBasisAmount?: number | null
+  costBasisAmount?: number | null,
+  reasonSaved?: string | null,
+  investigationQuestion?: string | null,
+  nextStep?: string | null
 ): Promise<PortfolioHoldingDto> {
   return apiFetch<PortfolioHoldingDto>('/api/v1/portfolio/holdings', {
     method: 'POST',
-    body: JSON.stringify({ schemeOptionId, units, costBasisAmount: costBasisAmount ?? null }),
+    body: JSON.stringify({
+      schemeOptionId,
+      units,
+      costBasisAmount: costBasisAmount ?? null,
+      reasonSaved: reasonSaved ?? null,
+      investigationQuestion: investigationQuestion ?? null,
+      nextStep: nextStep ?? null,
+    }),
   });
 }
 
@@ -2501,6 +2547,8 @@ export interface MultiFundLookThroughResponseDto {
   limitations: string[];
   epistemicDisclosure: Record<string, string>;
   riskDecomposition?: PortfolioRiskDecompositionDto | null;
+  isEqualWeightAssumption?: boolean;
+  investigationPrompts?: string[];
 }
 
 export interface CandidateSimulationRequestDto {
@@ -3111,3 +3159,297 @@ export async function fetchPortfolioRiskDrivers(
 
 
 
+
+// ============================================================================
+// TASK 9: PORTFOLIO-LEVEL INVESTMENT INTELLIGENCE DTOs & API CLIENT
+// ============================================================================
+
+export interface PortfolioPositionAllocationDto {
+  schemeOptionId: number;
+  fundName: string;
+  amcName: string;
+  category: string;
+  planType: string;
+  optionType: string;
+  units: number;
+  latestNav: number | null;
+  navEffectiveDate: string | null;
+  marketValue: number | null;
+  portfolioWeightPct: number | null;
+  valuationState: 'VALUATION_AVAILABLE' | 'VALUATION_UNAVAILABLE';
+  holdingsDisclosureState: string;
+  holdingsPortfolioDate: string | null;
+  holdingsDisclosedSumPct: number | null;
+}
+
+export interface PortfolioValuationBasisDto {
+  allocationMode: 'ACTUAL' | 'EXPLORATORY_EQUAL_WEIGHT';
+  totalPositionsCount: number;
+  valuedPositionsCount: number;
+  unvaluedPositionsCount: number;
+  distinctSchemesCount: number;
+  distinctAmcsCount: number;
+  totalMarketValue: number;
+  usableLookThroughMarketValue: number;
+  valuationCoveragePct: number;
+  asOfDate: string;
+  knowledgeCutoff: string;
+  positions: PortfolioPositionAllocationDto[];
+  valuationDisclaimers: string[];
+}
+
+export interface FundSecurityExposureContributionDto {
+  schemeOptionId: number;
+  fundName: string;
+  weightInFundPct: number;
+  fundMarketValue: number | null;
+  contributionValue: number;
+  contributionWeightPct: number;
+}
+
+export interface ConsolidatedPortfolioSecurityDto {
+  canonicalName: string;
+  isin: string | null;
+  macroSector: string;
+  marketCapCategory: string;
+  exposureValue: number;
+  portfolioExposurePct: number;
+  disclosedExposurePct: number;
+  contributingFundsCount: number;
+  isRepeatedAcrossFunds: boolean;
+  contributions: FundSecurityExposureContributionDto[];
+}
+
+export interface PortfolioHoldingsCoverageSummaryDto {
+  coverageState: 'FULL_DISCLOSURE' | 'PARTIAL_DISCLOSURE' | 'STALE_DISCLOSURE' | 'NO_DISCLOSURE' | string;
+  usableDisclosedValue: number;
+  usableDisclosedPct: number;
+  staleDisclosedValue: number;
+  staleDisclosedPct: number;
+  undisclosedResidualValue: number;
+  undisclosedResidualPct: number;
+  fundsWithDisclosedHoldings: number;
+  fundsWithStaleHoldings: number;
+  fundsWithMissingHoldings: number;
+  coverageDisclaimers: string[];
+}
+
+export interface PortfolioTopConcentrationDto {
+  tier: string;
+  constituentsCount: number;
+  exposureValue: number;
+  portfolioExposurePct: number;
+  disclosedExposurePct: number;
+  securities: ConsolidatedPortfolioSecurityDto[];
+}
+
+export interface PortfolioConcentrationAnalysisDto {
+  herfindahlHirschmanIndex: number;
+  effectiveNumberOfConstituents: number;
+  hhiInterpretation: string;
+  concentrationClassification: string;
+  largestIndividualSecurityPct: number;
+  largestSecurityName: string;
+  top5Concentration: PortfolioTopConcentrationDto;
+  top10Concentration: PortfolioTopConcentrationDto;
+  top20Concentration: PortfolioTopConcentrationDto;
+  denominatorBasisNote: string;
+}
+
+export interface PortfolioSectorExposureDto {
+  sectorName: string;
+  exposureValue: number;
+  portfolioExposurePct: number;
+  disclosedExposurePct: number;
+  securitiesCount: number;
+  contributingFundsCount: number;
+  contributingFundNames: string[];
+  topSecurities: SectorTopSecurityDto[];
+}
+
+export interface PortfolioAssetClassExposureDto {
+  assetClass: string;
+  exposureValue: number;
+  portfolioExposurePct: number;
+  disclosedExposurePct: number;
+  disclosureNote: string;
+}
+
+export interface PortfolioSectorAndAssetClassDto {
+  sectors: PortfolioSectorExposureDto[];
+  assetClasses: PortfolioAssetClassExposureDto[];
+  unclassifiedSectorValue: number;
+  unclassifiedSectorPct: number;
+  unclassifiedAssetValue: number;
+  unclassifiedAssetPct: number;
+  assetClassDisclaimer: string;
+}
+
+export interface RepeatedSecurityExposureDto {
+  canonicalName: string;
+  isin: string | null;
+  sector: string;
+  contributingFundsCount: number;
+  totalExposureValue: number;
+  portfolioExposurePct: number;
+  disclosedExposurePct: number;
+  contributions: FundSecurityExposureContributionDto[];
+}
+
+export interface PortfolioOverlapAndDuplicationDto {
+  pairwiseOverlapMatrix: PairwiseOverlapResultDto[];
+  repeatedSecurities: RepeatedSecurityExposureDto[];
+  averagePairwiseOverlapPct: number;
+  maximumPairwiseOverlapPct: number;
+  maxOverlapFundPair: string;
+  distinctSecuritiesCount: number;
+  repeatedSecuritiesCount: number;
+  repeatedSecuritiesCombinedExposureValue: number;
+  repeatedSecuritiesCombinedPortfolioPct: number;
+  interpretiveGuidance: string;
+}
+
+export interface IntelligenceHoldingDriftItemDto {
+  canonicalName: string;
+  isin: string | null;
+  previousWeightPct: number | null;
+  latestWeightPct: number | null;
+  weightDeltaPct: number | null;
+  direction: 'INCREASED' | 'DECREASED' | 'NEW' | 'EXITED' | 'UNCHANGED';
+}
+
+export interface SectorDriftItemDto {
+  sectorName: string;
+  previousWeightPct: number | null;
+  latestWeightPct: number | null;
+  weightDeltaPct: number | null;
+  direction: 'INCREASED' | 'DECREASED' | 'NEW' | 'EXITED' | 'UNCHANGED';
+}
+
+export interface PortfolioExposureDriftDto {
+  driftStatus: 'ANALYSIS_AVAILABLE' | 'INSUFFICIENT_HISTORY' | 'NO_PRIOR_SNAPSHOTS';
+  priorPortfolioDate: string | null;
+  latestPortfolioDate: string | null;
+  comparableFundsCount: number;
+  totalFundsCount: number;
+  topIncreasedSecurities: IntelligenceHoldingDriftItemDto[];
+  topDecreasedSecurities: IntelligenceHoldingDriftItemDto[];
+  sectorDrift: SectorDriftItemDto[];
+  driftDisclaimer: string;
+}
+
+export interface PortfolioConstituentRiskDto {
+  schemeOptionId: number;
+  fundName: string;
+  portfolioWeightPct: number;
+  annualizedVolatility: number | null;
+  downsideSemideviation: number | null;
+  maxDrawdownPct: number | null;
+  betaToCategoryBenchmark: number | null;
+  volatilityAvailability: string;
+}
+
+export interface PortfolioRiskContextDto {
+  portfolioRiskStatus: 'AGGREGATED_RISK_UNAVAILABLE';
+  portfolioVolatilityDisclaimer: string;
+  portfolioSharpeDisclaimer: string;
+  constituentRisks: PortfolioConstituentRiskDto[];
+  governanceNote: string;
+}
+
+export interface FundNavReturnSummaryDto {
+  schemeOptionId: number;
+  fundName: string;
+  nav1YearReturnPct: number | null;
+  nav3YearCagrPct: number | null;
+  navReturnStatus: string;
+}
+
+export interface PortfolioInvestorPerformanceDto {
+  investorPerformanceStatus: 'TRANSACTION_HISTORY_INCOMPLETE' | 'XIRR_UNAVAILABLE';
+  totalInvestedAmount: number | null;
+  currentPortfolioMarketValue: number;
+  unrealizedGainLossAmount: number | null;
+  simplePortfolioReturnPct: number | null;
+  investorXirrPct: number | null;
+  moneyWeightedReturnExplanation: string;
+  constituentNavReturns: FundNavReturnSummaryDto[];
+}
+
+export interface PortfolioResearchFindingDto {
+  findingId: string;
+  findingType: 'FACT' | 'CALCULATED_EXPOSURE' | 'INTERPRETATION' | 'RISK_LIMITATION' | 'UNKNOWN';
+  category: 'CONCENTRATION' | 'OVERLAP' | 'SECTOR' | 'COVERAGE' | 'PERFORMANCE_RISK' | 'GOVERNANCE';
+  headline: string;
+  detailedEvidence: string;
+  suggestedInvestigation: string;
+  actionableFollowUpPrompt: string;
+}
+
+export interface PortfolioResearchBriefDto {
+  briefGeneratedAt: string;
+  portfolioSummaryHeadline: string;
+  findings: PortfolioResearchFindingDto[];
+  recommendedInvestorQuestions: string[];
+}
+
+export interface PortfolioIntelligenceRequestDto {
+  allocationMode?: 'ACTUAL' | 'EXPLORATORY_EQUAL_WEIGHT';
+  asOfDate?: string;
+  knowledgeCutoff?: string;
+  customPositions?: {
+    schemeOptionId: number;
+    units?: number;
+    weightPct?: number;
+  }[];
+}
+
+export interface InvestorPortfolioIntelligenceResponseDto {
+  valuationBasis: PortfolioValuationBasisDto;
+  coverageSummary: PortfolioHoldingsCoverageSummaryDto;
+  underlyingSecurities: ConsolidatedPortfolioSecurityDto[];
+  concentrationAnalysis: PortfolioConcentrationAnalysisDto;
+  sectorAndAssetClass: PortfolioSectorAndAssetClassDto;
+  overlapAndDuplication: PortfolioOverlapAndDuplicationDto;
+  exposureDrift: PortfolioExposureDriftDto;
+  riskContext: PortfolioRiskContextDto;
+  investorPerformance: PortfolioInvestorPerformanceDto;
+  researchBrief: PortfolioResearchBriefDto;
+  governanceDisclaimers: string[];
+}
+
+export async function fetchInvestorPortfolioIntelligence(params?: {
+  allocationMode?: 'ACTUAL' | 'EXPLORATORY_EQUAL_WEIGHT';
+  asOfDate?: string;
+  knowledgeCutoff?: string;
+}): Promise<InvestorPortfolioIntelligenceResponseDto> {
+  const query = new URLSearchParams();
+  if (params?.allocationMode) query.set('allocationMode', params.allocationMode);
+  if (params?.asOfDate) query.set('asOfDate', params.asOfDate);
+  if (params?.knowledgeCutoff) query.set('knowledgeCutoff', params.knowledgeCutoff);
+  const qStr = query.toString();
+  return apiFetch<InvestorPortfolioIntelligenceResponseDto>(
+    `/api/v1/portfolio/intelligence${qStr ? `?${qStr}` : ''}`
+  );
+}
+
+export async function computeCustomPortfolioIntelligence(
+  request: PortfolioIntelligenceRequestDto
+): Promise<InvestorPortfolioIntelligenceResponseDto> {
+  return apiFetch<InvestorPortfolioIntelligenceResponseDto>(
+    '/api/v1/portfolio/intelligence',
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TASK 16: PORTFOLIO RISK & DIVERSIFICATION INTELLIGENCE
+// ---------------------------------------------------------------------------
+export * from '@/types/portfolio-risk';
+export {
+  fetchPortfolioRiskDiversification,
+  evaluatePortfolioRiskDiversification
+} from './portfolio-risk';

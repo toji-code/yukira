@@ -46,15 +46,24 @@ public class BenchmarkDataFreshnessService {
     }
 
     public BenchmarkDataFreshnessDto getFreshnessStatus(LocalDate referenceDate) {
-        Optional<Benchmark> benchmarkOpt = benchmarkRepository.findByCode(NIFTY_500_TRI_CODE);
+        return getFreshnessStatusForBenchmark(NIFTY_500_TRI_CODE, referenceDate);
+    }
+
+    public BenchmarkDataFreshnessDto getFreshnessStatusForBenchmark(String benchmarkCode, LocalDate referenceDate) {
+        String code = (benchmarkCode != null && !benchmarkCode.isBlank()) ? benchmarkCode.trim() : NIFTY_500_TRI_CODE;
+        Optional<Benchmark> benchmarkOpt = benchmarkRepository.findByCode(code);
 
         Optional<SourceArtifact> latestArtifactOpt = sourceArtifactRepository.findTopByOrderByRetrievalTimestampDesc();
 
         if (benchmarkOpt.isEmpty()) {
+            var descOpt = com.yukira.backend.benchmark.CategoryBenchmarkMapping.getDescriptorByCode(code);
+            String name = descOpt.map(com.yukira.backend.benchmark.CategoryBenchmarkMapping.BenchmarkDescriptor::benchmarkName).orElse(code);
+            String provider = descOpt.map(com.yukira.backend.benchmark.CategoryBenchmarkMapping.BenchmarkDescriptor::provider).orElse(NSE_PROVIDER);
+
             return new BenchmarkDataFreshnessDto(
-                NIFTY_500_TRI_CODE,
-                NIFTY_500_TRI_NAME,
-                NSE_PROVIDER,
+                code,
+                name,
+                provider,
                 "UNAVAILABLE",
                 null,
                 null,
@@ -130,5 +139,16 @@ public class BenchmarkDataFreshnessService {
             FRESHNESS_THRESHOLD_DAYS,
             GOVERNANCE_DISCLAIMER
         );
+    }
+
+    /**
+     * Evaluates freshness across all five canonical category benchmarks for the reference universe.
+     */
+    public java.util.Map<String, BenchmarkDataFreshnessDto> getAllCategoryBenchmarksFreshness(LocalDate referenceDate) {
+        java.util.Map<String, BenchmarkDataFreshnessDto> map = new java.util.LinkedHashMap<>();
+        for (var desc : com.yukira.backend.benchmark.CategoryBenchmarkMapping.getAllDescriptors()) {
+            map.put(desc.benchmarkCode(), getFreshnessStatusForBenchmark(desc.benchmarkCode(), referenceDate));
+        }
+        return map;
     }
 }

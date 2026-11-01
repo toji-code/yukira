@@ -8,6 +8,7 @@ import com.yukira.backend.client.dto.CalculationDtos.MetricOutputItemDto;
 import com.yukira.backend.client.dto.CalculationDtos.ObservationItemDto;
 import com.yukira.backend.domain.entity.*;
 import com.yukira.backend.repository.*;
+import com.yukira.backend.universe.AnalyticalHorizon;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +49,16 @@ public class RiskCalculationService {
         String formulaDisclosure,
         int minObservations
     ) {}
+
+    public record VolatilityCalculationResult(
+        boolean isCalculated,
+        Double metricValue,
+        CalculationRun calculationRun
+    ) {
+        public boolean isCalculated() { return isCalculated; }
+        public Double getMetricValue() { return metricValue; }
+        public CalculationRun getCalculationRun() { return calculationRun; }
+    }
 
     private static final Map<String, RiskMetricMeta> METRIC_CONFIG = Map.of(
         "RSK-01", new RiskMetricMeta(
@@ -134,7 +145,39 @@ public class RiskCalculationService {
         OffsetDateTime knowledgeCutoffTime,
         String methodologyTag
     ) {
-        return executeRiskMetricCalculation("RSK-01", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag);
+        return executeRiskMetricCalculation("RSK-01", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag, AnalyticalHorizon.THREE_YEAR);
+    }
+
+    @Transactional
+    public CalculationRun executeRsk01Calculation(
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag,
+        AnalyticalHorizon horizon
+    ) {
+        return executeRiskMetricCalculation("RSK-01", schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag, horizon);
+    }
+
+    @Transactional
+    public VolatilityCalculationResult calculateRsk01Volatility(
+        Long schemeOptionId,
+        LocalDate fromDate,
+        LocalDate toDate,
+        OffsetDateTime knowledgeCutoff
+    ) {
+        try {
+            CalculationRun run = executeRsk01Calculation(schemeOptionId, toDate, knowledgeCutoff, "CANDIDATE_V1", AnalyticalHorizon.THREE_YEAR);
+            if ("COMPLETED".equals(run.getRunStatus())) {
+                List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
+                if (!results.isEmpty() && results.get(0).getMetricValue() != null) {
+                    return new VolatilityCalculationResult(true, results.get(0).getMetricValue().doubleValue(), run);
+                }
+            }
+            return new VolatilityCalculationResult(false, null, run);
+        } catch (Exception e) {
+            return new VolatilityCalculationResult(false, null, null);
+        }
     }
 
     @Transactional
@@ -205,10 +248,24 @@ public class RiskCalculationService {
         OffsetDateTime knowledgeCutoffTime,
         String methodologyTag
     ) {
+        return executeRiskMetricCalculation(metricCode, schemeOptionId, requestedEndDate, knowledgeCutoffTime, methodologyTag, AnalyticalHorizon.THREE_YEAR);
+    }
+
+    @Transactional
+    public CalculationRun executeRiskMetricCalculation(
+        String metricCode,
+        Long schemeOptionId,
+        LocalDate requestedEndDate,
+        OffsetDateTime knowledgeCutoffTime,
+        String methodologyTag,
+        AnalyticalHorizon horizon
+    ) {
         Objects.requireNonNull(metricCode, "metricCode must not be null");
         Objects.requireNonNull(schemeOptionId, "schemeOptionId must not be null");
         Objects.requireNonNull(requestedEndDate, "requestedEndDate must not be null");
         Objects.requireNonNull(knowledgeCutoffTime, "knowledgeCutoffTime must not be null for PIT compliance");
+
+        final AnalyticalHorizon effHorizon = horizon != null ? horizon : AnalyticalHorizon.THREE_YEAR;
 
         RiskMetricMeta meta = METRIC_CONFIG.get(metricCode);
         if (meta == null) {
@@ -222,7 +279,7 @@ public class RiskCalculationService {
             ));
         }
 
-        LocalDate requestedStartDate = requestedEndDate.minusYears(3);
+        LocalDate requestedStartDate = effHorizon.calculateStartDate(requestedEndDate);
         String tag = (methodologyTag != null && !methodologyTag.isBlank()) ? methodologyTag : "CANDIDATE_V1";
 
         SchemeOption option = schemeOptionRepository.findById(schemeOptionId)
@@ -269,24 +326,28 @@ public class RiskCalculationService {
             }
         }
 
-        int minObservationsRequired = meta.minObservations();
+        int minObservationsRequired = (effHorizon == AnalyticalHorizon.THREE_YEAR)
+            ? meta.minObservations()
+            : effHorizon.getDefaultThreshold();
 
         // 2. Minimum observation history check
         if (resolvedObservations.size() < minObservationsRequired) {
             String errorMsg = String.format(
-                "Insufficient observation history for %s: %d valid trading days available between %s and %s, minimum %d required.",
-                metricCode, resolvedObservations.size(), requestedStartDate, requestedEndDate, minObservationsRequired
+                "Insufficient observation history for %s (%s): %d valid trading days available between %s and %s, minimum %d required.",
+                metricCode, effHorizon.getCode(), resolvedObservations.size(), requestedStartDate, requestedEndDate, minObservationsRequired
             );
             run.setRunStatus("FAILED");
             run.setExecutionCompletedAt(OffsetDateTime.now());
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, metricCode, "3Y", null, meta.units(), "INSUFFICIENT_DATA"
+                run, metricCode, effHorizon.getCode(), null, meta.units(), "INSUFFICIENT_DATA"
             );
             metricResult.setErrorMessage(errorMsg);
 
             Map<String, Object> failureDiag = new HashMap<>();
+            failureDiag.put("requested_horizon", effHorizon.getCode());
+            failureDiag.put("horizon_years", effHorizon.getYears());
             failureDiag.put("methodology_status", "CANDIDATE");
             failureDiag.put("methodology_tag", tag);
             failureDiag.put("benchmark_required", false);
@@ -332,6 +393,8 @@ public class RiskCalculationService {
         // 5. Dispatch deterministic calculation to Quant Engine
         try {
             Map<String, Object> params = new HashMap<>();
+            params.put("horizon", effHorizon.getCode());
+            params.put("lookback_years", effHorizon.getYears());
             params.put("periods_per_year", 252.0);
             params.put("min_observations", minObservationsRequired);
             params.put("methodology_status", "CANDIDATE");
@@ -359,13 +422,15 @@ public class RiskCalculationService {
                 MetricResult metricResult = new MetricResult(
                     run,
                     metricCode,
-                    "3Y",
+                    effHorizon.getCode(),
                     item.numericValue(),
                     meta.units(),
                     item.status() != null ? item.status() : "CALCULATED"
                 );
 
                 Map<String, Object> diagnostics = new HashMap<>();
+                diagnostics.put("requested_horizon", effHorizon.getCode());
+                diagnostics.put("horizon_years", effHorizon.getYears());
                 diagnostics.put("methodology_status", "CANDIDATE");
                 diagnostics.put("methodology_tag", tag);
                 diagnostics.put("benchmark_required", false);
@@ -407,11 +472,13 @@ public class RiskCalculationService {
             run.setErrorMessage(errorMsg);
 
             MetricResult metricResult = new MetricResult(
-                run, metricCode, "3Y", null, meta.units(), "FAILED"
+                run, metricCode, effHorizon.getCode(), null, meta.units(), "FAILED"
             );
             metricResult.setErrorMessage(errorMsg);
 
             Map<String, Object> failureDiag = new HashMap<>();
+            failureDiag.put("requested_horizon", effHorizon.getCode());
+            failureDiag.put("horizon_years", effHorizon.getYears());
             failureDiag.put("methodology_status", "CANDIDATE");
             failureDiag.put("methodology_tag", tag);
             failureDiag.put("benchmark_required", false);

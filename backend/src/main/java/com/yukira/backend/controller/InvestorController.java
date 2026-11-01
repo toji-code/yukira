@@ -1,9 +1,12 @@
 package com.yukira.backend.controller;
 
 import com.yukira.backend.domain.entity.Investor;
+import com.yukira.backend.dto.analysis.InvestorComparisonResearchDto;
+import com.yukira.backend.dto.analysis.SaveComparisonResearchRequest;
 import com.yukira.backend.dto.portfolio.PortfolioHoldingDto;
 import com.yukira.backend.dto.portfolio.PortfolioHoldingRequest;
 import com.yukira.backend.dto.portfolio.PortfolioSummaryDto;
+import com.yukira.backend.dto.watchlist.InvestorResearchThesisHistoryDto;
 import com.yukira.backend.dto.watchlist.WatchlistNoteRequest;
 import com.yukira.backend.dto.watchlist.WatchlistRequest;
 import com.yukira.backend.dto.watchlist.WatchlistResponse;
@@ -18,7 +21,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/investor")
+@RequestMapping({"/api/investor", "/api/v1/investors"})
 public class InvestorController {
     private final InvestorService investorService;
     private final InvestorPortfolioService portfolioService;
@@ -31,14 +34,22 @@ public class InvestorController {
     @GetMapping("/account")
     public AccountResponse getAccount(@AuthenticationPrincipal Jwt jwt) {
         String subject = jwt != null ? jwt.getSubject() : null;
-        Investor investor = investorService.getOrCreateInvestor(subject);
-        return new AccountResponse(investor.getId(), investor.getAuth0Subject());
+        return investorService.getAccountSummary(subject);
     }
 
     @GetMapping("/watchlist")
     public List<WatchlistResponse> getWatchlist(@AuthenticationPrincipal Jwt jwt) {
         String subject = jwt != null ? jwt.getSubject() : null;
         return investorService.getWatchlistDtoList(subject);
+    }
+
+    @GetMapping("/watchlist/{watchlistId}/history")
+    public List<InvestorResearchThesisHistoryDto> getWatchlistThesisHistory(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable Long watchlistId
+    ) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        return investorService.getThesisHistory(subject, watchlistId);
     }
 
     @PostMapping("/watchlist")
@@ -99,7 +110,42 @@ public class InvestorController {
         portfolioService.removeHolding(subject, schemeOptionId);
     }
 
-    public record AccountResponse(Long id, String auth0Subject) {}
+    @PostMapping("/workspace/comparisons")
+    public InvestorComparisonResearchDto saveComparison(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody SaveComparisonResearchRequest req
+    ) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        return investorService.saveComparisonResearch(subject, req);
+    }
+
+    @GetMapping("/workspace/comparisons")
+    public List<InvestorComparisonResearchDto> getSavedComparisons(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String subject = jwt != null ? jwt.getSubject() : null;
+        return investorService.getSavedComparisons(subject);
+    }
+
+    public record AccountResponse(
+            Long id,
+            String auth0Subject,
+            String createdAt,
+            int savedFundsCount,
+            int portfolioHoldingsCount,
+            String planId,
+            String planName,
+            String entitlementStatus,
+            String subscriptionStatus
+    ) {
+        public AccountResponse(Long id, String auth0Subject, String createdAt, int savedFundsCount, int portfolioHoldingsCount) {
+            this(id, auth0Subject, createdAt, savedFundsCount, portfolioHoldingsCount, "FREE", "Community Explorer", "STANDARD", "ACTIVE");
+        }
+
+        public AccountResponse(Long id, String auth0Subject) {
+            this(id, auth0Subject, null, 0, 0, "FREE", "Community Explorer", "STANDARD", "ACTIVE");
+        }
+    }
     public record PortfolioRequest(Long schemeOptionId, BigDecimal units, BigDecimal costBasisAmount) {}
     public record PortfolioResponse(Long schemeOptionId, BigDecimal units) {}
 }

@@ -77,11 +77,16 @@ class CalculationOrchestratorServiceTest {
 
     @BeforeEach
     void setUp() {
-        Amc amc = amcRepository.save(new Amc("SBI Funds Management", "SBI_MF"));
-        Scheme scheme = schemeRepository.save(new Scheme(amc, "SBI Bluechip Fund", "SBI_BLUE", LocalDate.of(2006, 1, 1)));
-        SchemePlan plan = schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", "SBI_BLUE_DIR"));
-        schemeOption = schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", "119598", "INF200K01198"));
-        benchmark = benchmarkRepository.save(new Benchmark("NIFTY50_TRI", "NIFTY 50 Total Returns Index", "NSE Indices", "TRI"));
+        Amc amc = amcRepository.findByCode("SBI_MF")
+                .orElseGet(() -> amcRepository.save(new Amc("SBI Funds Management", "SBI_MF")));
+        Scheme scheme = schemeRepository.findByCode("SBI_BLUE").orElseGet(() -> schemeRepository
+                .save(new Scheme(amc, "SBI Bluechip Fund", "SBI_BLUE", LocalDate.of(2006, 1, 1))));
+        SchemePlan plan = schemePlanRepository.findByCode("SBI_BLUE_DIR")
+                .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", "SBI_BLUE_DIR")));
+        schemeOption = schemeOptionRepository.findByAmfiCode("119598").orElseGet(
+                () -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", "119598", "INF200K01198")));
+        benchmark = benchmarkRepository.findByCode("NIFTY50_TRI").orElseGet(() -> benchmarkRepository
+                .save(new Benchmark("NIFTY50_TRI", "NIFTY 50 Total Returns Index", "NSE Indices", "TRI")));
     }
 
     @Test
@@ -91,49 +96,59 @@ class CalculationOrchestratorServiceTest {
         OffsetDateTime tCutoff = OffsetDateTime.of(2026, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
         // Seed 3 historical NAV points
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 6, 1), new BigDecimal("110.00"), 1, tCutoff.minusDays(220)));
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1),
+                new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 6, 1),
+                new BigDecimal("110.00"), 1, tCutoff.minusDays(220)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1),
+                new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
 
         // Seed 3 historical Benchmark points
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 6, 1), new BigDecimal("1050.00"), 1, tCutoff.minusDays(220)));
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1),
+                new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 6, 1),
+                new BigDecimal("1050.00"), 1, tCutoff.minusDays(220)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1),
+                new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
 
         // Seed 3 historical Risk-Free points
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 6, 1), new BigDecimal("0.06850000"), 1, tCutoff.minusDays(220)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1),
+                new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 6, 1),
+                new BigDecimal("0.06850000"), 1, tCutoff.minusDays(220)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1),
+                new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         // Mock Quant Engine response
         CalculationResponseDto mockResponse = new CalculationResponseDto(
-            "REQ-12345",
-            asOfDate.toString(),
-            tCutoff.toString(),
-            "0.1.0-alpha",
-            "mock-git-sha-1234567890abcdef",
-            12.5,
-            List.of(
-                new MetricOutputItemDto("RET-01", "1Y", new BigDecimal("0.20000000"), null, "PERCENTAGE", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
-                new MetricOutputItemDto("RSK-01", "3Y", new BigDecimal("0.14500000"), null, "PERCENTAGE", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
-                new MetricOutputItemDto("RAT-01", "3Y", new BigDecimal("1.25000000"), null, "RATIO", "CALCULATED", Map.of("methodology_status", "APPROVED"), null),
-                new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO", "CALCULATED", Map.of("methodology_status", "APPROVED"), null)
-            ),
-            "SUCCESS",
-            null
-        );
+                "REQ-12345",
+                asOfDate.toString(),
+                tCutoff.toString(),
+                "0.1.0-alpha",
+                "mock-git-sha-1234567890abcdef",
+                12.5,
+                List.of(
+                        new MetricOutputItemDto("RET-01", "1Y", new BigDecimal("0.20000000"), null, "PERCENTAGE",
+                                "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
+                        new MetricOutputItemDto("RSK-01", "3Y", new BigDecimal("0.14500000"), null, "PERCENTAGE",
+                                "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
+                        new MetricOutputItemDto("RAT-01", "3Y", new BigDecimal("1.25000000"), null, "RATIO",
+                                "CALCULATED", Map.of("methodology_status", "APPROVED"), null),
+                        new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO",
+                                "CALCULATED", Map.of("methodology_status", "APPROVED"), null)),
+                "SUCCESS",
+                null);
 
         Mockito.when(quantEngineClient.executeCalculation(any())).thenReturn(mockResponse);
 
         CalculationRun run = calculationOrchestratorService.executeCalculationRun(
-            schemeOption.getId(),
-            benchmark.getId(),
-            asOfDate,
-            tCutoff,
-            List.of("RET-01", "RSK-01", "RAT-01", "REL-01"),
-            "CANDIDATE-V1",
-            Map.of("start_date", "2024-12-01", "risk_free_rate", 0.065)
-        );
+                schemeOption.getId(),
+                benchmark.getId(),
+                asOfDate,
+                tCutoff,
+                List.of("RET-01", "RSK-01", "RAT-01", "REL-01"),
+                "CANDIDATE-V1",
+                Map.of("start_date", "2024-12-01", "risk_free_rate", 0.065));
 
         assertNotNull(run.getId(), "CalculationRun must be persisted with an ID");
         assertEquals("SUCCESS", run.getRunStatus());
@@ -147,43 +162,49 @@ class CalculationOrchestratorServiceTest {
         assertTrue(results.stream().anyMatch(r -> r.getMetricCode().equals("RAT-01")));
         assertTrue(results.stream().anyMatch(r -> r.getMetricCode().equals("REL-01")));
 
-        // Verify CalculationRun -> exact PIT-resolved observation IDs/revisions linkage (3 NAV + 3 BM + 3 RF = 9)
+        // Verify CalculationRun -> exact PIT-resolved observation IDs/revisions linkage
+        // (3 NAV + 3 BM + 3 RF = 9)
         List<CalculationRunInputObservation> inputObs = calculationRunInputObservationRepository
-            .findByCalculationRunId(run.getId());
+                .findByCalculationRunId(run.getId());
         assertEquals(9, inputObs.size(), "Must persist exactly 9 input observation references (3 NAV + 3 BM + 3 RF)");
 
         List<CalculationRunInputObservation> navInputs = inputObs.stream()
-            .filter(i -> i.getNavObservation() != null)
-            .toList();
+                .filter(i -> i.getNavObservation() != null)
+                .toList();
         assertEquals(3, navInputs.size(), "Must have exactly 3 NAV observation references");
         for (CalculationRunInputObservation navRef : navInputs) {
             assertNotNull(navRef.getNavObservation().getId(), "Referenced NAV observation ID must not be null");
             assertNull(navRef.getBenchmarkObservation(), "Benchmark observation must be null for NAV reference");
             assertNull(navRef.getRiskFreeObservation(), "RiskFree observation must be null for NAV reference");
-            assertTrue(navObservationRepository.existsById(navRef.getNavObservation().getId()), "Referenced NAV observation must exist in DB");
+            assertTrue(navObservationRepository.existsById(navRef.getNavObservation().getId()),
+                    "Referenced NAV observation must exist in DB");
             assertEquals(1, navRef.getRevisionSeq(), "Revision seq must match observed sequence");
         }
 
         List<CalculationRunInputObservation> bmInputs = inputObs.stream()
-            .filter(i -> i.getBenchmarkObservation() != null)
-            .toList();
+                .filter(i -> i.getBenchmarkObservation() != null)
+                .toList();
         assertEquals(3, bmInputs.size(), "Must have exactly 3 Benchmark observation references");
         for (CalculationRunInputObservation bmRef : bmInputs) {
-            assertNotNull(bmRef.getBenchmarkObservation().getId(), "Referenced Benchmark observation ID must not be null");
+            assertNotNull(bmRef.getBenchmarkObservation().getId(),
+                    "Referenced Benchmark observation ID must not be null");
             assertNull(bmRef.getNavObservation(), "NAV observation must be null for Benchmark reference");
             assertNull(bmRef.getRiskFreeObservation(), "RiskFree observation must be null for Benchmark reference");
-            assertTrue(benchmarkObservationRepository.existsById(bmRef.getBenchmarkObservation().getId()), "Referenced Benchmark observation must exist in DB");
+            assertTrue(benchmarkObservationRepository.existsById(bmRef.getBenchmarkObservation().getId()),
+                    "Referenced Benchmark observation must exist in DB");
             assertEquals(1, bmRef.getRevisionSeq(), "Revision seq must match observed sequence");
         }
 
         List<CalculationRunInputObservation> rfInputs = inputObs.stream()
-            .filter(i -> i.getRiskFreeObservation() != null)
-            .toList();
+                .filter(i -> i.getRiskFreeObservation() != null)
+                .toList();
         assertEquals(3, rfInputs.size(), "Must have exactly 3 RiskFree observation references");
         for (CalculationRunInputObservation rfRef : rfInputs) {
-            assertNotNull(rfRef.getRiskFreeObservation().getId(), "Referenced RiskFree observation ID must not be null");
+            assertNotNull(rfRef.getRiskFreeObservation().getId(),
+                    "Referenced RiskFree observation ID must not be null");
             assertNull(navRefOrBm(rfRef), "NAV and BM observations must be null for RiskFree reference");
-            assertTrue(riskFreeObservationRepository.existsById(rfRef.getRiskFreeObservation().getId()), "Referenced RiskFree observation must exist in DB");
+            assertTrue(riskFreeObservationRepository.existsById(rfRef.getRiskFreeObservation().getId()),
+                    "Referenced RiskFree observation must exist in DB");
             assertEquals(1, rfRef.getRevisionSeq(), "Revision seq must match observed sequence");
         }
 
@@ -198,8 +219,10 @@ class CalculationOrchestratorServiceTest {
     }
 
     private Object navRefOrBm(CalculationRunInputObservation ref) {
-        if (ref.getNavObservation() != null) return ref.getNavObservation();
-        if (ref.getBenchmarkObservation() != null) return ref.getBenchmarkObservation();
+        if (ref.getNavObservation() != null)
+            return ref.getNavObservation();
+        if (ref.getBenchmarkObservation() != null)
+            return ref.getBenchmarkObservation();
         return null;
     }
 
@@ -209,39 +232,44 @@ class CalculationOrchestratorServiceTest {
         LocalDate asOfDate = LocalDate.of(2026, 1, 15);
         OffsetDateTime tCutoff = OffsetDateTime.of(2026, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1),
+                new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1),
+                new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1),
+                new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1),
+                new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1),
+                new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1),
+                new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         CalculationResponseDto mockResponse = new CalculationResponseDto(
-            "REQ-ALIAS",
-            asOfDate.toString(),
-            tCutoff.toString(),
-            "0.1.0-alpha",
-            "mock-git-sha-alias",
-            8.0,
-            List.of(
-                new MetricOutputItemDto("MKT-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
-                new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.05900000"), null, "PERCENTAGE", "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null)
-            ),
-            "SUCCESS",
-            null
-        );
+                "REQ-ALIAS",
+                asOfDate.toString(),
+                tCutoff.toString(),
+                "0.1.0-alpha",
+                "mock-git-sha-alias",
+                8.0,
+                List.of(
+                        new MetricOutputItemDto("MKT-01", "3Y", new BigDecimal("0.95000000"), null, "RATIO",
+                                "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null),
+                        new MetricOutputItemDto("REL-01", "3Y", new BigDecimal("0.05900000"), null, "PERCENTAGE",
+                                "CALCULATED", Map.of("methodology_status", "CANDIDATE"), null)),
+                "SUCCESS",
+                null);
 
         Mockito.when(quantEngineClient.executeCalculation(any())).thenReturn(mockResponse);
 
         CalculationRun run = calculationOrchestratorService.executeCalculationRun(
-            schemeOption.getId(),
-            benchmark.getId(),
-            asOfDate,
-            tCutoff,
-            List.of("MKT-01", "REL-01", "MKT-01"),
-            "CANDIDATE-V1",
-            Map.of("start_date", "2024-12-01")
-        );
+                schemeOption.getId(),
+                benchmark.getId(),
+                asOfDate,
+                tCutoff,
+                List.of("MKT-01", "REL-01", "MKT-01"),
+                "CANDIDATE-V1",
+                Map.of("start_date", "2024-12-01"));
 
         ArgumentCaptor<CalculationRequestDto> captor = ArgumentCaptor.forClass(CalculationRequestDto.class);
         Mockito.verify(quantEngineClient).executeCalculation(captor.capture());
@@ -260,25 +288,30 @@ class CalculationOrchestratorServiceTest {
         LocalDate asOfDate = LocalDate.of(2026, 1, 15);
         OffsetDateTime tCutoff = OffsetDateTime.of(2026, 1, 15, 23, 59, 59, 0, ZoneOffset.ofHoursMinutes(5, 30));
 
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1), new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
-        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1), new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1), new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
-        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1), new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1), new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1), new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2025, 1, 1),
+                new BigDecimal("100.00"), 1, tCutoff.minusDays(370)));
+        navObservationRepository.save(new NavObservation(schemeOption, LocalDate.of(2026, 1, 1),
+                new BigDecimal("120.00"), 1, tCutoff.minusDays(14)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2025, 1, 1),
+                new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
+        benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1),
+                new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1),
+                new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
+        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1),
+                new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         Mockito.when(quantEngineClient.executeCalculation(any()))
-            .thenThrow(new RuntimeException("Connection refused"));
+                .thenThrow(new RuntimeException("Connection refused"));
 
         CalculationRun run = calculationOrchestratorService.executeCalculationRun(
-            schemeOption.getId(),
-            benchmark.getId(),
-            asOfDate,
-            tCutoff,
-            List.of("RET-03", "MKT-01", "MKT-05"),
-            "CANDIDATE-V1",
-            Map.of("start_date", "2024-12-01")
-        );
+                schemeOption.getId(),
+                benchmark.getId(),
+                asOfDate,
+                tCutoff,
+                List.of("RET-03", "MKT-01", "MKT-05"),
+                "CANDIDATE-V1",
+                Map.of("start_date", "2024-12-01"));
 
         assertEquals("FAILED", run.getRunStatus());
         assertEquals("PYTHON-QUANT-UNAVAILABLE", run.getEngineSoftwareVersion());
@@ -288,20 +321,20 @@ class CalculationOrchestratorServiceTest {
         List<MetricResult> results = metricResultRepository.findByCalculationRunId(run.getId());
         assertTrue(results.isEmpty(), "Non-authoritative Java fallback must not persist MetricResults");
 
-        List<CalculationRunInputObservation> inputObs = calculationRunInputObservationRepository.findByCalculationRunId(run.getId());
+        List<CalculationRunInputObservation> inputObs = calculationRunInputObservationRepository
+                .findByCalculationRunId(run.getId());
         assertEquals(6, inputObs.size(), "Failed run must preserve PIT input provenance references");
 
         Mockito.verify(quantEngineClient).executeCalculation(any());
     }
+
     @Test
     @DisplayName("Test database-enforced referential integrity on calculation_run_input_observation (CHECK constraint for exactly one FK)")
     void testCalculationInputReferentialIntegrityCheckConstraint() {
         MethodologyVersion mv = methodologyVersionRepository.save(new MethodologyVersion(
-            "METH-INTEGRITY-TEST", "v1.0-test", "CANDIDATE", "mock-commit-integrity"
-        ));
+                "METH-INTEGRITY-TEST", "v1.0-test", "CANDIDATE", "mock-commit-integrity"));
         CalculationRun run = calculationRunRepository.save(new CalculationRun(
-            schemeOption, benchmark, LocalDate.of(2026, 1, 15), OffsetDateTime.now(), mv, "TEST-ENGINE"
-        ));
+                schemeOption, benchmark, LocalDate.of(2026, 1, 15), OffsetDateTime.now(), mv, "TEST-ENGINE"));
 
         // All null -> violates chk_run_input_exactly_one_fk
         CalculationRunInputObservation invalidAllNull = new CalculationRunInputObservation();
@@ -321,17 +354,15 @@ class CalculationOrchestratorServiceTest {
     @DisplayName("Test valid single RiskFree observation FK in calculation_run_input_observation succeeds")
     void testRiskFreeInputObservationLinkageSucceeds() {
         MethodologyVersion mv = methodologyVersionRepository.save(new MethodologyVersion(
-            "METH-RF-TEST", "v1.0-test", "CANDIDATE", "mock-commit-rf"
-        ));
+                "METH-RF-TEST", "v1.0-test", "CANDIDATE", "mock-commit-rf"));
         CalculationRun run = calculationRunRepository.save(new CalculationRun(
-            schemeOption, benchmark, LocalDate.of(2026, 1, 15), OffsetDateTime.now(), mv, "TEST-ENGINE"
-        ));
+                schemeOption, benchmark, LocalDate.of(2026, 1, 15), OffsetDateTime.now(), mv, "TEST-ENGINE"));
 
         RiskFreeObservation rf = riskFreeObservationRepository.save(new RiskFreeObservation(
-            "FBIL_91D_TBILL", LocalDate.of(2026, 1, 15), new BigDecimal("0.06900000"), 1, OffsetDateTime.now()
-        ));
+                "FBIL_91D_TBILL", LocalDate.of(2026, 1, 15), new BigDecimal("0.06900000"), 1, OffsetDateTime.now()));
 
-        CalculationRunInputObservation validRf = new CalculationRunInputObservation(run, rf, rf.getEffectiveDate(), rf.getRevisionSeq());
+        CalculationRunInputObservation validRf = new CalculationRunInputObservation(run, rf, rf.getEffectiveDate(),
+                rf.getRevisionSeq());
         CalculationRunInputObservation saved = calculationRunInputObservationRepository.saveAndFlush(validRf);
         assertNotNull(saved.getId());
         assertEquals(rf.getId(), saved.getRiskFreeObservation().getId());
