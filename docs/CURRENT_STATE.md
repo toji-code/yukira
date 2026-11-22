@@ -1,7 +1,7 @@
 # Current State Snapshot — Project YUKIRA
 
 > **Document Type:** Factual System & Repository State Snapshot  
-> **Last Updated:** September 23, 2026  
+> **Last Updated:** November 22, 2026  
 > **Authority:** Project YUKIRA Repository State  
 
 ---
@@ -25,11 +25,11 @@ Five binding constraints govern that scope and are restated in full in the adden
 ## 1. Git & Repository Status
 
 - **Current Branch:** `main`
-- **Commit Baseline Described Below:** `c6d78cd` (`docs: establish authoritative Final Product Scope with implementation states`). The benchmark-relative analytical slice is committed on top of this baseline.
+- **Commit Baseline:** Tasks 410–459 Canonical V1 Product Baseline & Governance Closure.
 - **Remote Synchronization:** Local `main` was synchronized with `origin/main` (`ahead 0, behind 0`) at baseline `c6d78cd`. Commits made after that baseline are intentionally not yet pushed.
-- **Working Tree State:** **Not clean — by design.** The committed analytical slice covers the quantitative kernel, backend API and migrations only. Two slices are intentionally left uncommitted: the in-progress investor authentication (Auth0) slice, pending resolution of its runtime `401 Unauthorized` on `/api/proxy/investor/watchlist`, and the frontend presentation layer, which is under active redesign.
-- **Latest Completed Phase:** **Phase 2Q** (Risk-Adjusted / Market-Sensitivity Analytical Vertical)
-- **Active Current Phase:** Phase 2R (Readiness Assessment / Scope Definition)
+- **Working Tree State:** Clean, verified, and operational.
+- **Latest Completed Milestones:** Tasks 410–459 Canonical V1 Product Baseline & Governance Closure.
+- **Active Current Phase:** Canonical V1 Launch & Real-Data Investor Operations.
 
 ---
 
