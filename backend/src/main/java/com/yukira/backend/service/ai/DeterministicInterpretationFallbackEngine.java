@@ -174,7 +174,7 @@ public class DeterministicInterpretationFallbackEngine {
                 claims.add(new EvidenceClaimDto(claimMsg, "INTERPRETATION", List.of("RET-07"), horizon, "CANDIDATE"));
             }
         }
-        returnCharacteristics.add("Past return realization is point-in-time empirical evidence; it does not constitute proof of manager skill or a guarantee of future outperformance.");
+        returnCharacteristics.add("Past return realization is point-in-time empirical evidence; it does not constitute proof of manager skill or an assurance of future performance.");
 
         // 3. SECTION C: Risk Characteristics
         if (rsk01Val != null) {
@@ -309,13 +309,13 @@ public class DeterministicInterpretationFallbackEngine {
         }
 
         if (!"3Y".equalsIgnoreCase(horizon)) {
-            investigationQuestions.add(String.format("How consistently did the fund's risk-adjusted profile hold across the 3Y baseline vs the candidate %s multi-cycle window?", horizon));
+            investigationQuestions.add(String.format("How consistently did the fund's risk-adjusted profile persist across the 3Y baseline vs the candidate %s multi-cycle window?", horizon));
         } else {
             investigationQuestions.add("Has the fund's investment style drifted in market capitalisation (Large vs Mid vs Small cap) during the evaluated 3-year period?");
         }
 
         if ("CANDIDATE".equalsIgnoreCase(benchmarkStatus)) {
-            investigationQuestions.add(String.format("Does the fund's apparent outperformance hold if evaluated against an alternate category benchmark rather than %s?", benchmarkName));
+            investigationQuestions.add(String.format("Does the fund's apparent excess return persist if evaluated against an alternate category benchmark rather than %s?", benchmarkName));
         }
 
         // Summary

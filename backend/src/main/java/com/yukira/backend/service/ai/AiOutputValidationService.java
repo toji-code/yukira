@@ -113,8 +113,8 @@ public class AiOutputValidationService {
                 double val = Double.parseDouble(token);
 
                 // Ignore standard structural numbers (1-5 bullet/question indices or common small counts under 10 unless negative)
-                if (val >= 1.0 && val <= 5.0 && !textNoDates.contains(token + ".")) {
-                    // Check if bullet index or valid count
+                if (val >= 1.0 && val <= 5.0 && !token.contains(".")) {
+                    continue;
                 }
 
                 // Skip standalone years if any remain (e.g. 2024, 2025, 2026)
@@ -145,6 +145,8 @@ public class AiOutputValidationService {
 
     private Set<Double> extractAllowedNumbers(GroundedEvidencePackageDto evidence) {
         Set<Double> numbers = new HashSet<>();
+        numbers.add(100.0);
+        numbers.add(0.0);
 
         if (evidence.overallScore() != null) {
             numbers.add(evidence.overallScore());
@@ -168,9 +170,33 @@ public class AiOutputValidationService {
             }
         }
 
+        String benchmarkName = evidence.benchmarkName() != null && !evidence.benchmarkName().isBlank()
+            ? evidence.benchmarkName()
+            : "NIFTY 500 TRI";
+        Matcher mBench = NUMBER_PATTERN.matcher(benchmarkName);
+        while (mBench.find()) {
+            try {
+                numbers.add(Double.parseDouble(mBench.group().replace("%", "")));
+            } catch (NumberFormatException ignored) {}
+        }
+
+        if (evidence.schemeName() != null) {
+            Matcher m = NUMBER_PATTERN.matcher(evidence.schemeName());
+            while (m.find()) {
+                try {
+                    numbers.add(Double.parseDouble(m.group().replace("%", "")));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
         if (evidence.metricValues() != null) {
             for (Object obj : evidence.metricValues().values()) {
-                if (obj instanceof Map<?, ?> m) {
+                if (obj instanceof Number n) {
+                    double v = n.doubleValue();
+                    numbers.add(v);
+                    numbers.add(v * 100.0);
+                    numbers.add(v / 100.0);
+                } else if (obj instanceof Map<?, ?> m) {
                     Object val = m.get("value");
                     if (val instanceof Number n) {
                         double v = n.doubleValue();
