@@ -1,13 +1,12 @@
 package com.yukira.backend.service.security;
 
 import com.yukira.backend.domain.entity.Investor;
-import com.yukira.backend.domain.entity.InvestorPortfolio;
-import com.yukira.backend.repository.InvestorPortfolioRepository;
+import com.yukira.backend.domain.entity.PortfolioImport;
 import com.yukira.backend.repository.InvestorRepository;
+import com.yukira.backend.repository.PortfolioImportRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
@@ -30,7 +29,7 @@ class InvestorTenantIsolationTest {
     private InvestorRepository investorRepository;
 
     @Mock
-    private InvestorPortfolioRepository portfolioRepository;
+    private PortfolioImportRepository portfolioImportRepository;
 
     @Test
     @DisplayName("Investor portfolio access succeeds when subject matches owner")
@@ -41,16 +40,16 @@ class InvestorTenantIsolationTest {
         owner.setId(101L);
         owner.setAuth0Subject(authSubject);
 
-        InvestorPortfolio portfolio = new InvestorPortfolio();
+        PortfolioImport portfolio = new PortfolioImport();
         portfolio.setId(501L);
         portfolio.setInvestor(owner);
 
         when(investorRepository.findByAuth0Subject(authSubject)).thenReturn(Optional.of(owner));
-        when(portfolioRepository.findById(501L)).thenReturn(Optional.of(portfolio));
+        when(portfolioImportRepository.findById(501L)).thenReturn(Optional.of(portfolio));
 
         // Ownership verification
         Investor resolved = investorRepository.findByAuth0Subject(authSubject).orElseThrow();
-        InvestorPortfolio retrieved = portfolioRepository.findById(501L).orElseThrow();
+        PortfolioImport retrieved = portfolioImportRepository.findById(501L).orElseThrow();
 
         assertThat(retrieved.getInvestor().getId()).isEqualTo(resolved.getId());
         assertThat(retrieved.getInvestor().getAuth0Subject()).isEqualTo(authSubject);
@@ -70,17 +69,17 @@ class InvestorTenantIsolationTest {
         victim.setId(303L);
         victim.setAuth0Subject(victimSubject);
 
-        InvestorPortfolio victimPortfolio = new InvestorPortfolio();
+        PortfolioImport victimPortfolio = new PortfolioImport();
         victimPortfolio.setId(777L);
         victimPortfolio.setInvestor(victim);
 
         when(investorRepository.findByAuth0Subject(attackerSubject)).thenReturn(Optional.of(attacker));
-        when(portfolioRepository.findById(777L)).thenReturn(Optional.of(victimPortfolio));
+        when(portfolioImportRepository.findById(777L)).thenReturn(Optional.of(victimPortfolio));
 
         // Enforce boundary check
         assertThatThrownBy(() -> {
             Investor caller = investorRepository.findByAuth0Subject(attackerSubject).orElseThrow();
-            InvestorPortfolio resource = portfolioRepository.findById(777L).orElseThrow();
+            PortfolioImport resource = portfolioImportRepository.findById(777L).orElseThrow();
             if (!resource.getInvestor().getId().equals(caller.getId())) {
                 throw new AccessDeniedException("Horizontal privilege escalation detected: caller does not own target portfolio evidence chain.");
             }
@@ -88,4 +87,3 @@ class InvestorTenantIsolationTest {
           .hasMessageContaining("Horizontal privilege escalation detected");
     }
 }
-
