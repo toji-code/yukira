@@ -135,8 +135,14 @@ public class CalculationOrchestratorService {
             benchmarkObservations = new ArrayList<>(dedupBm.values());
         }
 
+        String rfSeriesCode = (parameters != null && parameters.containsKey("risk_free_series"))
+            ? parameters.get("risk_free_series").toString()
+            : (parameters != null && parameters.containsKey("risk_free_benchmark"))
+                ? parameters.get("risk_free_benchmark").toString()
+                : "FBIL_91D_TBILL";
+
         List<RiskFreeObservation> rawRf = riskFreeObservationRepository != null
-            ? riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff("FBIL_91D_TBILL", asOfDate, knowledgeCutoffTime)
+            ? riskFreeObservationRepository.findAuthoritativeObservationsAsOfCutoff(rfSeriesCode, asOfDate, knowledgeCutoffTime)
             : Collections.emptyList();
         Map<LocalDate, RiskFreeObservation> dedupRf = new TreeMap<>();
         for (RiskFreeObservation r : rawRf) {

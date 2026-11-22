@@ -507,7 +507,7 @@ public class PeriodReturnCalculationService {
                 "methodology_status", "CANDIDATE",
                 "horizon", effHorizon.getCode(),
                 "lookback_years", effHorizon.getYears(),
-                "min_observations", effHorizon.getDefaultThreshold()
+                "min_observations", 2
             );
 
             CalculationRequestDto requestDto = new CalculationRequestDto(

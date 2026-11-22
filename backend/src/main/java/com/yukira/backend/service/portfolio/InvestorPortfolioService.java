@@ -974,7 +974,10 @@ public class InvestorPortfolioService {
             return new HoldingRiskEvidenceDto(schemeOptionId, fundName, portfolioWeight, null, "NO_FUND_SCORE", false, "2024-01-15", buildUnavailableMetrics("2024-01-15"));
         }
 
-        AnalyticalScore score = scores.get(0);
+        AnalyticalScore score = scores.stream()
+            .filter(s -> s.getScore() != null && s.getDimensions() != null && !s.getDimensions().isEmpty())
+            .findFirst()
+            .orElse(scores.get(0));
         Double yukiraScoreVal = score.getScore() != null ? score.getScore().doubleValue() : null;
         String scoreStatus = score.getStatus() != null ? score.getStatus() : "CANDIDATE";
         String scoreAsOfDate = score.getAsOfDate() != null ? score.getAsOfDate().toString() : "2024-01-15";
@@ -1019,7 +1022,7 @@ public class InvestorPortfolioService {
 
     private HoldingRiskMetricDto extractMetricDto(Map<String, ScoreMetricContribution> contribMap, String metricCode, String metricName, String defaultUnit, String defaultAsOfDate) {
         ScoreMetricContribution smc = contribMap.get(metricCode);
-        if (smc != null && "ELIGIBLE".equalsIgnoreCase(smc.getEligibility()) && smc.getRawValue() != null) {
+        if (smc != null && smc.getRawValue() != null && ("ELIGIBLE".equalsIgnoreCase(smc.getEligibility()) || "UNCALIBRATED".equalsIgnoreCase(smc.getEligibility()))) {
             BigDecimal rawVal = smc.getRawValue();
             String unit = smc.getUnit() != null ? smc.getUnit() : defaultUnit;
 
@@ -1340,7 +1343,10 @@ public class InvestorPortfolioService {
 
         List<AnalyticalScore> scores = analyticalScoreRepository.findLatestBySchemeOptionId(schemeOptionId);
         if (!scores.isEmpty()) {
-            AnalyticalScore s = scores.get(0);
+            AnalyticalScore s = scores.stream()
+                .filter(sc -> sc.getScore() != null && sc.getDimensions() != null && !sc.getDimensions().isEmpty())
+                .findFirst()
+                .orElse(scores.get(0));
             List<com.yukira.backend.scoring.dto.AnalyticalScoreResponse.DimensionScoreDto> dimDtos = new ArrayList<>();
             if (s.getDimensions() != null) {
                 for (ScoreDimension sd : s.getDimensions()) {
@@ -1391,7 +1397,10 @@ public class InvestorPortfolioService {
 
         List<AnalyticalScore> scores = analyticalScoreRepository.findLatestBySchemeOptionId(schemeOptionId);
         if (!scores.isEmpty()) {
-            AnalyticalScore s = scores.get(0);
+            AnalyticalScore s = scores.stream()
+                .filter(sc -> sc.getScore() != null)
+                .findFirst()
+                .orElse(scores.get(0));
 
             String confidenceStr;
             if (s.getConfidence() != null) {

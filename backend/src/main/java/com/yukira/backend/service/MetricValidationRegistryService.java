@@ -314,12 +314,11 @@ public class MetricValidationRegistryService {
                     "CANONICAL_PILOT_VERIFICATION",
                     referenceDatasetRef != null ? referenceDatasetRef : "AMFI_SERIES_A_CANONICAL_2024",
                     independentMethodology != null ? independentMethodology : "DETERMINISTIC_NUMPY_BENCHMARK",
-                    numericalTolerance != null ? numericalTolerance : java.math.BigDecimal.valueOf(1e-6),
+                    numericalTolerance != null ? java.math.BigDecimal.valueOf(numericalTolerance) : java.math.BigDecimal.valueOf(1e-6),
+                    rationale != null ? rationale : "Validated against canonical historical reference dataset within tolerance.",
                     "PASS",
                     reviewerIdentity != null ? reviewerIdentity : "QUANT_REVIEW_COMMITTEE",
-                    "VALIDATED",
-                    rationale != null ? rationale
-                            : "Validated against canonical historical reference dataset within tolerance.");
+                    "VALIDATED");
             MetricValidationEvidence saved = validationEvidenceRepository.save(evidence);
 
             // Update in-memory catalog
@@ -342,11 +341,11 @@ public class MetricValidationRegistryService {
                     "PRODUCTION_AUTHORIZATION",
                     referenceDatasetRef != null ? referenceDatasetRef : "CANONICAL_BENCHMARK_SUITE",
                     independentMethodology != null ? independentMethodology : "MULTI_REGIME_BENCHMARK",
-                    numericalTolerance != null ? numericalTolerance : java.math.BigDecimal.valueOf(1e-6),
+                    numericalTolerance != null ? java.math.BigDecimal.valueOf(numericalTolerance) : java.math.BigDecimal.valueOf(1e-6),
+                    rationale != null ? rationale : "Formally authorized for live investor decision support.",
                     "PASS",
                     reviewerIdentity != null ? reviewerIdentity : "CHIEF_RISK_OFFICER",
-                    "APPROVED",
-                    rationale != null ? rationale : "Formally authorized for live investor decision support.");
+                    "APPROVED");
             MetricValidationEvidence saved = validationEvidenceRepository.save(evidence);
 
             METRIC_CATALOG.put(code, new Phase2HMetricDefinitionDto(

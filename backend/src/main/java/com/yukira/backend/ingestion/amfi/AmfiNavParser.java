@@ -46,9 +46,9 @@ public class AmfiNavParser {
         Charset charset = WINDOWS_1252;
         int schemeCodeCol = 0;
         int schemeNameCol = 1;
-        int isinGrowthCol = 4;
-        int isinReinvCol = 5;
-        int navCol = 6;
+        int isinGrowthCol = 2;
+        int isinReinvCol = 3;
+        int navCol = 4;
         int dateCol = 7;
         boolean headerDetected = false;
 

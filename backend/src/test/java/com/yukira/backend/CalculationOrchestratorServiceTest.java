@@ -83,10 +83,10 @@ class CalculationOrchestratorServiceTest {
                 .save(new Scheme(amc, "SBI Bluechip Fund", "SBI_BLUE", LocalDate.of(2006, 1, 1))));
         SchemePlan plan = schemePlanRepository.findByCode("SBI_BLUE_DIR")
                 .orElseGet(() -> schemePlanRepository.save(new SchemePlan(scheme, "DIRECT", "SBI_BLUE_DIR")));
-        schemeOption = schemeOptionRepository.findByAmfiCode("119598").orElseGet(
-                () -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", "119598", "INF200K01198")));
-        benchmark = benchmarkRepository.findByCode("NIFTY50_TRI").orElseGet(() -> benchmarkRepository
-                .save(new Benchmark("NIFTY50_TRI", "NIFTY 50 Total Returns Index", "NSE Indices", "TRI")));
+        schemeOption = schemeOptionRepository.findByAmfiCode("TEST_CALC_OPT").orElseGet(
+                () -> schemeOptionRepository.save(new SchemeOption(plan, "GROWTH", "TEST_CALC_OPT", "INF_TEST_CALC_01")));
+        benchmark = benchmarkRepository.findByCode("TEST_CALC_BM").orElseGet(() -> benchmarkRepository
+                .save(new Benchmark("TEST_CALC_BM", "Test Calc BM", "NSE Indices", "TRI")));
     }
 
     @Test
@@ -112,11 +112,11 @@ class CalculationOrchestratorServiceTest {
                 new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
 
         // Seed 3 historical Risk-Free points
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2025, 1, 1),
                 new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 6, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2025, 6, 1),
                 new BigDecimal("0.06850000"), 1, tCutoff.minusDays(220)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2026, 1, 1),
                 new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         // Mock Quant Engine response
@@ -148,7 +148,7 @@ class CalculationOrchestratorServiceTest {
                 tCutoff,
                 List.of("RET-01", "RSK-01", "RAT-01", "REL-01"),
                 "CANDIDATE-V1",
-                Map.of("start_date", "2024-12-01", "risk_free_rate", 0.065));
+                Map.of("start_date", "2024-12-01", "risk_free_rate", 0.065, "risk_free_series", "TEST_CALC_RF"));
 
         assertNotNull(run.getId(), "CalculationRun must be persisted with an ID");
         assertEquals("SUCCESS", run.getRunStatus());
@@ -240,9 +240,9 @@ class CalculationOrchestratorServiceTest {
                 new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
         benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1),
                 new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2025, 1, 1),
                 new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2026, 1, 1),
                 new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         CalculationResponseDto mockResponse = new CalculationResponseDto(
@@ -269,7 +269,7 @@ class CalculationOrchestratorServiceTest {
                 tCutoff,
                 List.of("MKT-01", "REL-01", "MKT-01"),
                 "CANDIDATE-V1",
-                Map.of("start_date", "2024-12-01"));
+                Map.of("start_date", "2024-12-01", "risk_free_series", "TEST_CALC_RF"));
 
         ArgumentCaptor<CalculationRequestDto> captor = ArgumentCaptor.forClass(CalculationRequestDto.class);
         Mockito.verify(quantEngineClient).executeCalculation(captor.capture());
@@ -296,9 +296,9 @@ class CalculationOrchestratorServiceTest {
                 new BigDecimal("1000.00"), 1, tCutoff.minusDays(370)));
         benchmarkObservationRepository.save(new BenchmarkObservation(benchmark, LocalDate.of(2026, 1, 1),
                 new BigDecimal("1150.00"), 1, tCutoff.minusDays(14)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2025, 1, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2025, 1, 1),
                 new BigDecimal("0.06950000"), 1, tCutoff.minusDays(370)));
-        riskFreeObservationRepository.save(new RiskFreeObservation("FBIL_91D_TBILL", LocalDate.of(2026, 1, 1),
+        riskFreeObservationRepository.save(new RiskFreeObservation("TEST_CALC_RF", LocalDate.of(2026, 1, 1),
                 new BigDecimal("0.06900000"), 1, tCutoff.minusDays(14)));
 
         Mockito.when(quantEngineClient.executeCalculation(any()))
@@ -311,7 +311,7 @@ class CalculationOrchestratorServiceTest {
                 tCutoff,
                 List.of("RET-03", "MKT-01", "MKT-05"),
                 "CANDIDATE-V1",
-                Map.of("start_date", "2024-12-01"));
+                Map.of("start_date", "2024-12-01", "risk_free_series", "TEST_CALC_RF"));
 
         assertEquals("FAILED", run.getRunStatus());
         assertEquals("PYTHON-QUANT-UNAVAILABLE", run.getEngineSoftwareVersion());
@@ -359,7 +359,7 @@ class CalculationOrchestratorServiceTest {
                 schemeOption, benchmark, LocalDate.of(2026, 1, 15), OffsetDateTime.now(), mv, "TEST-ENGINE"));
 
         RiskFreeObservation rf = riskFreeObservationRepository.save(new RiskFreeObservation(
-                "FBIL_91D_TBILL", LocalDate.of(2026, 1, 15), new BigDecimal("0.06900000"), 1, OffsetDateTime.now()));
+                "TEST_CALC_RF", LocalDate.of(2026, 1, 15), new BigDecimal("0.06900000"), 1, OffsetDateTime.now()));
 
         CalculationRunInputObservation validRf = new CalculationRunInputObservation(run, rf, rf.getEffectiveDate(),
                 rf.getRevisionSeq());
