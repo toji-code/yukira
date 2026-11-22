@@ -55,3 +55,4 @@ class SensitiveDataMinimizationTest {
             .contains("[REDACTED_STORAGE_PATH]");
     }
 }
+

@@ -87,3 +87,4 @@ class AiInterpretationVersionIntegrityTest {
         verify(versionRepository).save(version);
     }
 }
+

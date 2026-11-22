@@ -107,3 +107,4 @@ class XirrCalculatorTest {
         assertThat(result.netGainAmount()).isEqualByComparingTo(new BigDecimal("2000.00"));
     }
 }
+

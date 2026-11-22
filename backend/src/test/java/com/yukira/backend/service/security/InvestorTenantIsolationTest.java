@@ -88,3 +88,4 @@ class InvestorTenantIsolationTest {
           .hasMessageContaining("Horizontal privilege escalation detected");
     }
 }
+
